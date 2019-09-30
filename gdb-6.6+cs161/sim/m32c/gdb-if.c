@@ -1,26 +1,24 @@
 /* gdb.c --- sim interface to GDB.
 
-Copyright (C) 2005 Free Software Foundation, Inc.
+Copyright (C) 2005-2013 Free Software Foundation, Inc.
 Contributed by Red Hat, Inc.
 
 This file is part of the GNU simulators.
 
-The GNU simulators are free software; you can redistribute them and/or
-modify them under the terms of the GNU General Public License as
-published by the Free Software Foundation; either version 2 of the
-License, or (at your option) any later version.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
-The GNU simulators are distributed in the hope that they will be
-useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with the GNU simulators; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA  */
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-
+#include "config.h"
 #include <stdio.h>
 #include <assert.h>
 #include <signal.h>
@@ -37,6 +35,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #include "mem.h"
 #include "load.h"
 #include "syscalls.h"
+#ifdef TIMER_A
+#include "timer_a.h"
+#endif
 
 /* I don't want to wrap up all the minisim's data structures in an
    object and pass that around.  That'd be a big change, and neither
@@ -60,6 +61,7 @@ sim_open (SIM_OPEN_KIND kind,
 	  struct host_callback_struct *callback,
 	  struct bfd *abfd, char **argv)
 {
+  setbuf (stdout, 0);
   if (open)
     fprintf (stderr, "m32c minisim: re-opened sim\n");
 
@@ -126,7 +128,7 @@ open_objfile (const char *filename)
 
 
 SIM_RC
-sim_load (SIM_DESC sd, char *prog, struct bfd *abfd, int from_tty)
+sim_load (SIM_DESC sd, char *prog, struct bfd * abfd, int from_tty)
 {
   check_desc (sd);
 
@@ -141,7 +143,7 @@ sim_load (SIM_DESC sd, char *prog, struct bfd *abfd, int from_tty)
 }
 
 SIM_RC
-sim_create_inferior (SIM_DESC sd, struct bfd *abfd, char **argv, char **env)
+sim_create_inferior (SIM_DESC sd, struct bfd * abfd, char **argv, char **env)
 {
   check_desc (sd);
 
@@ -165,7 +167,7 @@ sim_read (SIM_DESC sd, SIM_ADDR mem, unsigned char *buf, int length)
 }
 
 int
-sim_write (SIM_DESC sd, SIM_ADDR mem, unsigned char *buf, int length)
+sim_write (SIM_DESC sd, SIM_ADDR mem, const unsigned char *buf, int length)
 {
   check_desc (sd);
 
@@ -403,7 +405,7 @@ sim_store_register (SIM_DESC sd, int regno, unsigned char *buf, int length)
   check_desc (sd);
 
   if (!check_regno (regno))
-    return 0;
+    return -1;
 
   size = reg_size (regno);
 
@@ -500,7 +502,7 @@ sim_store_register (SIM_DESC sd, int regno, unsigned char *buf, int length)
 	default:
 	  fprintf (stderr, "m32c minisim: unrecognized register number: %d\n",
 		   regno);
-	  return -1;
+	  return 0;
 	}
     }
 
@@ -521,52 +523,35 @@ int siggnal;
 
 
 /* Given a signal number used by the M32C bsp (that is, newlib),
-   return a host signal number.  (Oddly, the gdb/sim interface uses
-   host signal numbers...)  */
+   return a target signal number used by GDB.  */
 int
-m32c_signal_to_host (int m32c)
+m32c_signal_to_target (int m32c)
 {
   switch (m32c)
     {
     case 4:
-#ifdef SIGILL
-      return SIGILL;
-#else
-      return SIGSEGV;
-#endif
+      return GDB_SIGNAL_ILL;
 
     case 5:
-      return SIGTRAP;
+      return GDB_SIGNAL_TRAP;
 
     case 10:
-#ifdef SIGBUS
-      return SIGBUS;
-#else
-      return SIGSEGV;
-#endif
+      return GDB_SIGNAL_BUS;
 
     case 11:
-      return SIGSEGV;
+      return GDB_SIGNAL_SEGV;
 
     case 24:
-#ifdef SIGXCPU
-      return SIGXCPU;
-#else
-      break;
-#endif
+      return GDB_SIGNAL_XCPU;
 
     case 2:
-      return SIGINT;
+      return GDB_SIGNAL_INT;
 
     case 8:
-#ifdef SIGFPE
-      return SIGFPE;
-#else
-      break;
-#endif
+      return GDB_SIGNAL_FPE;
 
     case 6:
-      return SIGABRT;
+      return GDB_SIGNAL_ABRT;
     }
 
   return 0;
@@ -581,12 +566,12 @@ handle_step (int rc)
   if (M32C_STEPPED (rc) || M32C_HIT_BREAK (rc))
     {
       reason = sim_stopped;
-      siggnal = TARGET_SIGNAL_TRAP;
+      siggnal = GDB_SIGNAL_TRAP;
     }
   else if (M32C_STOPPED (rc))
     {
       reason = sim_stopped;
-      siggnal = m32c_signal_to_host (M32C_STOP_SIG (rc));
+      siggnal = m32c_signal_to_target (M32C_STOP_SIG (rc));
     }
   else
     {
@@ -610,7 +595,12 @@ sim_resume (SIM_DESC sd, int step, int sig_to_deliver)
     }
 
   if (step)
-    handle_step (decode_opcode ());
+    {
+      handle_step (decode_opcode ());
+#ifdef TIMER_A
+      update_timer_a ();
+#endif
+    }
   else
     {
       /* We don't clear 'stop' here, because then we would miss
@@ -623,11 +613,14 @@ sim_resume (SIM_DESC sd, int step, int sig_to_deliver)
 	    {
 	      stop = 0;
 	      reason = sim_stopped;
-	      siggnal = TARGET_SIGNAL_INT;
+	      siggnal = GDB_SIGNAL_INT;
 	      break;
 	    }
 
 	  int rc = decode_opcode ();
+#ifdef TIMER_A
+	  update_timer_a ();
+#endif
 
 	  if (!M32C_STEPPED (rc))
 	    {
@@ -636,6 +629,7 @@ sim_resume (SIM_DESC sd, int step, int sig_to_deliver)
 	    }
 	}
     }
+  m32c_sim_restore_console ();
 }
 
 int
@@ -707,4 +701,10 @@ sim_do_command (SIM_DESC sd, char *cmd)
   else
     printf ("The 'sim' command expects either 'trace' or 'verbose'"
 	    " as a subcommand.\n");
+}
+
+char **
+sim_complete_command (SIM_DESC sd, char *text, char *word)
+{
+  return NULL;
 }

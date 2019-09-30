@@ -1,12 +1,12 @@
 /* Target-dependent code for OpenBSD/amd64.
 
-   Copyright (C) 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "frame.h"
@@ -81,23 +79,29 @@ amd64obsd_regset_from_core_section (struct gdbarch *gdbarch,
 /* Default page size.  */
 static const int amd64obsd_page_size = 4096;
 
-/* Return whether the frame preceding NEXT_FRAME corresponds to an
-   OpenBSD sigtramp routine.  */
+/* Return whether THIS_FRAME corresponds to an OpenBSD sigtramp
+   routine.  */
 
 static int
-amd64obsd_sigtramp_p (struct frame_info *next_frame)
+amd64obsd_sigtramp_p (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  CORE_ADDR pc = get_frame_pc (this_frame);
   CORE_ADDR start_pc = (pc & ~(amd64obsd_page_size - 1));
-  const gdb_byte sigreturn[] =
+  const gdb_byte osigreturn[] =
   {
     0x48, 0xc7, 0xc0,
     0x67, 0x00, 0x00, 0x00,	/* movq $SYS_sigreturn, %rax */
     0xcd, 0x80			/* int $0x80 */
   };
+  const gdb_byte sigreturn[] =
+  {
+    0x48, 0xc7, 0xc0,
+    0x67, 0x00, 0x00, 0x00,	/* movq $SYS_sigreturn, %rax */
+    0x0f, 0x05			/* syscall */
+  };
   size_t buflen = (sizeof sigreturn) + 1;
   gdb_byte *buf;
-  char *name;
+  const char *name;
 
   /* If the function has a valid symbol name, it isn't a
      trampoline.  */
@@ -112,26 +116,29 @@ amd64obsd_sigtramp_p (struct frame_info *next_frame)
 
   /* If we can't read the instructions at START_PC, return zero.  */
   buf = alloca ((sizeof sigreturn) + 1);
-  if (!safe_frame_unwind_memory (next_frame, start_pc + 6, buf, buflen))
+  if (!safe_frame_unwind_memory (this_frame, start_pc + 6, buf, buflen))
     return 0;
 
   /* Check for sigreturn(2).  Depending on how the assembler encoded
      the `movq %rsp, %rdi' instruction, the code starts at offset 6 or
-     7.  */
+     7.  OpenBSD 5.0 and later use the `syscall' instruction.  Older
+     versions use `int $0x80'.  Check for both.  */
   if (memcmp (buf, sigreturn, sizeof sigreturn)
-      && memcpy (buf + 1, sigreturn, sizeof sigreturn))
+      && memcmp (buf + 1, sigreturn, sizeof sigreturn)
+      && memcmp (buf, osigreturn, sizeof osigreturn)
+      && memcmp (buf + 1, osigreturn, sizeof osigreturn))
     return 0;
 
   return 1;
 }
 
-/* Assuming NEXT_FRAME is for a frame following a BSD sigtramp
-   routine, return the address of the associated sigcontext structure.  */
+/* Assuming THIS_FRAME is for a BSD sigtramp routine, return the
+   address of the associated sigcontext structure.  */
 
 static CORE_ADDR
-amd64obsd_sigcontext_addr (struct frame_info *next_frame)
+amd64obsd_sigcontext_addr (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  CORE_ADDR pc = get_frame_pc (this_frame);
   ULONGEST offset = (pc & (amd64obsd_page_size - 1));
 
   /* The %rsp register points at `struct sigcontext' upon entry of a
@@ -147,9 +154,9 @@ amd64obsd_sigcontext_addr (struct frame_info *next_frame)
      instruction clobbers %rsp, but its value is saved in `%rdi'.  */
 
   if (offset > 5)
-    return frame_unwind_register_unsigned (next_frame, AMD64_RDI_REGNUM);
+    return get_frame_register_unsigned (this_frame, AMD64_RDI_REGNUM);
   else
-    return frame_unwind_register_unsigned (next_frame, AMD64_RSP_REGNUM);
+    return get_frame_register_unsigned (this_frame, AMD64_RSP_REGNUM);
 }
 
 /* OpenBSD 3.5 or later.  */
@@ -168,7 +175,7 @@ int amd64obsd_r_reg_offset[] =
   0 * 8,			/* %rdi */
   12 * 8,			/* %rbp */
   15 * 8,			/* %rsp */
-  4 * 8,			/* %r8 .. */
+  4 * 8,			/* %r8 ..  */
   5 * 8,
   6 * 8,
   7 * 8,
@@ -197,7 +204,7 @@ static int amd64obsd_sc_reg_offset[] =
   0 * 8,			/* %rdi */
   12 * 8,			/* %rbp */
   24 * 8,			/* %rsp */
-  4 * 8,			/* %r8 ... */
+  4 * 8,			/* %r8 ...  */
   5 * 8,
   6 * 8,
   7 * 8,
@@ -226,7 +233,7 @@ static int amd64obsd_uthread_reg_offset[] =
   13 * 8,			/* %rdi */
   15 * 8,			/* %rbp */
   -1,				/* %rsp */
-  12 * 8,			/* %r8 ... */
+  12 * 8,			/* %r8 ...  */
   11 * 8,
   10 * 8,
   9 * 8,
@@ -252,6 +259,8 @@ static void
 amd64obsd_supply_uthread (struct regcache *regcache,
 			  int regnum, CORE_ADDR addr)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR sp_addr = addr + AMD64OBSD_UTHREAD_RSP_OFFSET;
   CORE_ADDR sp = 0;
   gdb_byte buf[8];
@@ -264,12 +273,12 @@ amd64obsd_supply_uthread (struct regcache *regcache,
       int offset;
 
       /* Fetch stack pointer from thread structure.  */
-      sp = read_memory_unsigned_integer (sp_addr, 8);
+      sp = read_memory_unsigned_integer (sp_addr, 8, byte_order);
 
       /* Adjust the stack pointer such that it looks as if we just
          returned from _thread_machdep_switch.  */
       offset = amd64obsd_uthread_reg_offset[AMD64_RIP_REGNUM] + 8;
-      store_unsigned_integer (buf, 8, sp + offset);
+      store_unsigned_integer (buf, 8, byte_order, sp + offset);
       regcache_raw_supply (regcache, AMD64_RSP_REGNUM, buf);
     }
 
@@ -281,7 +290,7 @@ amd64obsd_supply_uthread (struct regcache *regcache,
 	  /* Fetch stack pointer from thread structure (if we didn't
              do so already).  */
 	  if (sp == 0)
-	    sp = read_memory_unsigned_integer (sp_addr, 8);
+	    sp = read_memory_unsigned_integer (sp_addr, 8, byte_order);
 
 	  /* Read the saved register from the stack frame.  */
 	  read_memory (sp + amd64obsd_uthread_reg_offset[i], buf, 8);
@@ -294,6 +303,8 @@ static void
 amd64obsd_collect_uthread (const struct regcache *regcache,
 			   int regnum, CORE_ADDR addr)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR sp_addr = addr + AMD64OBSD_UTHREAD_RSP_OFFSET;
   CORE_ADDR sp = 0;
   gdb_byte buf[8];
@@ -309,10 +320,10 @@ amd64obsd_collect_uthread (const struct regcache *regcache,
          stored into the thread structure.  */
       offset = amd64obsd_uthread_reg_offset[AMD64_RIP_REGNUM] + 8;
       regcache_raw_collect (regcache, AMD64_RSP_REGNUM, buf);
-      sp = extract_unsigned_integer (buf, 8) - offset;
+      sp = extract_unsigned_integer (buf, 8, byte_order) - offset;
 
       /* Store the stack pointer.  */
-      write_memory_unsigned_integer (sp_addr, 8, sp);
+      write_memory_unsigned_integer (sp_addr, 8, byte_order, sp);
 
       /* The stack pointer was (potentially) modified.  Make sure we
          build a proper stack frame.  */
@@ -327,7 +338,7 @@ amd64obsd_collect_uthread (const struct regcache *regcache,
 	  /* Fetch stack pointer from thread structure (if we didn't
              calculate it already).  */
 	  if (sp == 0)
-	    sp = read_memory_unsigned_integer (sp_addr, 8);
+	    sp = read_memory_unsigned_integer (sp_addr, 8, byte_order);
 
 	  /* Write the register into the stack frame.  */
 	  regcache_raw_collect (regcache, i, buf);
@@ -342,22 +353,24 @@ amd64obsd_collect_uthread (const struct regcache *regcache,
 #define amd64obsd_tf_reg_offset amd64obsd_sc_reg_offset
 
 static struct trad_frame_cache *
-amd64obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
+amd64obsd_trapframe_cache (struct frame_info *this_frame, void **this_cache)
 {
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct trad_frame_cache *cache;
   CORE_ADDR func, sp, addr;
   ULONGEST cs;
-  char *name;
+  const char *name;
   int i;
 
   if (*this_cache)
     return *this_cache;
 
-  cache = trad_frame_cache_zalloc (next_frame);
+  cache = trad_frame_cache_zalloc (this_frame);
   *this_cache = cache;
 
-  func = frame_func_unwind (next_frame);
-  sp = frame_unwind_register_unsigned (next_frame, AMD64_RSP_REGNUM);
+  func = get_frame_func (this_frame);
+  sp = get_frame_register_unsigned (this_frame, AMD64_RSP_REGNUM);
 
   find_pc_partial_function (func, &name, NULL, NULL);
   if (name && strncmp (name, "Xintr", 5) == 0)
@@ -371,11 +384,11 @@ amd64obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
 
   /* Read %cs from trap frame.  */
   addr += amd64obsd_tf_reg_offset[AMD64_CS_REGNUM];
-  cs = read_memory_unsigned_integer (addr, 8); 
+  cs = read_memory_unsigned_integer (addr, 8, byte_order);
   if ((cs & I386_SEL_RPL) == I386_SEL_UPL)
     {
       /* Trap from user space; terminate backtrace.  */
-      trad_frame_set_id (cache, null_frame_id);
+      trad_frame_set_id (cache, outer_frame_id);
     }
   else
     {
@@ -387,44 +400,40 @@ amd64obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
 }
 
 static void
-amd64obsd_trapframe_this_id (struct frame_info *next_frame,
+amd64obsd_trapframe_this_id (struct frame_info *this_frame,
 			     void **this_cache, struct frame_id *this_id)
 {
   struct trad_frame_cache *cache =
-    amd64obsd_trapframe_cache (next_frame, this_cache);
+    amd64obsd_trapframe_cache (this_frame, this_cache);
   
   trad_frame_get_id (cache, this_id);
 }
 
-static void
-amd64obsd_trapframe_prev_register (struct frame_info *next_frame,
-				   void **this_cache, int regnum,
-				   int *optimizedp, enum lval_type *lvalp,
-				   CORE_ADDR *addrp, int *realnump,
-				   gdb_byte *valuep)
+static struct value *
+amd64obsd_trapframe_prev_register (struct frame_info *this_frame,
+				   void **this_cache, int regnum)
 {
   struct trad_frame_cache *cache =
-    amd64obsd_trapframe_cache (next_frame, this_cache);
+    amd64obsd_trapframe_cache (this_frame, this_cache);
 
-  trad_frame_get_register (cache, next_frame, regnum,
-			   optimizedp, lvalp, addrp, realnump, valuep);
+  return trad_frame_get_register (cache, this_frame, regnum);
 }
 
 static int
 amd64obsd_trapframe_sniffer (const struct frame_unwind *self,
-			     struct frame_info *next_frame,
+			     struct frame_info *this_frame,
 			     void **this_prologue_cache)
 {
   ULONGEST cs;
-  char *name;
+  const char *name;
 
   /* Check Current Privilege Level and bail out if we're not executing
      in kernel space.  */
-  cs = frame_unwind_register_unsigned (next_frame, AMD64_CS_REGNUM);
+  cs = get_frame_register_unsigned (this_frame, AMD64_CS_REGNUM);
   if ((cs & I386_SEL_RPL) == I386_SEL_UPL)
     return 0;
 
-  find_pc_partial_function (frame_pc_unwind (next_frame), &name, NULL, NULL);
+  find_pc_partial_function (get_frame_pc (this_frame), &name, NULL, NULL);
   return (name && ((strcmp (name, "calltrap") == 0)
 		   || (strcmp (name, "osyscall1") == 0)
 		   || (strcmp (name, "Xsyscall") == 0)
@@ -436,6 +445,7 @@ static const struct frame_unwind amd64obsd_trapframe_unwind = {
      frame, but SIGTRAMP_FRAME would print <signal handler called>,
      which really is not what we want here.  */
   NORMAL_FRAME,
+  default_frame_unwind_stop_reason,
   amd64obsd_trapframe_this_id,
   amd64obsd_trapframe_prev_register,
   NULL,
@@ -455,9 +465,6 @@ amd64obsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   tdep->gregset_num_regs = ARRAY_SIZE (amd64obsd_r_reg_offset);
   tdep->sizeof_gregset = 24 * 8;
 
-  set_gdbarch_regset_from_core_section (gdbarch,
-					amd64obsd_regset_from_core_section);
-
   tdep->jb_pc_offset = 7 * 8;
 
   tdep->sigtramp_p = amd64obsd_sigtramp_p;
@@ -476,6 +483,17 @@ amd64obsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   /* Unwind kernel trap frames correctly.  */
   frame_unwind_prepend_unwinder (gdbarch, &amd64obsd_trapframe_unwind);
 }
+
+/* Traditional (a.out) NetBSD-style core dumps.  */
+
+static void
+amd64obsd_core_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
+{
+  amd64obsd_init_abi (info, gdbarch);
+
+  set_gdbarch_regset_from_core_section
+    (gdbarch, amd64obsd_regset_from_core_section);
+}
 
 
 /* Provide a prototype to silence -Wmissing-prototypes.  */
@@ -492,5 +510,5 @@ _initialize_amd64obsd_tdep (void)
 
   /* OpenBSD uses traditional (a.out) NetBSD-style core dumps.  */
   gdbarch_register_osabi (bfd_arch_i386, bfd_mach_x86_64,
-			  GDB_OSABI_NETBSD_AOUT, amd64obsd_init_abi);
+			  GDB_OSABI_NETBSD_AOUT, amd64obsd_core_init_abi);
 }

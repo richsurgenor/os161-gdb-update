@@ -1,25 +1,28 @@
 /* Disassembly routines for TMS320C30 architecture
-   Copyright 1998, 1999, 2000, 2002, 2005 Free Software Foundation, Inc.
+   Copyright 1998, 1999, 2000, 2002, 2005, 2007, 2009, 2012
+   Free Software Foundation, Inc.
    Contributed by Steven Haworth (steve@pm.cse.rmit.edu.au)
 
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   This file is part of the GNU opcodes library.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   This library is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
+
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+   along with this file; see the file COPYING.  If not, write to the
+   Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
+#include "sysdep.h"
 #include <errno.h>
 #include <math.h>
-#include "sysdep.h"
 #include "dis-asm.h"
 #include "opcode/tic30.h"
 
@@ -62,7 +65,7 @@ static unsigned int _pc;
 struct instruction
 {
   int type;
-  template *tm;
+  insn_template *tm;
   partemplate *ptm;
 };
 
@@ -76,7 +79,7 @@ get_tic30_instruction (unsigned long insn_word, struct instruction *insn)
     case THREE_OPERAND:
       insn->type = NORMAL_INSN;
       {
-	template *current_optab = (template *) tic30_optab;
+	insn_template *current_optab = (insn_template *) tic30_optab;
 
 	for (; current_optab < tic30_optab_end; current_optab++)
 	  {
@@ -143,7 +146,7 @@ get_tic30_instruction (unsigned long insn_word, struct instruction *insn)
     case BRANCHES:
       insn->type = NORMAL_INSN;
       {
-	template *current_optab = (template *) tic30_optab;
+	insn_template *current_optab = (insn_template *) tic30_optab;
 
 	for (; current_optab < tic30_optab_end; current_optab++)
 	  {
@@ -272,7 +275,7 @@ get_indirect_operand (unsigned short fragment,
 static int
 cnvt_tmsfloat_ieee (unsigned long tmsfloat, int size, float *ieeefloat)
 {
-  unsigned long exp, sign, mant;
+  unsigned long exponent, sign, mant;
   union
   {
     unsigned long l;
@@ -289,16 +292,16 @@ cnvt_tmsfloat_ieee (unsigned long tmsfloat, int size, float *ieeefloat)
 	  tmsfloat = (long) tmsfloat >> 4;
 	}
     }
-  exp = tmsfloat & 0xFF000000;
-  if (exp == 0x80000000)
+  exponent = tmsfloat & 0xFF000000;
+  if (exponent == 0x80000000)
     {
       *ieeefloat = 0.0;
       return 1;
     }
-  exp += 0x7F000000;
+  exponent += 0x7F000000;
   sign = (tmsfloat & 0x00800000) << 8;
   mant = tmsfloat & 0x007FFFFF;
-  if (exp == 0xFF000000)
+  if (exponent == 0xFF000000)
     {
       if (mant == 0)
 	*ieeefloat = ERANGE;
@@ -315,18 +318,18 @@ cnvt_tmsfloat_ieee (unsigned long tmsfloat, int size, float *ieeefloat)
 #endif
       return 1;
     }
-  exp >>= 1;
+  exponent >>= 1;
   if (sign)
     {
       mant = (~mant) & 0x007FFFFF;
       mant += 1;
-      exp += mant & 0x00800000;
-      exp &= 0x7F800000;
+      exponent += mant & 0x00800000;
+      exponent &= 0x7F800000;
       mant &= 0x007FFFFF;
     }
   if (tmsfloat == 0x80000000)
-    sign = mant = exp = 0;
-  tmsfloat = sign | exp | mant;
+    sign = mant = exponent = 0;
+  tmsfloat = sign | exponent | mant;
   val.l = tmsfloat;
   *ieeefloat = val.f;
   return 1;

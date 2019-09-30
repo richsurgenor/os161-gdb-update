@@ -1,25 +1,27 @@
 /* BFD back-end for mmo objects (MMIX-specific object-format).
-   Copyright 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010, 2011
    Free Software Foundation, Inc.
    Written by Hans-Peter Nilsson (hp@bitrange.com).
    Infrastructure and other bits originally copied from srec.c and
    binary.c.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /*
 SECTION
@@ -195,8 +197,8 @@ EXAMPLE
 | 0x81000000
 | 0x980c0005 - lop_end; symbol table contained five 32-bit words.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "libiberty.h"
 #include "elf/mmix.h"
@@ -361,7 +363,7 @@ static void mmo_find_sec_w_addr (bfd *, asection *, void *);
 static void mmo_find_sec_w_addr_grow (bfd *, asection *, void *);
 static asection *mmo_make_section (bfd *, const char *);
 static void mmo_get_symbol_info (bfd *, asymbol *, symbol_info *);
-static void mmo_print_symbol (bfd *, void *, asymbol *, 
+static void mmo_print_symbol (bfd *, void *, asymbol *,
 			      bfd_print_symbol_type);
 static void mmo_init (void);
 static bfd_boolean mmo_mkobject (bfd *);
@@ -388,7 +390,6 @@ static void mmo_print_symbol (bfd *, void *, asymbol *,
 static bfd_boolean mmo_set_section_contents (bfd *, sec_ptr, const void *,
 					     file_ptr, bfd_size_type);
 static int mmo_sizeof_headers (bfd *, struct bfd_link_info *);
-static long mmo_get_reloc_upper_bound (bfd *, asection *);
 static bfd_boolean mmo_internal_write_header (bfd *);
 static bfd_boolean mmo_internal_write_post (bfd *, int, asection *);
 static bfd_boolean mmo_internal_add_3_sym (bfd *, struct mmo_symbol_trie *,
@@ -415,7 +416,6 @@ static void mmo_write_byte (bfd *, bfd_byte);
 static bfd_boolean mmo_new_section_hook (bfd *, asection *);
 static int mmo_sort_mmo_symbols (const void *, const void *);
 static bfd_boolean mmo_write_object_contents (bfd *);
-static long mmo_canonicalize_reloc (bfd *, sec_ptr, arelent **, asymbol **);
 static bfd_boolean mmo_write_section_description (bfd *, asection *);
 static bfd_boolean mmo_has_leading_or_trailing_zero_tetra_p (bfd *,
 							     asection *);
@@ -1530,13 +1530,13 @@ mmo_scan (bfd *abfd)
   asection *sec = bfd_make_section_old_way (abfd, MMO_TEXT_SECTION_NAME);
   asection *non_spec_sec = NULL;
   bfd_vma non_spec_vma = 0;
-  char *current_filename = NULL;
   bfd_size_type nbytes_read = 0;
   /* Buffer with room to read a 64-bit value.  */
   bfd_byte buf[8];
   long stab_loc = -1;
   char *file_names[256];
 
+  abfd->symcount = 0;
   memset (file_names, 0, sizeof (file_names));
 
   if (bfd_seek (abfd, (file_ptr) 0, SEEK_SET) != 0)
@@ -1789,7 +1789,6 @@ mmo_scan (bfd *abfd)
 		  goto error_return;
 		}
 
-	      current_filename = file_names[y];
 	      lineno = 0;
 	      break;
 
@@ -1917,7 +1916,7 @@ mmo_scan (bfd *abfd)
 		/* This must be the last 32-bit word in an mmo file.
 		   Let's find out.  */
 		struct stat statbuf;
-		long curpos = bfd_tell (abfd);
+		file_ptr curpos = bfd_tell (abfd);
 
 		if (bfd_stat (abfd, &statbuf) < 0)
 		  goto error_return;
@@ -2097,7 +2096,7 @@ mmo_canonicalize_symtab (bfd *abfd, asymbol **alocation)
   unsigned int i;
 
   csymbols = abfd->tdata.mmo_data->csymbols;
-  if (csymbols == NULL)
+  if (csymbols == NULL && symcount != 0)
     {
       asymbol *c;
       struct mmo_symbol *s;
@@ -2119,8 +2118,8 @@ mmo_canonicalize_symtab (bfd *abfd, asymbol **alocation)
 	     mmo_sort_mmo_symbols);
 
       csymbols = (asymbol *) bfd_alloc (abfd, symcount * sizeof (asymbol));
-      if (csymbols == NULL && symcount != 0)
-	return FALSE;
+      if (csymbols == NULL)
+	return -1;
       abfd->tdata.mmo_data->csymbols = csymbols;
 
       for (msp = (struct mmo_symbol **) alocation, c = csymbols;
@@ -2827,7 +2826,6 @@ static bfd_boolean
 mmo_write_symbols_and_terminator (bfd *abfd)
 {
   int count = bfd_get_symcount (abfd);
-  asymbol *maintable[2];
   asymbol **table;
   asymbol **orig_table = bfd_get_outsymbols (abfd);
   int serno;
@@ -2843,8 +2841,6 @@ mmo_write_symbols_and_terminator (bfd *abfd)
   fakemain->value = bfd_get_start_address (abfd);
   fakemain->name = MMIX_START_SYMBOL_NAME;
   fakemain->section = bfd_abs_section_ptr;
-  maintable[0] = fakemain;
-  maintable[1] = NULL;
 
   memset (&root, 0, sizeof (root));
 
@@ -3161,28 +3157,6 @@ mmo_write_object_contents (bfd *abfd)
   return mmo_write_symbols_and_terminator (abfd);
 }
 
-/* Return the size of a NULL pointer, so we support linking in an mmo
-   object.  */
-
-static long
-mmo_get_reloc_upper_bound (bfd *abfd ATTRIBUTE_UNUSED,
-			   asection *sec ATTRIBUTE_UNUSED)
-{
-  return sizeof (void *);
-}
-
-/* Similarly canonicalize relocs to empty, filling in the terminating NULL
-   pointer.  */
-
-long
-mmo_canonicalize_reloc (bfd *abfd ATTRIBUTE_UNUSED,
-			sec_ptr section ATTRIBUTE_UNUSED, arelent **relptr,
-			asymbol **symbols ATTRIBUTE_UNUSED)
-{
-  *relptr = NULL;
-  return 0;
-}
-
 /* If there's anything in particular in a mmo bfd that we want to free,
    make this a real function.  Only do this if you see major memory
    thrashing; zealous free:ing will cause unwanted behavior, especially if
@@ -3217,10 +3191,13 @@ mmo_canonicalize_reloc (bfd *abfd ATTRIBUTE_UNUSED,
 #define mmo_bfd_get_relocated_section_contents \
   bfd_generic_get_relocated_section_contents
 #define mmo_bfd_gc_sections bfd_generic_gc_sections
+#define mmo_bfd_lookup_section_flags bfd_generic_lookup_section_flags
 #define mmo_bfd_link_hash_table_create _bfd_generic_link_hash_table_create
 #define mmo_bfd_link_hash_table_free _bfd_generic_link_hash_table_free
 #define mmo_bfd_link_add_symbols _bfd_generic_link_add_symbols
 #define mmo_bfd_link_just_syms _bfd_generic_link_just_syms
+#define mmo_bfd_copy_link_hash_symbol_type \
+  _bfd_generic_copy_link_hash_symbol_type
 #define mmo_bfd_final_link _bfd_generic_final_link
 #define mmo_bfd_link_split_section _bfd_generic_link_split_section
 
@@ -3233,18 +3210,7 @@ mmo_canonicalize_reloc (bfd *abfd ATTRIBUTE_UNUSED,
 #define mmo_bfd_discard_group bfd_generic_discard_group
 #define mmo_section_already_linked \
   _bfd_generic_section_already_linked
-
-/* objcopy will be upset if we return -1 from bfd_get_reloc_upper_bound by
-   using BFD_JUMP_TABLE_RELOCS (_bfd_norelocs) rather than 0.  FIXME: Most
-   likely a bug in the _bfd_norelocs definition.
-
-   On the other hand, we smuggle in an mmo object (because setting up ELF
-   is too cumbersome) when linking (from other formats, presumably ELF) to
-   represent the g255 entry.  We need to link that object, so need to say
-   it has no relocs.  Upper bound for the size of the relocation table is
-   the size of a NULL pointer, and we support "canonicalization" for that
-   pointer.  */
-#define mmo_bfd_reloc_type_lookup _bfd_norelocs_bfd_reloc_type_lookup
+#define mmo_bfd_define_common_symbol bfd_generic_define_common_symbol
 
 /* We want to copy time of creation, otherwise we'd use
    BFD_JUMP_TABLE_COPY (_bfd_generic).  */
@@ -3274,6 +3240,7 @@ const bfd_target bfd_mmo_vec =
   0,				/* leading underscore */
   ' ',				/* ar_pad_char */
   16,				/* ar_max_namelen */
+  0,				/* match priority.  */
   bfd_getb64, bfd_getb_signed_64, bfd_putb64,
   bfd_getb32, bfd_getb_signed_32, bfd_putb32,
   bfd_getb16, bfd_getb_signed_16, bfd_putb16,	/* data */
@@ -3305,9 +3272,7 @@ const bfd_target bfd_mmo_vec =
   BFD_JUMP_TABLE_CORE (_bfd_nocore),
   BFD_JUMP_TABLE_ARCHIVE (_bfd_noarchive),
   BFD_JUMP_TABLE_SYMBOLS (mmo),
-  /* We have to provide a valid method for getting relocs, returning zero,
-     so we can't say BFD_JUMP_TABLE_RELOCS (_bfd_norelocs).  */
-  BFD_JUMP_TABLE_RELOCS (mmo),
+  BFD_JUMP_TABLE_RELOCS (_bfd_norelocs),
   BFD_JUMP_TABLE_WRITE (mmo),
   BFD_JUMP_TABLE_LINK (mmo),
   BFD_JUMP_TABLE_DYNAMIC (_bfd_nodynamic),

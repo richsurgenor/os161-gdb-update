@@ -1,22 +1,21 @@
 /* CRIS base simulator support code
-   Copyright (C) 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by Axis Communications.
 
 This file is part of the GNU simulators.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* The infrastructure is based on that of i960.c.  */
 
@@ -234,6 +233,14 @@ MY (f_model_mark_set_h_gr) (SIM_CPU *current_cpu, ARGBUF *abuf)
 }
 #endif
 
+/* Set the thread register contents.  */
+
+void
+MY (set_target_thread_data) (SIM_CPU *current_cpu, USI val)
+{
+  (CPU (XCONCAT2 (h_sr_v, BASENUM) [CRIS_TLS_REGISTER])) = val;
+}
+
 /* Create the context for a thread.  */
 
 void *
@@ -257,6 +264,7 @@ MY (f_specific_init) (SIM_CPU *current_cpu)
 {
   current_cpu->make_thread_cpu_data = MY (make_thread_cpu_data);
   current_cpu->thread_cpu_data_size = sizeof (current_cpu->cpu_data);
+  current_cpu->set_target_thread_data = MY (set_target_thread_data);
 #if WITH_HW
   current_cpu->deliver_interrupt = MY (deliver_interrupt);
 #endif

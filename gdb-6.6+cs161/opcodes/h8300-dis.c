@@ -1,16 +1,18 @@
 /* Disassemble h8300 instructions.
-   Copyright 1993, 1994, 1996, 1998, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright 1993, 1994, 1996, 1998, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
+   2007, 2010  Free Software Foundation, Inc.
 
-   This program is free software; you can redistribute it and/or modify
+   This file is part of the GNU opcodes library.
+
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
@@ -51,19 +53,6 @@ bfd_h8_disassemble_init (void)
 
   for (p = h8_opcodes, pi = h8_instructions; p->name; p++, pi++)
     {
-      int n1 = 0;
-      int n2 = 0;
-
-      if ((int) p->data.nib[0] < 16)
-	n1 = (int) p->data.nib[0];
-      else
-	n1 = 0;
-
-      if ((int) p->data.nib[1] < 16)
-	n2 = (int) p->data.nib[1];
-      else
-	n2 = 0;
-
       /* Just make sure there are an even number of nibbles in it, and
 	 that the count is the same as the length.  */
       for (i = 0; p->data.nib[i] != (op_type) E; i++)
@@ -309,7 +298,7 @@ print_one_arg (disassemble_info *info,
     outfn (stream, "@(0x%x:%d,%s.l)", cst, cstlen, lregnames[rdisp_n]);
 
   else if (x & CTRL)
-    outfn (stream, cregnames[rn]);
+    outfn (stream, "%s", cregnames[rn]);
 
   else if ((x & MODE) == CCR)
     outfn (stream, "ccr");

@@ -2,29 +2,20 @@
    of the floating point routines in libgcc1.c for targets without
    hardware floating point.  */
 
-/* Copyright 1994, 1997, 1998, 2003 Free Software Foundation, Inc.
+/* Copyright 1994-2013 Free Software Foundation, Inc.
 
-This file is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
-later version.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file with other programs, and to distribute
-those programs without any restriction coming from the use of this
-file.  (The General Public License restrictions do apply in other
-respects; for example, they cover modification of the file, and
-distribution when not linked into another program.)
-
-This file is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; see the file COPYING.  If not, write to
-the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* As a special exception, if you link this library with other files,
    some of which are compiled with GCC, to produce an executable,
@@ -51,7 +42,7 @@ the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
 #include "sim-assert.h"
 
 
-/* Debugging support. 
+/* Debugging support.
    If digits is -1, then print all digits.  */
 
 static void
@@ -86,7 +77,7 @@ print_bits (unsigned64 x,
 typedef union {
   double d;
   unsigned64 i;
-} sim_fpu_map;  
+} sim_fpu_map;
 
 
 /* A packed IEEE floating point number.
@@ -102,7 +93,7 @@ typedef union {
 
    Zero (0 == BIASEDEXP && FRAC == 0):
    (sign ? "-" : "+") 0.0
-   
+
    Infinity (BIASEDEXP == EXPMAX && FRAC == 0):
    (sign ? "-" : "+") "infinity"
 
@@ -262,7 +253,7 @@ pack_fpu (const sim_fpu *src,
 	  /* Infinity */
 	  sign = src->sign;
 	  exp = EXPMAX;
-	  fraction = 0; 
+	  fraction = 0;
 	}
       else
 	{
@@ -317,7 +308,7 @@ pack_fpu (const sim_fpu *src,
 	      (long) LSEXTRACTED32 (packed, 23 - 1, 0));
     }
 #endif
-  
+
   return packed;
 }
 
@@ -544,7 +535,7 @@ i2fpu (sim_fpu *f, signed64 i, int is_64bit)
       f->sign = (i < 0);
       f->normal_exp = NR_FRAC_GUARD;
 
-      if (f->sign) 
+      if (f->sign)
 	{
 	  /* Special case for minint, since there is no corresponding
 	     +ve integer representation for it */
@@ -561,7 +552,7 @@ i2fpu (sim_fpu *f, signed64 i, int is_64bit)
 
       if (f->fraction >= IMPLICIT_2)
 	{
-	  do 
+	  do
 	    {
 	      f->fraction = (f->fraction >> 1) | (f->fraction & 1);
 	      f->normal_exp += 1;
@@ -904,7 +895,7 @@ do_round (sim_fpu *f,
       return 0;
       break;
     case sim_fpu_class_snan:
-      /* Quieten a SignalingNaN */ 
+      /* Quieten a SignalingNaN */
       f->class = sim_fpu_class_qnan;
       return sim_fpu_status_invalid_snan;
       break;
@@ -1379,14 +1370,14 @@ sim_fpu_mul (sim_fpu *f,
     res2 += ((ps_hh__ >> 32) & 0xffffffff) + pp_hh;
     high = res2;
     low = res0;
-    
+
     f->normal_exp = l->normal_exp + r->normal_exp;
     f->sign = l->sign ^ r->sign;
     f->class = sim_fpu_class_number;
 
     /* Input is bounded by [1,2)   ;   [2^60,2^61)
        Output is bounded by [1,4)  ;   [2^120,2^122) */
- 
+
     /* Adjust the exponent according to where the decimal point ended
        up in the high 64 bit word.  In the source the decimal point
        was at NR_FRAC_GUARD. */
@@ -1519,7 +1510,7 @@ sim_fpu_div (sim_fpu *f,
 	f->normal_exp--;
       }
     ASSERT (numerator >= denominator);
-    
+
     /* Gain extra precision, already used one spare bit */
     numerator <<=    NR_SPARE;
     denominator <<=  NR_SPARE;
@@ -1618,7 +1609,7 @@ sim_fpu_max (sim_fpu *f,
     }
   ASSERT (l->sign == r->sign);
   if (l->normal_exp > r->normal_exp
-      || (l->normal_exp == r->normal_exp && 
+      || (l->normal_exp == r->normal_exp &&
 	  l->fraction > r->fraction))
     {
       /* |l| > |r| */
@@ -1701,7 +1692,7 @@ sim_fpu_min (sim_fpu *f,
     }
   ASSERT (l->sign == r->sign);
   if (l->normal_exp > r->normal_exp
-      || (l->normal_exp == r->normal_exp && 
+      || (l->normal_exp == r->normal_exp &&
 	  l->fraction > r->fraction))
     {
       /* |l| > |r| */
@@ -1816,20 +1807,20 @@ sim_fpu_sqrt (sim_fpu *f,
    *
    * Developed at SunPro, a Sun Microsystems, Inc. business.
    * Permission to use, copy, modify, and distribute this
-   * software is freely granted, provided that this notice 
+   * software is freely granted, provided that this notice
    * is preserved.
    * ====================================================
    */
-  
+
   /* __ieee754_sqrt(x)
    * Return correctly rounded sqrt.
    *           ------------------------------------------
    *           |  Use the hardware sqrt if you have one |
    *           ------------------------------------------
-   * Method: 
-   *   Bit by bit method using integer arithmetic. (Slow, but portable) 
+   * Method:
+   *   Bit by bit method using integer arithmetic. (Slow, but portable)
    *   1. Normalization
-   *	Scale x to y in [1,4) with even powers of 2: 
+   *	Scale x to y in [1,4) with even powers of 2:
    *	find an integer k such that  1 <= (y=x*2^(2k)) < 4, then
    *		sqrt(x) = 2^k * sqrt(y)
    -
@@ -1849,9 +1840,9 @@ sim_fpu_sqrt (sim_fpu *f,
    *                                     i+1         2
    *	    s  = 2*q , and	y  =  2   * ( y - q  ).		(1)
    *	     i      i            i                 i
-   *                                                        
-   *	To compute q    from q , one checks whether 
-   *		    i+1       i                       
+   *
+   *	To compute q    from q , one checks whether
+   *		    i+1       i
    *
    *			      -(i+1) 2
    *			(q + 2      ) <= y.			(2)
@@ -1861,12 +1852,12 @@ sim_fpu_sqrt (sim_fpu *f,
    *		 	       i+1   i             i+1   i
    *
    *	With some algebric manipulation, it is not difficult to see
-   *	that (2) is equivalent to 
+   *	that (2) is equivalent to
    *                             -(i+1)
    *			s  +  2       <= y			(3)
    *			 i                i
    *
-   *	The advantage of (3) is that s  and y  can be computed by 
+   *	The advantage of (3) is that s  and y  can be computed by
    *				      i      i
    *	the following recurrence formula:
    *	    if (3) is false
@@ -1882,15 +1873,15 @@ sim_fpu_sqrt (sim_fpu *f,
    *                       -i                      -(i+1)
    *	    s	  =  s  + 2  ,  y    = y  -  s  - 2  		(5)
    *         i+1      i          i+1    i     i
-   *				
+   *
    -
    -                                                   -(i+1)
-   -                      NOTE: y    = 2 (y  -  s  -  2      ) 		
+   -                      NOTE: y    = 2 (y  -  s  -  2      )
    -                             i+1       i     i
    -
-   *	One may easily use induction to prove (4) and (5). 
+   *	One may easily use induction to prove (4) and (5).
    *	Note. Since the left hand side of (3) contain only i+2 bits,
-   *	      it does not necessary to do a full (53-bit) comparison 
+   *	      it does not necessary to do a full (53-bit) comparison
    *	      in (3).
    *   3. Final rounding
    *	After generating the 53 bits result, we compute one more bit.
@@ -1900,7 +1891,7 @@ sim_fpu_sqrt (sim_fpu *f,
    *	The rounding mode can be detected by checking whether
    *	huge + tiny is equal to huge, and whether huge - tiny is
    *	equal to huge for some floating point number "huge" and "tiny".
-   *		
+   *
    * Special cases:
    *	sqrt(+-0) = +-0 	... exact
    *	sqrt(inf) = inf
@@ -1935,7 +1926,7 @@ sim_fpu_sqrt (sim_fpu *f,
     b = IMPLICIT_1;
     q = 0;
     s = 0;
-    
+
     while (b)
       {
 	unsigned64 t = s + b;
@@ -2433,10 +2424,10 @@ sim_fpu_gt (int *is,
 
 #if EXTERN_SIM_FPU_P
 const sim_fpu sim_fpu_zero = {
-  sim_fpu_class_zero,
+  sim_fpu_class_zero, 0, 0, 0
 };
 const sim_fpu sim_fpu_qnan = {
-  sim_fpu_class_qnan,
+  sim_fpu_class_qnan, 0, 0, 0
 };
 const sim_fpu sim_fpu_one = {
   sim_fpu_class_number, 0, IMPLICIT_1, 0
@@ -2505,7 +2496,7 @@ sim_fpu_print_status (int status,
 		      void *arg)
 {
   int i = 1;
-  char *prefix = "";
+  const char *prefix = "";
   while (status >= i)
     {
       switch ((sim_fpu_status) (status & i))
@@ -2540,26 +2531,20 @@ sim_fpu_print_status (int status,
 	case sim_fpu_status_invalid_sqrt:
 	  print (arg, "%sSQRT", prefix);
 	  break;
-	  break;
 	case sim_fpu_status_inexact:
 	  print (arg, "%sX", prefix);
-	  break;
 	  break;
 	case sim_fpu_status_overflow:
 	  print (arg, "%sO", prefix);
 	  break;
-	  break;
 	case sim_fpu_status_underflow:
 	  print (arg, "%sU", prefix);
-	  break;
 	  break;
 	case sim_fpu_status_invalid_div0:
 	  print (arg, "%s/", prefix);
 	  break;
-	  break;
 	case sim_fpu_status_rounded:
 	  print (arg, "%sR", prefix);
-	  break;
 	  break;
 	}
       i <<= 1;

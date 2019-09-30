@@ -2,23 +2,23 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996-2005 Free Software Foundation, Inc.
+Copyright 1996-2010 Free Software Foundation, Inc.
 
 This file is part of the GNU Binutils and/or GDB, the GNU debugger.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
 
 */
 
@@ -64,11 +64,7 @@ static unsigned int dis_hash_insn (const char *, CGEN_INSN_INT);
 
 /* Instruction formats.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define F(f) & m32c_cgen_ifld_table[M32C_##f]
-#else
-#define F(f) & m32c_cgen_ifld_table[M32C_/**/f]
-#endif
 static const CGEN_IFMT ifmt_empty ATTRIBUTE_UNUSED = {
   0, 0, 0x0, { { 0 } }
 };
@@ -5310,27 +5306,27 @@ static const CGEN_IFMT ifmt_sbjnz32_b_imm4_basic_Unprefixed_dst32_An_indirect_Un
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_8_dst16_16_8_An_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_8_dst16_16_8_SB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_8_dst16_16_8_FB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_16_dst16_16_16_An_relative_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_16_dst16_16_16_SB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_16_16_dst16_16_16_absolute_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_w_imm4_basic_dst16_Rn_direct_HI ATTRIBUTE_UNUSED = {
@@ -5346,27 +5342,27 @@ static const CGEN_IFMT ifmt_sbjnz16_w_imm4_basic_dst16_An_indirect_HI ATTRIBUTE_
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_8_dst16_16_8_An_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_8_dst16_16_8_SB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_8_dst16_16_8_FB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_16_dst16_16_16_An_relative_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_16_dst16_16_16_SB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_16_16_dst16_16_16_absolute_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_sbjnz16_b_imm4_basic_dst16_Rn_direct_QI ATTRIBUTE_UNUSED = {
@@ -7081,15 +7077,11 @@ static const CGEN_IFMT ifmt_jsri16a_dst16_basic_SI_dst16_An_indirect_SI ATTRIBUT
   16, 16, 0xfffe, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DST16_AN) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
 };
 
-static const CGEN_IFMT ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_An_relative_SI ATTRIBUTE_UNUSED = {
-  32, 32, 0xfffe0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
-};
-
-static const CGEN_IFMT ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_SB_relative_SI ATTRIBUTE_UNUSED = {
+static const CGEN_IFMT ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_SB_relative_SI ATTRIBUTE_UNUSED = {
   32, 32, 0xffff0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
 };
 
-static const CGEN_IFMT ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_absolute_SI ATTRIBUTE_UNUSED = {
+static const CGEN_IFMT ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_absolute_SI ATTRIBUTE_UNUSED = {
   32, 32, 0xffff0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
 };
 
@@ -7103,6 +7095,18 @@ static const CGEN_IFMT ifmt_jsri16a_dst16_16_8_SI_dst16_16_8_SB_relative_SI ATTR
 
 static const CGEN_IFMT ifmt_jsri16a_dst16_16_8_SI_dst16_16_8_FB_relative_SI ATTRIBUTE_UNUSED = {
   24, 24, 0xffff00, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
+};
+
+static const CGEN_IFMT ifmt_jsri16a_dst16_16_20ar_SI_dst16_16_20_An_relative_SI ATTRIBUTE_UNUSED = {
+  32, 40, 0xfffe0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U24) }, { F (F_DST16_AN) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
+};
+
+static const CGEN_IFMT ifmt_jsri16w_dst16_16_20ar_HI_dst16_16_20_An_relative_HI ATTRIBUTE_UNUSED = {
+  32, 40, 0xfffe0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U24) }, { F (F_DST16_AN) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
+};
+
+static const CGEN_IFMT ifmt_jmpi16_a_16_dst16_16_16_An_relative_SI ATTRIBUTE_UNUSED = {
+  32, 32, 0xfffe0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_4) }, { F (F_8_4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_cmp32_w_S_src2_r0_HI_src32_2_S_8_SB_relative_HI ATTRIBUTE_UNUSED = {
@@ -7542,27 +7546,27 @@ static const CGEN_IFMT ifmt_adjnz32_b_imm4_basic_Unprefixed_dst32_An_indirect_Un
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_8_dst16_16_8_An_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_8_dst16_16_8_SB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_8_dst16_16_8_FB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_16_dst16_16_16_An_relative_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_16_dst16_16_16_SB_relative_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_16_16_dst16_16_16_absolute_HI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_w_imm4_basic_dst16_Rn_direct_HI ATTRIBUTE_UNUSED = {
@@ -7578,27 +7582,27 @@ static const CGEN_IFMT ifmt_adjnz16_w_imm4_basic_dst16_An_indirect_HI ATTRIBUTE_
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_8_dst16_16_8_An_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U8) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_8_dst16_16_8_SB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_8_dst16_16_8_FB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 32, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_S8) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_24_8) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_16_dst16_16_16_An_relative_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0e0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_2) }, { F (F_14_1) }, { F (F_DSP_16_U16) }, { F (F_DST16_AN) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_16_dst16_16_16_SB_relative_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_16_16_dst16_16_16_absolute_QI ATTRIBUTE_UNUSED = {
-  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { F (F_LAB_16_8) }, { 0 } }
+  32, 40, 0xff0f0000, { { F (F_0_4) }, { F (F_LAB_32_8) }, { F (F_12_4) }, { F (F_DSP_16_U16) }, { F (F_4_3) }, { F (F_7_1) }, { F (F_IMM_8_S4) }, { 0 } }
 };
 
 static const CGEN_IFMT ifmt_adjnz16_b_imm4_basic_dst16_Rn_direct_QI ATTRIBUTE_UNUSED = {
@@ -7863,16 +7867,8 @@ static const CGEN_IFMT ifmt_stzx16_imm8_imm8_abs16 ATTRIBUTE_UNUSED = {
 
 #undef F
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_INSN_##a)
-#else
-#define A(a) (1 << CGEN_INSN_/**/a)
-#endif
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define OPERAND(op) M32C_OPERAND_##op
-#else
-#define OPERAND(op) M32C_OPERAND_/**/op
-#endif
 #define MNEM CGEN_SYNTAX_MNEMONIC /* syntax value for mnemonic */
 #define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
 
@@ -46044,13 +46040,13 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', OP (DSP_16_U16), ',', OP (CR16), 0 } },
     & ifmt_stc16_src_dst16_16_16_absolute_HI, { 0x7a8f0000 }
   },
-/* jsri.w ${Dsp-16-u24}[$Dst32AnUnprefixed] */
+/* jsri.a ${Dsp-16-u24}[$Dst32AnUnprefixed] */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U24), '[', OP (DST32ANUNPREFIXED), ']', 0 } },
     & ifmt_shl32_l_dst_dst32_16_24_An_relative_Unprefixed_SI, { 0x96010000 }
   },
-/* jsri.w ${Dsp-16-u24} */
+/* jsri.a ${Dsp-16-u24} */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U24), 0 } },
@@ -46092,12 +46088,6 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', '[', OP (DST16AN), ']', 0 } },
     & ifmt_jsri16a_dst16_basic_SI_dst16_An_indirect_SI, { 0x7d16 }
   },
-/* jsri.a ${Dsp-16-u16}[$Dst32AnUnprefixed] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', OP (DST32ANUNPREFIXED), ']', 0 } },
-    & ifmt_shl32_l_dst_dst32_16_16_An_relative_Unprefixed_SI, { 0x94010000 }
-  },
 /* jsri.a ${Dsp-16-u16}[sb] */
   {
     { 0, 0, 0, 0 },
@@ -46116,23 +46106,17 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', OP (DSP_16_U16), 0 } },
     & ifmt_shl32_l_dst_dst32_16_16_absolute_Unprefixed_SI, { 0x96c10000 }
   },
-/* jsri.a ${Dsp-16-u16}[$Dst16An] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', OP (DST16AN), ']', 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_An_relative_SI, { 0x7d1c0000 }
-  },
 /* jsri.a ${Dsp-16-u16}[sb] */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_SB_relative_SI, { 0x7d1e0000 }
+    & ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_SB_relative_SI, { 0x7d1e0000 }
   },
 /* jsri.a ${Dsp-16-u16} */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U16), 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_absolute_SI, { 0x7d1f0000 }
+    & ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_absolute_SI, { 0x7d1f0000 }
   },
 /* jsri.a ${Dsp-16-u8}[$Dst32AnUnprefixed] */
   {
@@ -46170,17 +46154,23 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', OP (DSP_16_S8), '[', 'f', 'b', ']', 0 } },
     & ifmt_jsri16a_dst16_16_8_SI_dst16_16_8_FB_relative_SI, { 0x7d1b00 }
   },
-/* jsri.w ${Dsp-16-u24}[$Dst32AnUnprefixed] */
+/* jsri.a ${Dsp-16-u24}[$Dst32AnUnprefixed] */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U24), '[', OP (DST32ANUNPREFIXED), ']', 0 } },
-    & ifmt_shl32_w_dst_dst32_16_24_An_relative_Unprefixed_HI, { 0xc71f0000 }
+    & ifmt_shl32_l_dst_dst32_16_24_An_relative_Unprefixed_SI, { 0x96010000 }
   },
-/* jsri.w ${Dsp-16-u24} */
+/* jsri.a ${Dsp-16-u24} */
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U24), 0 } },
-    & ifmt_shl32_w_dst_dst32_16_24_absolute_Unprefixed_HI, { 0xc79f0000 }
+    & ifmt_shl32_l_dst_dst32_16_24_absolute_Unprefixed_SI, { 0x96810000 }
+  },
+/* jsri.a ${Dsp-16-u20}[$Dst16An] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U20), '[', OP (DST16AN), ']', 0 } },
+    & ifmt_jsri16a_dst16_16_20ar_SI_dst16_16_20_An_relative_SI, { 0x7d1c0000 }
   },
 /* jsri.w $Dst32RnUnprefixedHI */
   {
@@ -46218,48 +46208,6 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { { MNEM, ' ', '[', OP (DST16AN), ']', 0 } },
     & ifmt_shl16_w_dst_dst16_An_indirect_HI, { 0x7d36 }
   },
-/* jsri.w ${Dsp-16-u16}[$Dst32AnUnprefixed] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', OP (DST32ANUNPREFIXED), ']', 0 } },
-    & ifmt_shl32_w_dst_dst32_16_16_An_relative_Unprefixed_HI, { 0xc51f0000 }
-  },
-/* jsri.w ${Dsp-16-u16}[sb] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
-    & ifmt_shl32_w_dst_dst32_16_16_SB_relative_Unprefixed_HI, { 0xc59f0000 }
-  },
-/* jsri.w ${Dsp-16-s16}[fb] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_S16), '[', 'f', 'b', ']', 0 } },
-    & ifmt_shl32_w_dst_dst32_16_16_FB_relative_Unprefixed_HI, { 0xc5df0000 }
-  },
-/* jsri.w ${Dsp-16-u16} */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), 0 } },
-    & ifmt_shl32_w_dst_dst32_16_16_absolute_Unprefixed_HI, { 0xc7df0000 }
-  },
-/* jsri.w ${Dsp-16-u16}[$Dst16An] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', OP (DST16AN), ']', 0 } },
-    & ifmt_shl16_w_dst_dst16_16_16_An_relative_HI, { 0x7d3c0000 }
-  },
-/* jsri.w ${Dsp-16-u16}[sb] */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
-    & ifmt_shl16_w_dst_dst16_16_16_SB_relative_HI, { 0x7d3e0000 }
-  },
-/* jsri.w ${Dsp-16-u16} */
-  {
-    { 0, 0, 0, 0 },
-    { { MNEM, ' ', OP (DSP_16_U16), 0 } },
-    & ifmt_shl16_w_dst_dst16_16_16_absolute_HI, { 0x7d3f0000 }
-  },
 /* jsri.w ${Dsp-16-u8}[$Dst32AnUnprefixed] */
   {
     { 0, 0, 0, 0 },
@@ -46295,6 +46243,54 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_S8), '[', 'f', 'b', ']', 0 } },
     & ifmt_shl16_w_dst_dst16_16_8_FB_relative_HI, { 0x7d3b00 }
+  },
+/* jsri.w ${Dsp-16-u16}[sb] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
+    & ifmt_shl32_w_dst_dst32_16_16_SB_relative_Unprefixed_HI, { 0xc59f0000 }
+  },
+/* jsri.w ${Dsp-16-s16}[fb] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_S16), '[', 'f', 'b', ']', 0 } },
+    & ifmt_shl32_w_dst_dst32_16_16_FB_relative_Unprefixed_HI, { 0xc5df0000 }
+  },
+/* jsri.w ${Dsp-16-u16} */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U16), 0 } },
+    & ifmt_shl32_w_dst_dst32_16_16_absolute_Unprefixed_HI, { 0xc7df0000 }
+  },
+/* jsri.w ${Dsp-16-u16}[sb] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
+    & ifmt_shl16_w_dst_dst16_16_16_SB_relative_HI, { 0x7d3e0000 }
+  },
+/* jsri.w ${Dsp-16-u16} */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U16), 0 } },
+    & ifmt_shl16_w_dst_dst16_16_16_absolute_HI, { 0x7d3f0000 }
+  },
+/* jsri.w ${Dsp-16-u24}[$Dst32AnUnprefixed] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U24), '[', OP (DST32ANUNPREFIXED), ']', 0 } },
+    & ifmt_shl32_w_dst_dst32_16_24_An_relative_Unprefixed_HI, { 0xc71f0000 }
+  },
+/* jsri.w ${Dsp-16-u24} */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U24), 0 } },
+    & ifmt_shl32_w_dst_dst32_16_24_absolute_Unprefixed_HI, { 0xc79f0000 }
+  },
+/* jsri.w ${Dsp-16-u20}[$Dst16An] */
+  {
+    { 0, 0, 0, 0 },
+    { { MNEM, ' ', OP (DSP_16_U20), '[', OP (DST16AN), ']', 0 } },
+    & ifmt_jsri16w_dst16_16_20ar_HI_dst16_16_20_An_relative_HI, { 0x7d3c0000 }
   },
 /* jmpi.a $Dst32RnUnprefixedSI */
   {
@@ -46396,7 +46392,7 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U16), '[', OP (DST16AN), ']', 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_An_relative_SI, { 0x7d0c0000 }
+    & ifmt_jmpi16_a_16_dst16_16_16_An_relative_SI, { 0x7d0c0000 }
   },
 /* jmpi.a ${Dsp-16-u8}[sb] */
   {
@@ -46408,7 +46404,7 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U16), '[', 's', 'b', ']', 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_SB_relative_SI, { 0x7d0e0000 }
+    & ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_SB_relative_SI, { 0x7d0e0000 }
   },
 /* jmpi.a ${Dsp-16-s8}[fb] */
   {
@@ -46420,7 +46416,7 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', OP (DSP_16_U16), 0 } },
-    & ifmt_jsri16a_dst16_16_16_SI_dst16_16_16_absolute_SI, { 0x7d0f0000 }
+    & ifmt_jsri16a_dst16_16_16sa_SI_dst16_16_16_absolute_SI, { 0x7d0f0000 }
   },
 /* jmpi.w $Dst32RnUnprefixedHI */
   {
@@ -80002,7 +79998,7 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
   {
     { 0, 0, 0, 0 },
     { { MNEM, ' ', '#', OP (IMM_8_QI), ',', '#', OP (IMM_32_QI), ',', OP (DSP_16_U16), 0 } },
-    & ifmt_stzx16_imm8_imm8_abs16, { 0xde000000 }
+    & ifmt_stzx16_imm8_imm8_abs16, { 0xdf000000 }
   },
 /* und */
   {
@@ -80061,11 +80057,7 @@ static const CGEN_OPCODE m32c_cgen_insn_opcode_table[MAX_INSNS] =
 
 /* Formats for ALIAS macro-insns.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define F(f) & m32c_cgen_ifld_table[M32C_##f]
-#else
-#define F(f) & m32c_cgen_ifld_table[M32C_/**/f]
-#endif
 static const CGEN_IFMT ifmt_add16_bQ_sp ATTRIBUTE_UNUSED = {
   16, 16, 0xfff0, { { F (F_0_4) }, { F (F_4_4) }, { F (F_8_4) }, { F (F_IMM_12_S4) }, { 0 } }
 };
@@ -80074,16 +80066,8 @@ static const CGEN_IFMT ifmt_add16_bQ_sp ATTRIBUTE_UNUSED = {
 
 /* Each non-simple macro entry points to an array of expansion possibilities.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_INSN_##a)
-#else
-#define A(a) (1 << CGEN_INSN_/**/a)
-#endif
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define OPERAND(op) M32C_OPERAND_##op
-#else
-#define OPERAND(op) M32C_OPERAND_/**/op
-#endif
 #define MNEM CGEN_SYNTAX_MNEMONIC /* syntax value for mnemonic */
 #define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
 
@@ -80205,7 +80189,10 @@ m32c_cgen_init_opcode_table (CGEN_CPU_DESC cd)
   const CGEN_OPCODE *oc = & m32c_cgen_macro_insn_opcode_table[0];
   CGEN_INSN *insns = xmalloc (num_macros * sizeof (CGEN_INSN));
 
-  memset (insns, 0, num_macros * sizeof (CGEN_INSN));
+  /* This test has been added to avoid a warning generated
+     if memset is called with a third argument of value zero.  */
+  if (num_macros >= 1)
+    memset (insns, 0, num_macros * sizeof (CGEN_INSN));
   for (i = 0; i < num_macros; ++i)
     {
       insns[i].base = &ib[i];

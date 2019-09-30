@@ -1,24 +1,22 @@
 /* r8c.opc --- semantics for r8c opcodes.		        -*- mode: c -*-
 
-Copyright (C) 2005 Free Software Foundation, Inc.
+Copyright (C) 2005-2013 Free Software Foundation, Inc.
 Contributed by Red Hat, Inc.
 
 This file is part of the GNU simulators.
 
-The GNU simulators are free software; you can redistribute them and/or
-modify them under the terms of the GNU General Public License as
-published by the Free Software Foundation; either version 2 of the
-License, or (at your option) any later version.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
-The GNU simulators are distributed in the hope that they will be
-useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with the GNU simulators; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA  */
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #include <stdio.h>
@@ -477,11 +475,11 @@ decode_r8c()
 
   /** 0111 1110 0101 srcx  BNAND src */
 
-  BIT_OPC (srcx, !b & carry);
+  BIT_OPC (srcx, (!b) & carry);
 
   /** 0111 1110 0111 srcx  BNOR src */
 
-  BIT_OPC (srcx, !b | carry);
+  BIT_OPC (srcx, (!b) | carry);
 
   /** 0111 1110 1010 dest  BNOT:G dest */
 
@@ -1251,9 +1249,9 @@ decode_r8c()
 
   a = get_reg (sp);
   v = (mem_get_hi (a)
-       + 65536 * (mem_get_qi (a+3) & 0x0f));
+       + 4096 * (mem_get_qi (a+3) & 0xf0));
   b = (mem_get_qi (a+2)
-       + 16 * (mem_get_qi (a+3) & 0xf0));
+       + 256 * (mem_get_qi (a+3) & 0xff));
   put_reg (pc, v);
   put_reg (flags, b);
   put_reg (sp, get_reg (sp) + 4);
@@ -1403,7 +1401,7 @@ decode_r8c()
 
   int count = get_reg (r3);
   int s1 = get_reg (a1);
-  v = get_reg (w ? r0 : r0h);
+  v = get_reg (w ? r0 : r0l);
 
   while (count)
     {

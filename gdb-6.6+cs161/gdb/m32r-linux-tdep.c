@@ -1,12 +1,12 @@
 /* Target-dependent code for GNU/Linux m32r.
 
-   Copyright (C) 2004 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "gdbcore.h"
@@ -33,11 +31,14 @@
 
 #include "glibc-tdep.h"
 #include "solib-svr4.h"
+#include "symtab.h"
 
 #include "trad-frame.h"
 #include "frame-unwind.h"
 
 #include "m32r-tdep.h"
+#include "linux-tdep.h"
+
 
 
 /* Recognizing signal handler frames.  */
@@ -85,7 +86,7 @@ static const gdb_byte linux_sigtramp_code[] = {
    the routine.  Otherwise, return 0.  */
 
 static CORE_ADDR
-m32r_linux_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
+m32r_linux_sigtramp_start (CORE_ADDR pc, struct frame_info *this_frame)
 {
   gdb_byte buf[4];
 
@@ -99,7 +100,7 @@ m32r_linux_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
 
   if (pc % 2 != 0)
     {
-      if (!safe_frame_unwind_memory (next_frame, pc, buf, 2))
+      if (!safe_frame_unwind_memory (this_frame, pc, buf, 2))
 	return 0;
 
       if (memcmp (buf, linux_sigtramp_code, 2) == 0)
@@ -108,7 +109,7 @@ m32r_linux_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
 	return 0;
     }
 
-  if (!safe_frame_unwind_memory (next_frame, pc, buf, 4))
+  if (!safe_frame_unwind_memory (this_frame, pc, buf, 4))
     return 0;
 
   if (memcmp (buf, linux_sigtramp_code, 4) != 0)
@@ -133,7 +134,7 @@ static const gdb_byte linux_rt_sigtramp_code[] = {
    of the routine.  Otherwise, return 0.  */
 
 static CORE_ADDR
-m32r_linux_rt_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
+m32r_linux_rt_sigtramp_start (CORE_ADDR pc, struct frame_info *this_frame)
 {
   gdb_byte buf[4];
 
@@ -148,12 +149,12 @@ m32r_linux_rt_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
   if (pc % 2 != 0)
     return 0;
 
-  if (!safe_frame_unwind_memory (next_frame, pc, buf, 4))
+  if (!safe_frame_unwind_memory (this_frame, pc, buf, 4))
     return 0;
 
   if (memcmp (buf, linux_rt_sigtramp_code, 4) == 0)
     {
-      if (!safe_frame_unwind_memory (next_frame, pc + 4, buf, 4))
+      if (!safe_frame_unwind_memory (this_frame, pc + 4, buf, 4))
 	return 0;
 
       if (memcmp (buf, linux_rt_sigtramp_code + 4, 4) == 0)
@@ -161,7 +162,7 @@ m32r_linux_rt_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
     }
   else if (memcmp (buf, linux_rt_sigtramp_code + 4, 4) == 0)
     {
-      if (!safe_frame_unwind_memory (next_frame, pc - 4, buf, 4))
+      if (!safe_frame_unwind_memory (this_frame, pc - 4, buf, 4))
 	return 0;
 
       if (memcmp (buf, linux_rt_sigtramp_code, 4) == 0)
@@ -172,8 +173,8 @@ m32r_linux_rt_sigtramp_start (CORE_ADDR pc, struct frame_info *next_frame)
 }
 
 static int
-m32r_linux_pc_in_sigtramp (CORE_ADDR pc, char *name,
-			   struct frame_info *next_frame)
+m32r_linux_pc_in_sigtramp (CORE_ADDR pc, const char *name,
+			   struct frame_info *this_frame)
 {
   /* If we have NAME, we can optimize the search.  The trampolines are
      named __restore and __restore_rt.  However, they aren't dynamically
@@ -181,8 +182,8 @@ m32r_linux_pc_in_sigtramp (CORE_ADDR pc, char *name,
      be part of the preceding function.  This should always be sigaction,
      __sigaction, or __libc_sigaction (all aliases to the same function).  */
   if (name == NULL || strstr (name, "sigaction") != NULL)
-    return (m32r_linux_sigtramp_start (pc, next_frame) != 0
-	    || m32r_linux_rt_sigtramp_start (pc, next_frame) != 0);
+    return (m32r_linux_sigtramp_start (pc, this_frame) != 0
+	    || m32r_linux_rt_sigtramp_start (pc, this_frame) != 0);
 
   return (strcmp ("__restore", name) == 0
 	  || strcmp ("__restore_rt", name) == 0);
@@ -223,7 +224,7 @@ struct m32r_frame_cache
 };
 
 static struct m32r_frame_cache *
-m32r_linux_sigtramp_frame_cache (struct frame_info *next_frame,
+m32r_linux_sigtramp_frame_cache (struct frame_info *this_frame,
 				 void **this_cache)
 {
   struct m32r_frame_cache *cache;
@@ -234,26 +235,26 @@ m32r_linux_sigtramp_frame_cache (struct frame_info *next_frame,
     return (*this_cache);
   cache = FRAME_OBSTACK_ZALLOC (struct m32r_frame_cache);
   (*this_cache) = cache;
-  cache->saved_regs = trad_frame_alloc_saved_regs (next_frame);
+  cache->saved_regs = trad_frame_alloc_saved_regs (this_frame);
 
-  cache->base = frame_unwind_register_unsigned (next_frame, M32R_SP_REGNUM);
+  cache->base = get_frame_register_unsigned (this_frame, M32R_SP_REGNUM);
   sigcontext_addr = cache->base + 4;
 
-  cache->pc = frame_pc_unwind (next_frame);
-  addr = m32r_linux_sigtramp_start (cache->pc, next_frame);
+  cache->pc = get_frame_pc (this_frame);
+  addr = m32r_linux_sigtramp_start (cache->pc, this_frame);
   if (addr == 0)
     {
       /* If this is a RT signal trampoline, adjust SIGCONTEXT_ADDR
          accordingly.  */
-      addr = m32r_linux_rt_sigtramp_start (cache->pc, next_frame);
+      addr = m32r_linux_rt_sigtramp_start (cache->pc, this_frame);
       if (addr)
 	sigcontext_addr += 128;
       else
-	addr = frame_func_unwind (next_frame);
+	addr = get_frame_func (this_frame);
     }
   cache->pc = addr;
 
-  cache->saved_regs = trad_frame_alloc_saved_regs (next_frame);
+  cache->saved_regs = trad_frame_alloc_saved_regs (this_frame);
 
   for (regnum = 0; regnum < sizeof (m32r_linux_sc_reg_offset) / 4; regnum++)
     {
@@ -266,49 +267,49 @@ m32r_linux_sigtramp_frame_cache (struct frame_info *next_frame,
 }
 
 static void
-m32r_linux_sigtramp_frame_this_id (struct frame_info *next_frame,
+m32r_linux_sigtramp_frame_this_id (struct frame_info *this_frame,
 				   void **this_cache,
 				   struct frame_id *this_id)
 {
   struct m32r_frame_cache *cache =
-    m32r_linux_sigtramp_frame_cache (next_frame, this_cache);
+    m32r_linux_sigtramp_frame_cache (this_frame, this_cache);
 
   (*this_id) = frame_id_build (cache->base, cache->pc);
 }
 
-static void
-m32r_linux_sigtramp_frame_prev_register (struct frame_info *next_frame,
-					 void **this_cache,
-					 int regnum, int *optimizedp,
-					 enum lval_type *lvalp,
-					 CORE_ADDR *addrp,
-					 int *realnump, gdb_byte *valuep)
+static struct value *
+m32r_linux_sigtramp_frame_prev_register (struct frame_info *this_frame,
+					 void **this_cache, int regnum)
 {
   struct m32r_frame_cache *cache =
-    m32r_linux_sigtramp_frame_cache (next_frame, this_cache);
+    m32r_linux_sigtramp_frame_cache (this_frame, this_cache);
 
-  trad_frame_get_prev_register (next_frame, cache->saved_regs, regnum,
-				optimizedp, lvalp, addrp, realnump, valuep);
+  return trad_frame_get_prev_register (this_frame, cache->saved_regs, regnum);
+}
+
+static int
+m32r_linux_sigtramp_frame_sniffer (const struct frame_unwind *self,
+				   struct frame_info *this_frame,
+				   void **this_cache)
+{
+  CORE_ADDR pc = get_frame_pc (this_frame);
+  const char *name;
+
+  find_pc_partial_function (pc, &name, NULL, NULL);
+  if (m32r_linux_pc_in_sigtramp (pc, name, this_frame))
+    return 1;
+
+  return 0;
 }
 
 static const struct frame_unwind m32r_linux_sigtramp_frame_unwind = {
   SIGTRAMP_FRAME,
+  default_frame_unwind_stop_reason,
   m32r_linux_sigtramp_frame_this_id,
-  m32r_linux_sigtramp_frame_prev_register
+  m32r_linux_sigtramp_frame_prev_register,
+  NULL,
+  m32r_linux_sigtramp_frame_sniffer
 };
-
-static const struct frame_unwind *
-m32r_linux_sigtramp_frame_sniffer (struct frame_info *next_frame)
-{
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
-  char *name;
-
-  find_pc_partial_function (pc, &name, NULL, NULL);
-  if (m32r_linux_pc_in_sigtramp (pc, name, next_frame))
-    return &m32r_linux_sigtramp_frame_unwind;
-
-  return NULL;
-}
 
 /* Mapping between the registers in `struct pt_regs'
    format and GDB's register array layout.  */
@@ -382,7 +383,7 @@ m32r_linux_supply_gregset (const struct regset *regset,
 	  break;
 	}
 
-      regcache_raw_supply (current_regcache, i,
+      regcache_raw_supply (regcache, i,
 			   regs + m32r_pt_regs_offset[i]);
     }
 }
@@ -406,13 +407,16 @@ m32r_linux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
+  linux_init_abi (info, gdbarch);
+
   /* Since EVB register is not available for native debug, we reduce
      the number of registers.  */
   set_gdbarch_num_regs (gdbarch, M32R_NUM_REGS - 1);
 
-  frame_unwind_append_sniffer (gdbarch, m32r_linux_sigtramp_frame_sniffer);
+  frame_unwind_append_unwinder (gdbarch, &m32r_linux_sigtramp_frame_unwind);
 
   /* GNU/Linux uses SVR4-style shared libraries.  */
+  set_gdbarch_skip_trampoline_code (gdbarch, find_solib_trampoline_target);
   set_solib_svr4_fetch_link_map_offsets
     (gdbarch, svr4_ilp32_fetch_link_map_offsets);
 

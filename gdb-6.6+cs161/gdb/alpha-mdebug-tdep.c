@@ -1,12 +1,11 @@
 /* Target-dependent mdebug code for the ALPHA architecture.
-   Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003
-   Free Software Foundation, Inc.
+   Copyright (C) 1993-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "frame.h"
@@ -27,6 +24,8 @@
 #include "gdbcore.h"
 #include "block.h"
 #include "gdb_assert.h"
+#include "gdb_string.h"
+#include "trad-frame.h"
 
 #include "alpha-tdep.h"
 #include "mdebugread.h"
@@ -97,11 +96,12 @@ find_proc_desc (CORE_ADDR pc)
   struct block *b = block_for_pc (pc);
   struct mdebug_extra_func_info *proc_desc = NULL;
   struct symbol *sym = NULL;
+  const char *sh_name = NULL;
 
   if (b)
     {
       CORE_ADDR startaddr;
-      find_pc_partial_function (pc, NULL, &startaddr, NULL);
+      find_pc_partial_function (pc, &sh_name, &startaddr, NULL);
 
       if (startaddr > BLOCK_START (b))
 	/* This is the "pathological" case referred to in a comment in
@@ -109,12 +109,22 @@ find_proc_desc (CORE_ADDR pc)
 	   symbol reading.  */
 	sym = NULL;
       else
-	sym = lookup_symbol (MDEBUG_EFI_SYMBOL_NAME, b, LABEL_DOMAIN, 0, NULL);
+	sym = lookup_symbol (MDEBUG_EFI_SYMBOL_NAME, b, LABEL_DOMAIN, 0);
     }
 
   if (sym)
     {
-      proc_desc = (struct mdebug_extra_func_info *) SYMBOL_VALUE (sym);
+      proc_desc = (struct mdebug_extra_func_info *) SYMBOL_VALUE_BYTES (sym);
+
+      /* Correct incorrect setjmp procedure descriptor from the library
+         to make backtrace through setjmp work.  */
+      if (proc_desc->pdr.pcreg == 0
+	  && strcmp (sh_name, "setjmp") == 0)
+	{
+	  proc_desc->pdr.pcreg = ALPHA_RA_REGNUM;
+	  proc_desc->pdr.regmask = 0x80000000;
+	  proc_desc->pdr.regoffset = -4;
+	}
 
       /* If we never found a PDR for this function in symbol reading,
 	 then examine prologues to find the information.  */
@@ -125,18 +135,27 @@ find_proc_desc (CORE_ADDR pc)
   return proc_desc;
 }
 
+/* Return a non-zero result if the function is frameless; zero otherwise.  */
+
+static int
+alpha_mdebug_frameless (struct mdebug_extra_func_info *proc_desc)
+{
+  return (PROC_FRAME_REG (proc_desc) == ALPHA_SP_REGNUM
+	  && PROC_FRAME_OFFSET (proc_desc) == 0);
+}
+
 /* This returns the PC of the first inst after the prologue.  If we can't
    find the prologue, then return 0.  */
 
 static CORE_ADDR
-alpha_mdebug_after_prologue (CORE_ADDR pc, struct mdebug_extra_func_info *proc_desc)
+alpha_mdebug_after_prologue (CORE_ADDR pc,
+			     struct mdebug_extra_func_info *proc_desc)
 {
   if (proc_desc)
     {
       /* If function is frameless, then we need to do it the hard way.  I
-         strongly suspect that frameless always means prologueless... */
-      if (PROC_FRAME_REG (proc_desc) == ALPHA_SP_REGNUM
-	  && PROC_FRAME_OFFSET (proc_desc) == 0)
+         strongly suspect that frameless always means prologueless...  */
+      if (alpha_mdebug_frameless (proc_desc))
 	return 0;
     }
 
@@ -147,7 +166,8 @@ alpha_mdebug_after_prologue (CORE_ADDR pc, struct mdebug_extra_func_info *proc_d
    if we are definitively *not* in a function prologue.  */
 
 static int
-alpha_mdebug_in_prologue (CORE_ADDR pc, struct mdebug_extra_func_info *proc_desc)
+alpha_mdebug_in_prologue (CORE_ADDR pc,
+			  struct mdebug_extra_func_info *proc_desc)
 {
   CORE_ADDR after_prologue_pc = alpha_mdebug_after_prologue (pc, proc_desc);
   return (after_prologue_pc == 0 || pc < after_prologue_pc);
@@ -160,14 +180,14 @@ struct alpha_mdebug_unwind_cache
 {
   struct mdebug_extra_func_info *proc_desc;
   CORE_ADDR vfp;
-  CORE_ADDR *saved_regs;
+  struct trad_frame_saved_reg *saved_regs;
 };
 
 /* Extract all of the information about the frame from PROC_DESC
    and store the resulting register save locations in the structure.  */
 
 static struct alpha_mdebug_unwind_cache *
-alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame, 
+alpha_mdebug_frame_unwind_cache (struct frame_info *this_frame, 
 				 void **this_prologue_cache)
 {
   struct alpha_mdebug_unwind_cache *info;
@@ -182,7 +202,7 @@ alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame,
 
   info = FRAME_OBSTACK_ZALLOC (struct alpha_mdebug_unwind_cache);
   *this_prologue_cache = info;
-  pc = frame_pc_unwind (next_frame);
+  pc = get_frame_address_in_block (this_frame);
 
   /* ??? We don't seem to be able to cache the lookup of the PDR
      from alpha_mdebug_frame_p.  It'd be nice if we could change
@@ -191,10 +211,10 @@ alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame,
   info->proc_desc = proc_desc;
   gdb_assert (proc_desc != NULL);
 
-  info->saved_regs = frame_obstack_zalloc (SIZEOF_FRAME_SAVED_REGS);
+  info->saved_regs = trad_frame_alloc_saved_regs (this_frame);
 
   /* The VFP of the frame is at FRAME_REG+FRAME_OFFSET.  */
-  frame_unwind_unsigned_register (next_frame, PROC_FRAME_REG (proc_desc), &vfp);
+  vfp = get_frame_register_unsigned (this_frame, PROC_FRAME_REG (proc_desc));
   vfp += PROC_FRAME_OFFSET (info->proc_desc);
   info->vfp = vfp;
 
@@ -208,17 +228,17 @@ alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame,
      register number.  */
   if (mask & (1 << returnreg))
     {
-      /* Clear bit for RA so we don't save it again later. */
+      /* Clear bit for RA so we don't save it again later.  */
       mask &= ~(1 << returnreg);
 
-      info->saved_regs[returnreg] = reg_position;
+      info->saved_regs[returnreg].addr = reg_position;
       reg_position += 8;
     }
 
   for (ireg = 0; ireg <= 31; ++ireg)
     if (mask & (1 << ireg))
       {
-	info->saved_regs[ireg] = reg_position;
+	info->saved_regs[ireg].addr = reg_position;
 	reg_position += 8;
       }
 
@@ -228,9 +248,14 @@ alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame,
   for (ireg = 0; ireg <= 31; ++ireg)
     if (mask & (1 << ireg))
       {
-	info->saved_regs[ALPHA_FP0_REGNUM + ireg] = reg_position;
+	info->saved_regs[ALPHA_FP0_REGNUM + ireg].addr = reg_position;
 	reg_position += 8;
       }
+
+  /* The stack pointer of the previous frame is computed by popping
+     the current stack frame.  */
+  if (!trad_frame_addr_p (info->saved_regs, ALPHA_SP_REGNUM))
+   trad_frame_set_value (info->saved_regs, ALPHA_SP_REGNUM, vfp);
 
   return info;
 }
@@ -239,27 +264,24 @@ alpha_mdebug_frame_unwind_cache (struct frame_info *next_frame,
    frame.  This will be used to create a new GDB frame struct.  */
 
 static void
-alpha_mdebug_frame_this_id (struct frame_info *next_frame,
+alpha_mdebug_frame_this_id (struct frame_info *this_frame,
 			    void **this_prologue_cache,
 			    struct frame_id *this_id)
 {
   struct alpha_mdebug_unwind_cache *info
-    = alpha_mdebug_frame_unwind_cache (next_frame, this_prologue_cache);
+    = alpha_mdebug_frame_unwind_cache (this_frame, this_prologue_cache);
 
-  *this_id = frame_id_build (info->vfp, frame_func_unwind (next_frame));
+  *this_id = frame_id_build (info->vfp, get_frame_func (this_frame));
 }
 
 /* Retrieve the value of REGNUM in FRAME.  Don't give up!  */
 
-static void
-alpha_mdebug_frame_prev_register (struct frame_info *next_frame,
-				  void **this_prologue_cache,
-				  int regnum, int *optimizedp,
-				  enum lval_type *lvalp, CORE_ADDR *addrp,
-				  int *realnump, gdb_byte *bufferp)
+static struct value *
+alpha_mdebug_frame_prev_register (struct frame_info *this_frame,
+				  void **this_prologue_cache, int regnum)
 {
   struct alpha_mdebug_unwind_cache *info
-    = alpha_mdebug_frame_unwind_cache (next_frame, this_prologue_cache);
+    = alpha_mdebug_frame_unwind_cache (this_frame, this_prologue_cache);
 
   /* The PC of the previous frame is stored in the link register of
      the current frame.  Frob regnum so that we pull the value from
@@ -267,89 +289,85 @@ alpha_mdebug_frame_prev_register (struct frame_info *next_frame,
   if (regnum == ALPHA_PC_REGNUM)
     regnum = PROC_PC_REG (info->proc_desc);
   
-  /* For all registers known to be saved in the current frame, 
-     do the obvious and pull the value out.  */
-  if (info->saved_regs[regnum])
-    {
-      *optimizedp = 0;
-      *lvalp = lval_memory;
-      *addrp = info->saved_regs[regnum];
-      *realnump = -1;
-      if (bufferp != NULL)
-	get_frame_memory (next_frame, *addrp, bufferp, ALPHA_REGISTER_SIZE);
-      return;
-    }
-
-  /* The stack pointer of the previous frame is computed by popping
-     the current stack frame.  */
-  if (regnum == ALPHA_SP_REGNUM)
-    {
-      *optimizedp = 0;
-      *lvalp = not_lval;
-      *addrp = 0;
-      *realnump = -1;
-      if (bufferp != NULL)
-	store_unsigned_integer (bufferp, ALPHA_REGISTER_SIZE, info->vfp);
-      return;
-    }
-
-  /* Otherwise assume the next frame has the same register value.  */
-  frame_register (next_frame, regnum, optimizedp, lvalp, addrp,
-  		  realnump, bufferp);
+  return trad_frame_get_prev_register (this_frame, info->saved_regs, regnum);
 }
 
-static const struct frame_unwind alpha_mdebug_frame_unwind = {
-  NORMAL_FRAME,
-  alpha_mdebug_frame_this_id,
-  alpha_mdebug_frame_prev_register
-};
+/* Return a non-zero result if the size of the stack frame exceeds the
+   maximum debuggable frame size (512 Kbytes); zero otherwise.  */
 
-const struct frame_unwind *
-alpha_mdebug_frame_sniffer (struct frame_info *next_frame)
+static int
+alpha_mdebug_max_frame_size_exceeded (struct mdebug_extra_func_info *proc_desc)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  /* If frame offset is null, we can be in two cases: either the
+     function is frameless (the stack frame is null) or its
+     frame exceeds the maximum debuggable frame size (512 Kbytes).  */
+
+  return (PROC_FRAME_OFFSET (proc_desc) == 0
+	  && !alpha_mdebug_frameless (proc_desc));
+}
+
+static int
+alpha_mdebug_frame_sniffer (const struct frame_unwind *self,
+                            struct frame_info *this_frame,
+                            void **this_cache)
+{
+  CORE_ADDR pc = get_frame_address_in_block (this_frame);
   struct mdebug_extra_func_info *proc_desc;
 
   /* If this PC does not map to a PDR, then clearly this isn't an
      mdebug frame.  */
   proc_desc = find_proc_desc (pc);
   if (proc_desc == NULL)
-    return NULL;
+    return 0;
 
   /* If we're in the prologue, the PDR for this frame is not yet valid.
      Say no here and we'll fall back on the heuristic unwinder.  */
   if (alpha_mdebug_in_prologue (pc, proc_desc))
-    return NULL;
+    return 0;
 
-  return &alpha_mdebug_frame_unwind;
+  /* If the maximum debuggable frame size has been exceeded, the
+     proc desc is bogus.  Fall back on the heuristic unwinder.  */
+  if (alpha_mdebug_max_frame_size_exceeded (proc_desc))
+    return 0;
+
+  return 1;
 }
 
+static const struct frame_unwind alpha_mdebug_frame_unwind = {
+  NORMAL_FRAME,
+  default_frame_unwind_stop_reason,
+  alpha_mdebug_frame_this_id,
+  alpha_mdebug_frame_prev_register,
+  NULL,
+  alpha_mdebug_frame_sniffer
+};
+
 static CORE_ADDR
-alpha_mdebug_frame_base_address (struct frame_info *next_frame,
+alpha_mdebug_frame_base_address (struct frame_info *this_frame,
 				 void **this_prologue_cache)
 {
   struct alpha_mdebug_unwind_cache *info
-    = alpha_mdebug_frame_unwind_cache (next_frame, this_prologue_cache);
+    = alpha_mdebug_frame_unwind_cache (this_frame, this_prologue_cache);
 
   return info->vfp;
 }
 
 static CORE_ADDR
-alpha_mdebug_frame_locals_address (struct frame_info *next_frame,
+alpha_mdebug_frame_locals_address (struct frame_info *this_frame,
 				   void **this_prologue_cache)
 {
   struct alpha_mdebug_unwind_cache *info
-    = alpha_mdebug_frame_unwind_cache (next_frame, this_prologue_cache);
+    = alpha_mdebug_frame_unwind_cache (this_frame, this_prologue_cache);
 
   return info->vfp - PROC_LOCALOFF (info->proc_desc);
 }
 
 static CORE_ADDR
-alpha_mdebug_frame_args_address (struct frame_info *next_frame,
+alpha_mdebug_frame_args_address (struct frame_info *this_frame,
 				 void **this_prologue_cache)
 {
   struct alpha_mdebug_unwind_cache *info
-    = alpha_mdebug_frame_unwind_cache (next_frame, this_prologue_cache);
+    = alpha_mdebug_frame_unwind_cache (this_frame, this_prologue_cache);
 
   return info->vfp - ALPHA_NUM_ARG_REGS * 8;
 }
@@ -362,9 +380,9 @@ static const struct frame_base alpha_mdebug_frame_base = {
 };
 
 static const struct frame_base *
-alpha_mdebug_frame_base_sniffer (struct frame_info *next_frame)
+alpha_mdebug_frame_base_sniffer (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  CORE_ADDR pc = get_frame_address_in_block (this_frame);
   struct mdebug_extra_func_info *proc_desc;
 
   /* If this PC does not map to a PDR, then clearly this isn't an
@@ -372,6 +390,11 @@ alpha_mdebug_frame_base_sniffer (struct frame_info *next_frame)
   proc_desc = find_proc_desc (pc);
   if (proc_desc == NULL)
     return NULL;
+
+  /* If the maximum debuggable frame size has been exceeded, the
+     proc desc is bogus.  Fall back on the heuristic unwinder.  */
+  if (alpha_mdebug_max_frame_size_exceeded (proc_desc))
+    return 0;
 
   return &alpha_mdebug_frame_base;
 }
@@ -382,6 +405,6 @@ alpha_mdebug_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
 
-  frame_unwind_append_sniffer (gdbarch, alpha_mdebug_frame_sniffer);
+  frame_unwind_append_unwinder (gdbarch, &alpha_mdebug_frame_unwind);
   frame_base_append_sniffer (gdbarch, alpha_mdebug_frame_base_sniffer);
 }

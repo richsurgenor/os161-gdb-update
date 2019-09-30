@@ -1,12 +1,12 @@
 /* SuperH SH64-specific support for 32-bit ELF
-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010
    Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,12 +16,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #define SH64_ELF
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "elf-bfd.h"
 #include "../opcodes/sh64-opc.h"
 #include "elf32-sh64.h"
@@ -59,7 +60,7 @@ static int sh64_elf_get_symbol_type
 static bfd_boolean sh64_elf_add_symbol_hook
   (bfd *, struct bfd_link_info *, Elf_Internal_Sym *, const char **,
    flagword *, asection **, bfd_vma *);
-static bfd_boolean sh64_elf_link_output_symbol_hook
+static int sh64_elf_link_output_symbol_hook
   (struct bfd_link_info *, const char *, Elf_Internal_Sym *, asection *,
    struct elf_link_hash_entry *);
 static bfd_boolean sh64_backend_section_from_shdr
@@ -103,7 +104,8 @@ static void sh64_find_section_for_address
 /* This COFF-only function (only compiled with COFF support, making
    ELF-only chains problematic) returns TRUE early for SH4, so let's just
    define it TRUE here.  */
-#define _bfd_sh_align_load_span(a,b,c,d,e,f,g,h,i,j) TRUE
+#define _bfd_sh_align_load_span(a,b,c,d,e,f,g,h,i,j) \
+  ((void) f, (void) h, (void) i, TRUE)
 
 #define GOT_BIAS (-((long)-32768))
 #define INCLUDE_SHMEDIA
@@ -476,7 +478,7 @@ sh64_elf_add_symbol_hook (bfd *abfd, struct bfd_link_info *info,
    we don't need to look up and make sure to emit the main symbol for each
    DataLabel symbol.  */
 
-bfd_boolean
+static int
 sh64_elf_link_output_symbol_hook (struct bfd_link_info *info,
 				  const char *cname,
 				  Elf_Internal_Sym *sym,
@@ -491,7 +493,7 @@ sh64_elf_link_output_symbol_hook (struct bfd_link_info *info,
 	name[strlen (name) - strlen (DATALABEL_SUFFIX)] = 0;
     }
 
-  return TRUE;
+  return 1;
 }
 
 /* Check a SH64-specific reloc and put the value to relocate to into

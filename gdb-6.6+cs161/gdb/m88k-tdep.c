@@ -1,12 +1,12 @@
 /* Target-dependent code for the Motorola 88000 series.
 
-   Copyright (C) 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "arch-utils.h"
@@ -41,9 +39,9 @@
 /* Fetch the instruction at PC.  */
 
 static unsigned long
-m88k_fetch_instruction (CORE_ADDR pc)
+m88k_fetch_instruction (CORE_ADDR pc, enum bfd_endian byte_order)
 {
-  return read_memory_unsigned_integer (pc, 4);
+  return read_memory_unsigned_integer (pc, 4, byte_order);
 }
 
 /* Register information.  */
@@ -51,7 +49,7 @@ m88k_fetch_instruction (CORE_ADDR pc)
 /* Return the name of register REGNUM.  */
 
 static const char *
-m88k_register_name (int regnum)
+m88k_register_name (struct gdbarch *gdbarch, int regnum)
 {
   static char *register_names[] =
   {
@@ -69,7 +67,7 @@ m88k_register_name (int regnum)
 }
 
 /* Return the GDB type object for the "standard" data type of data in
-   register REGNUM. */
+   register REGNUM.  */
 
 static struct type *
 m88k_register_type (struct gdbarch *gdbarch, int regnum)
@@ -77,18 +75,18 @@ m88k_register_type (struct gdbarch *gdbarch, int regnum)
   /* SXIP, SNIP, SFIP and R1 contain code addresses.  */
   if ((regnum >= M88K_SXIP_REGNUM && regnum <= M88K_SFIP_REGNUM)
       || regnum == M88K_R1_REGNUM)
-    return builtin_type_void_func_ptr;
+    return builtin_type (gdbarch)->builtin_func_ptr;
 
   /* R30 and R31 typically contains data addresses.  */
   if (regnum == M88K_R30_REGNUM || regnum == M88K_R31_REGNUM)
-    return builtin_type_void_data_ptr;
+    return builtin_type (gdbarch)->builtin_data_ptr;
 
-  return builtin_type_int32;
+  return builtin_type (gdbarch)->builtin_int32;
 }
 
 
 static CORE_ADDR
-m88k_addr_bits_remove (CORE_ADDR addr)
+m88k_addr_bits_remove (struct gdbarch *gdbarch, CORE_ADDR addr)
 {
   /* All instructures are 4-byte aligned.  The lower 2 bits of SXIP,
      SNIP and SFIP are used for special purposes: bit 0 is the
@@ -103,7 +101,7 @@ m88k_addr_bits_remove (CORE_ADDR addr)
    location for inserting the breakpoint.  */
    
 static const gdb_byte *
-m88k_breakpoint_from_pc (CORE_ADDR *pc, int *len)
+m88k_breakpoint_from_pc (struct gdbarch *gdbarch, CORE_ADDR *pc, int *len)
 {
   /* tb 0,r0,511 */
   static gdb_byte break_insn[] = { 0xf0, 0x00, 0xd1, 0xff };
@@ -118,11 +116,11 @@ m88k_unwind_pc (struct gdbarch *gdbarch, struct frame_info *next_frame)
   CORE_ADDR pc;
 
   pc = frame_unwind_register_unsigned (next_frame, M88K_SXIP_REGNUM);
-  return m88k_addr_bits_remove (pc);
+  return m88k_addr_bits_remove (gdbarch, pc);
 }
 
 static void
-m88k_write_pc (CORE_ADDR pc, ptid_t ptid)
+m88k_write_pc (struct regcache *regcache, CORE_ADDR pc)
 {
   /* According to the MC88100 RISC Microprocessor User's Manual,
      section 6.4.3.1.2:
@@ -140,9 +138,9 @@ m88k_write_pc (CORE_ADDR pc, ptid_t ptid)
      with it.  We could even (presumably) give it a totally bogus
      value.  */
 
-  write_register_pid (M88K_SXIP_REGNUM, pc, ptid);
-  write_register_pid (M88K_SNIP_REGNUM, pc | 2, ptid);
-  write_register_pid (M88K_SFIP_REGNUM, (pc + 4) | 2, ptid);
+  regcache_cooked_write_unsigned (regcache, M88K_SXIP_REGNUM, pc);
+  regcache_cooked_write_unsigned (regcache, M88K_SNIP_REGNUM, pc | 2);
+  regcache_cooked_write_unsigned (regcache, M88K_SFIP_REGNUM, (pc + 4) | 2);
 }
 
 
@@ -260,6 +258,7 @@ static CORE_ADDR
 m88k_store_arguments (struct regcache *regcache, int nargs,
 		      struct value **args, CORE_ADDR sp)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int num_register_words = 0;
   int num_stack_words = 0;
   int i;
@@ -271,7 +270,8 @@ m88k_store_arguments (struct regcache *regcache, int nargs,
 
       if (m88k_integral_or_pointer_p (type) && len < 4)
 	{
-	  args[i] = value_cast (builtin_type_int32, args[i]);
+	  args[i] = value_cast (builtin_type (gdbarch)->builtin_int32,
+				args[i]);
 	  type = value_type (args[i]);
 	  len = TYPE_LENGTH (type);
 	}
@@ -367,12 +367,12 @@ m88k_push_dummy_call (struct gdbarch *gdbarch, struct value *function,
 }
 
 static struct frame_id
-m88k_unwind_dummy_id (struct gdbarch *arch, struct frame_info *next_frame)
+m88k_dummy_id (struct gdbarch *arch, struct frame_info *this_frame)
 {
   CORE_ADDR sp;
 
-  sp = frame_unwind_register_unsigned (next_frame, M88K_R31_REGNUM);
-  return frame_id_build (sp, frame_pc_unwind (next_frame));
+  sp = get_frame_register_unsigned (this_frame, M88K_R31_REGNUM);
+  return frame_id_build (sp, get_frame_pc (this_frame));
 }
 
 
@@ -383,9 +383,9 @@ m88k_unwind_dummy_id (struct gdbarch *arch, struct frame_info *next_frame)
    from WRITEBUF into REGCACHE.  */
 
 static enum return_value_convention
-m88k_return_value (struct gdbarch *gdbarch, struct type *type,
-		   struct regcache *regcache, gdb_byte *readbuf,
-		   const gdb_byte *writebuf)
+m88k_return_value (struct gdbarch *gdbarch, struct value *function,
+		   struct type *type, struct regcache *regcache,
+		   gdb_byte *readbuf, const gdb_byte *writebuf)
 {
   int len = TYPE_LENGTH (type);
   gdb_byte buf[8];
@@ -526,9 +526,11 @@ struct m88k_prologue_insn m88k_prologue_insn_table[] =
    prologue.  */
 
 static CORE_ADDR
-m88k_analyze_prologue (CORE_ADDR pc, CORE_ADDR limit,
+m88k_analyze_prologue (struct gdbarch *gdbarch,
+		       CORE_ADDR pc, CORE_ADDR limit,
 		       struct m88k_frame_cache *cache)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR end = limit;
 
   /* Provide a dummy cache if necessary.  */
@@ -548,7 +550,7 @@ m88k_analyze_prologue (CORE_ADDR pc, CORE_ADDR limit,
   while (pc < limit)
     {
       struct m88k_prologue_insn *pi = m88k_prologue_insn_table;
-      unsigned long insn = m88k_fetch_instruction (pc);
+      unsigned long insn = m88k_fetch_instruction (pc, byte_order);
 
       while ((insn & pi->mask) != pi->insn)
 	pi++;
@@ -628,7 +630,7 @@ const int m88k_max_prologue_size = 128 * M88K_INSN_SIZE;
    starting at PC.  */
 
 static CORE_ADDR
-m88k_skip_prologue (CORE_ADDR pc)
+m88k_skip_prologue (struct gdbarch *gdbarch, CORE_ADDR pc)
 {
   struct symtab_and_line sal;
   CORE_ADDR func_start, func_end;
@@ -643,12 +645,14 @@ m88k_skip_prologue (CORE_ADDR pc)
 	return sal.end;
     }
 
-  return m88k_analyze_prologue (pc, pc + m88k_max_prologue_size, NULL);
+  return m88k_analyze_prologue (gdbarch, pc, pc + m88k_max_prologue_size,
+				NULL);
 }
 
-struct m88k_frame_cache *
-m88k_frame_cache (struct frame_info *next_frame, void **this_cache)
+static struct m88k_frame_cache *
+m88k_frame_cache (struct frame_info *this_frame, void **this_cache)
 {
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
   struct m88k_frame_cache *cache;
   CORE_ADDR frame_sp;
 
@@ -656,22 +660,20 @@ m88k_frame_cache (struct frame_info *next_frame, void **this_cache)
     return *this_cache;
 
   cache = FRAME_OBSTACK_ZALLOC (struct m88k_frame_cache);
-  cache->saved_regs = trad_frame_alloc_saved_regs (next_frame);
+  cache->saved_regs = trad_frame_alloc_saved_regs (this_frame);
   cache->fp_offset = -1;
 
-  cache->pc = frame_func_unwind (next_frame);
+  cache->pc = get_frame_func (this_frame);
   if (cache->pc != 0)
-    {
-      CORE_ADDR addr_in_block = frame_unwind_address_in_block (next_frame);
-      m88k_analyze_prologue (cache->pc, addr_in_block, cache);
-    }
+    m88k_analyze_prologue (gdbarch, cache->pc, get_frame_pc (this_frame),
+			   cache);
 
   /* Calculate the stack pointer used in the prologue.  */
   if (cache->fp_offset != -1)
     {
       CORE_ADDR fp;
 
-      fp = frame_unwind_register_unsigned (next_frame, M88K_R30_REGNUM);
+      fp = get_frame_register_unsigned (this_frame, M88K_R30_REGNUM);
       frame_sp = fp - cache->fp_offset;
     }
   else
@@ -680,7 +682,7 @@ m88k_frame_cache (struct frame_info *next_frame, void **this_cache)
          solid guess at what the frame pointer should be.  */
       if (cache->saved_regs[M88K_R1_REGNUM].addr != -1)
 	cache->fp_offset = cache->saved_regs[M88K_R1_REGNUM].addr - 4;
-      frame_sp = frame_unwind_register_unsigned (next_frame, M88K_R31_REGNUM);
+      frame_sp = get_frame_register_unsigned (this_frame, M88K_R31_REGNUM);
     }
 
   /* Now that we know the stack pointer, adjust the location of the
@@ -705,10 +707,10 @@ m88k_frame_cache (struct frame_info *next_frame, void **this_cache)
 }
 
 static void
-m88k_frame_this_id (struct frame_info *next_frame, void **this_cache,
+m88k_frame_this_id (struct frame_info *this_frame, void **this_cache,
 		    struct frame_id *this_id)
 {
-  struct m88k_frame_cache *cache = m88k_frame_cache (next_frame, this_cache);
+  struct m88k_frame_cache *cache = m88k_frame_cache (this_frame, this_cache);
 
   /* This marks the outermost frame.  */
   if (cache->base == 0)
@@ -717,60 +719,47 @@ m88k_frame_this_id (struct frame_info *next_frame, void **this_cache,
   (*this_id) = frame_id_build (cache->base, cache->pc);
 }
 
-static void
-m88k_frame_prev_register (struct frame_info *next_frame, void **this_cache,
-			  int regnum, int *optimizedp,
-			  enum lval_type *lvalp, CORE_ADDR *addrp,
-			  int *realnump, gdb_byte *valuep)
+static struct value *
+m88k_frame_prev_register (struct frame_info *this_frame,
+			  void **this_cache, int regnum)
 {
-  struct m88k_frame_cache *cache = m88k_frame_cache (next_frame, this_cache);
+  struct m88k_frame_cache *cache = m88k_frame_cache (this_frame, this_cache);
 
   if (regnum == M88K_SNIP_REGNUM || regnum == M88K_SFIP_REGNUM)
     {
-      if (valuep)
-	{
-	  CORE_ADDR pc;
+      struct value *value;
+      CORE_ADDR pc;
 
-	  trad_frame_get_prev_register (next_frame, cache->saved_regs,
-					M88K_SXIP_REGNUM, optimizedp,
-					lvalp, addrp, realnump, valuep);
+      value = trad_frame_get_prev_register (this_frame, cache->saved_regs,
+					    M88K_SXIP_REGNUM);
+      pc = value_as_long (value);
+      release_value (value);
+      value_free (value);
 
-	  pc = extract_unsigned_integer (valuep, 4);
-	  if (regnum == M88K_SFIP_REGNUM)
-	    pc += 4;
-	  store_unsigned_integer (valuep, 4, pc + 4);
-	}
+      if (regnum == M88K_SFIP_REGNUM)
+	pc += 4;
 
-      /* It's a computed value.  */
-      *optimizedp = 0;
-      *lvalp = not_lval;
-      *addrp = 0;
-      *realnump = -1;
-      return;
+      return frame_unwind_got_constant (this_frame, regnum, pc + 4);
     }
 
-  trad_frame_get_prev_register (next_frame, cache->saved_regs, regnum,
-				optimizedp, lvalp, addrp, realnump, valuep);
+  return trad_frame_get_prev_register (this_frame, cache->saved_regs, regnum);
 }
 
 static const struct frame_unwind m88k_frame_unwind =
 {
   NORMAL_FRAME,
+  default_frame_unwind_stop_reason,
   m88k_frame_this_id,
-  m88k_frame_prev_register
+  m88k_frame_prev_register,
+  NULL,
+  default_frame_sniffer
 };
-
-static const struct frame_unwind *
-m88k_frame_sniffer (struct frame_info *next_frame)
-{
-  return &m88k_frame_unwind;
-}
 
 
 static CORE_ADDR
-m88k_frame_base_address (struct frame_info *next_frame, void **this_cache)
+m88k_frame_base_address (struct frame_info *this_frame, void **this_cache)
 {
-  struct m88k_frame_cache *cache = m88k_frame_cache (next_frame, this_cache);
+  struct m88k_frame_cache *cache = m88k_frame_cache (this_frame, this_cache);
 
   if (cache->fp_offset != -1)
     return cache->base + cache->sp_offset + cache->fp_offset;
@@ -845,7 +834,7 @@ m88k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   /* There is no real `long double'.  */
   set_gdbarch_long_double_bit (gdbarch, 64);
-  set_gdbarch_long_double_format (gdbarch, &floatformat_ieee_double_big);
+  set_gdbarch_long_double_format (gdbarch, floatformats_ieee_double);
 
   set_gdbarch_num_regs (gdbarch, M88K_NUM_REGS);
   set_gdbarch_register_name (gdbarch, m88k_register_name);
@@ -868,9 +857,9 @@ m88k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
 
   /* Call dummy code.  */
   set_gdbarch_push_dummy_call (gdbarch, m88k_push_dummy_call);
-  set_gdbarch_unwind_dummy_id (gdbarch, m88k_unwind_dummy_id);
+  set_gdbarch_dummy_id (gdbarch, m88k_dummy_id);
 
-  /* Return value info */
+  /* Return value info.  */
   set_gdbarch_return_value (gdbarch, m88k_return_value);
 
   set_gdbarch_addr_bits_remove (gdbarch, m88k_addr_bits_remove);
@@ -879,7 +868,7 @@ m88k_gdbarch_init (struct gdbarch_info info, struct gdbarch_list *arches)
   set_gdbarch_write_pc (gdbarch, m88k_write_pc);
 
   frame_base_set_default (gdbarch, &m88k_frame_base);
-  frame_unwind_append_sniffer (gdbarch, m88k_frame_sniffer);
+  frame_unwind_append_unwinder (gdbarch, &m88k_frame_unwind);
 
   return gdbarch;
 }

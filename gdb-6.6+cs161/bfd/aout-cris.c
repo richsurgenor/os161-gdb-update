@@ -1,5 +1,6 @@
 /* BFD backend for CRIS a.out binaries.
-   Copyright 2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2009, 2012
+   Free Software Foundation, Inc.
    Contributed by Axis Communications AB.
    Written by Hans-Peter Nilsson.
 
@@ -7,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,7 +18,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 /* See info in the file PORTING for documentation of these macros and
    functions.  Beware; some of the information there is outdated.  */
@@ -55,11 +57,6 @@
 #define TARGET_PAGE_SIZE SEGMENT_SIZE
 #define TARGETNAME "a.out-cris"
 
-/* N_SHARED_LIB gets this reasonable default as of 1999-07-12, but we
-   have to work with 2.9.1.  Note that N_SHARED_LIB is used in a
-   SUN-specific context, not applicable to CRIS.  */
-#define N_SHARED_LIB(x) 0
-
 /* The definition here seems not used; just provided as a convention.  */
 #define DEFAULT_ARCH bfd_arch_cris
 
@@ -69,6 +66,7 @@
 #define MY(OP) CONCAT2 (cris_aout_,OP)
 #define NAME(x, y) CONCAT3 (cris_aout,_32_,y)
 
+#include "sysdep.h"
 #include "bfd.h"
 
 /* Version 1 of the header.  */

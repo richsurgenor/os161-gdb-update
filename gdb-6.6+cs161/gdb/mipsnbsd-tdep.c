@@ -1,6 +1,6 @@
 /* Target-dependent code for NetBSD/mips.
 
-   Copyright (C) 2002, 2003, 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    Contributed by Wasabi Systems, Inc.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,9 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "gdbcore.h"
@@ -142,64 +140,75 @@ mipsnbsd_regset_from_core_section (struct gdbarch *gdbarch,
    ptrace register structure used by NetBSD/mips.  */
 
 void
-mipsnbsd_supply_reg (char *regs, int regno)
+mipsnbsd_supply_reg (struct regcache *regcache, const char *regs, int regno)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int i;
 
-  for (i = 0; i <= PC_REGNUM; i++)
+  for (i = 0; i <= gdbarch_pc_regnum (gdbarch); i++)
     {
       if (regno == i || regno == -1)
 	{
-	  if (CANNOT_FETCH_REGISTER (i))
-	    regcache_raw_supply (current_regcache, i, NULL);
+	  if (gdbarch_cannot_fetch_register (gdbarch, i))
+	    regcache_raw_supply (regcache, i, NULL);
 	  else
-            regcache_raw_supply (current_regcache, i,
-				 regs + (i * mips_isa_regsize (current_gdbarch)));
+            regcache_raw_supply (regcache, i,
+				 regs + (i * mips_isa_regsize (gdbarch)));
         }
     }
 }
 
 void
-mipsnbsd_fill_reg (char *regs, int regno)
+mipsnbsd_fill_reg (const struct regcache *regcache, char *regs, int regno)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int i;
 
-  for (i = 0; i <= PC_REGNUM; i++)
-    if ((regno == i || regno == -1) && ! CANNOT_STORE_REGISTER (i))
-      regcache_raw_collect (current_regcache, i,
-			    regs + (i * mips_isa_regsize (current_gdbarch)));
+  for (i = 0; i <= gdbarch_pc_regnum (gdbarch); i++)
+    if ((regno == i || regno == -1)
+	&& ! gdbarch_cannot_store_register (gdbarch, i))
+      regcache_raw_collect (regcache, i,
+			    regs + (i * mips_isa_regsize (gdbarch)));
 }
 
 void
-mipsnbsd_supply_fpreg (char *fpregs, int regno)
+mipsnbsd_supply_fpreg (struct regcache *regcache,
+		       const char *fpregs, int regno)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int i;
 
-  for (i = FP0_REGNUM;
-       i <= mips_regnum (current_gdbarch)->fp_implementation_revision;
+  for (i = gdbarch_fp0_regnum (gdbarch);
+       i <= mips_regnum (gdbarch)->fp_implementation_revision;
        i++)
     {
       if (regno == i || regno == -1)
 	{
-	  if (CANNOT_FETCH_REGISTER (i))
-	    regcache_raw_supply (current_regcache, i, NULL);
+	  if (gdbarch_cannot_fetch_register (gdbarch, i))
+	    regcache_raw_supply (regcache, i, NULL);
 	  else
-            regcache_raw_supply (current_regcache, i,
-				 fpregs + ((i - FP0_REGNUM) * mips_isa_regsize (current_gdbarch)));
+            regcache_raw_supply (regcache, i,
+				 fpregs 
+				 + ((i - gdbarch_fp0_regnum (gdbarch))
+				    * mips_isa_regsize (gdbarch)));
 	}
     }
 }
 
 void
-mipsnbsd_fill_fpreg (char *fpregs, int regno)
+mipsnbsd_fill_fpreg (const struct regcache *regcache, char *fpregs, int regno)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int i;
 
-  for (i = FP0_REGNUM; i <= mips_regnum (current_gdbarch)->fp_control_status;
+  for (i = gdbarch_fp0_regnum (gdbarch);
+       i <= mips_regnum (gdbarch)->fp_control_status;
        i++)
-    if ((regno == i || regno == -1) && ! CANNOT_STORE_REGISTER (i))
-      regcache_raw_collect (current_regcache, i,
-			    fpregs + ((i - FP0_REGNUM) * mips_isa_regsize (current_gdbarch)));
+    if ((regno == i || regno == -1) 
+	&& ! gdbarch_cannot_store_register (gdbarch, i))
+      regcache_raw_collect (regcache, i,
+			    fpregs + ((i - gdbarch_fp0_regnum (gdbarch))
+			      * mips_isa_regsize (gdbarch)));
 }
 
 /* Under NetBSD/mips, signal handler invocations can be identified by the
@@ -235,39 +244,6 @@ static const unsigned char sigtramp_retcode_mipseb[RETCODE_SIZE] =
   0x00, 0x00, 0x00, 0x0c,	/* syscall */
 };
 
-static LONGEST
-mipsnbsd_sigtramp_offset (struct frame_info *next_frame)
-{
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
-  const char *retcode = TARGET_BYTE_ORDER == BFD_ENDIAN_BIG
-  	? sigtramp_retcode_mipseb : sigtramp_retcode_mipsel;
-  unsigned char ret[RETCODE_SIZE], w[4];
-  LONGEST off;
-  int i;
-
-  if (!safe_frame_unwind_memory (next_frame, pc, w, sizeof (w)))
-    return -1;
-
-  for (i = 0; i < RETCODE_NWORDS; i++)
-    {
-      if (memcmp (w, retcode + (i * 4), 4) == 0)
-	break;
-    }
-  if (i == RETCODE_NWORDS)
-    return -1;
-
-  off = i * 4;
-  pc -= off;
-
-  if (!safe_frame_unwind_memory (next_frame, pc, ret, sizeof (ret)))
-    return -1;
-
-  if (memcmp (ret, retcode, RETCODE_SIZE) == 0)
-    return off;
-
-  return -1;
-}
-
 /* Figure out where the longjmp will land.  We expect that we have
    just entered longjmp and haven't yet setup the stack frame, so the
    args are still in the argument regs.  MIPS_A0_REGNUM points at the
@@ -276,41 +252,43 @@ mipsnbsd_sigtramp_offset (struct frame_info *next_frame)
    success.  */
 
 #define NBSD_MIPS_JB_PC			(2 * 4)
-#define NBSD_MIPS_JB_ELEMENT_SIZE	mips_isa_regsize (current_gdbarch)
-#define NBSD_MIPS_JB_OFFSET		(NBSD_MIPS_JB_PC * \
-					 NBSD_MIPS_JB_ELEMENT_SIZE)
+#define NBSD_MIPS_JB_ELEMENT_SIZE(gdbarch)	mips_isa_regsize (gdbarch)
+#define NBSD_MIPS_JB_OFFSET(gdbarch)		(NBSD_MIPS_JB_PC * \
+					 NBSD_MIPS_JB_ELEMENT_SIZE (gdbarch))
 
 static int
-mipsnbsd_get_longjmp_target (CORE_ADDR *pc)
+mipsnbsd_get_longjmp_target (struct frame_info *frame, CORE_ADDR *pc)
 {
+  struct gdbarch *gdbarch = get_frame_arch (frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR jb_addr;
   char *buf;
 
-  buf = alloca (NBSD_MIPS_JB_ELEMENT_SIZE);
+  buf = alloca (NBSD_MIPS_JB_ELEMENT_SIZE (gdbarch));
 
-  jb_addr = read_register (MIPS_A0_REGNUM);
+  jb_addr = get_frame_register_unsigned (frame, MIPS_A0_REGNUM);
 
-  if (target_read_memory (jb_addr + NBSD_MIPS_JB_OFFSET, buf,
-  			  NBSD_MIPS_JB_ELEMENT_SIZE))
+  if (target_read_memory (jb_addr + NBSD_MIPS_JB_OFFSET (gdbarch), buf,
+  			  NBSD_MIPS_JB_ELEMENT_SIZE (gdbarch)))
     return 0;
 
-  *pc = extract_unsigned_integer (buf, NBSD_MIPS_JB_ELEMENT_SIZE);
-
+  *pc = extract_unsigned_integer (buf, NBSD_MIPS_JB_ELEMENT_SIZE (gdbarch),
+				  byte_order);
   return 1;
 }
 
 static int
-mipsnbsd_cannot_fetch_register (int regno)
+mipsnbsd_cannot_fetch_register (struct gdbarch *gdbarch, int regno)
 {
   return (regno == MIPS_ZERO_REGNUM
-	  || regno == mips_regnum (current_gdbarch)->fp_implementation_revision);
+	  || regno == mips_regnum (gdbarch)->fp_implementation_revision);
 }
 
 static int
-mipsnbsd_cannot_store_register (int regno)
+mipsnbsd_cannot_store_register (struct gdbarch *gdbarch, int regno)
 {
   return (regno == MIPS_ZERO_REGNUM
-	  || regno == mips_regnum (current_gdbarch)->fp_implementation_revision);
+	  || regno == mips_regnum (gdbarch)->fp_implementation_revision);
 }
 
 /* Shared library support.  */
@@ -331,20 +309,16 @@ mipsnbsd_ilp32_fetch_link_map_offsets (void)
       lmo.r_version_offset = 0;
       lmo.r_version_size = 4;
       lmo.r_map_offset = 4;
+      lmo.r_brk_offset = 8;
       lmo.r_ldsomap_offset = -1;
 
       /* Everything we need is in the first 24 bytes.  */
       lmo.link_map_size = 24;
       lmo.l_addr_offset = 4;
-      lmo.l_addr_size = 4;
       lmo.l_name_offset = 8;
-      lmo.l_name_size = 4;
       lmo.l_ld_offset = 12;
-      lmo.l_ld_size = 4;
       lmo.l_next_offset = 16;
-      lmo.l_next_size = 4;
       lmo.l_prev_offset = 20;
-      lmo.l_prev_size = 4;
     }
 
   return lmp;
@@ -363,20 +337,16 @@ mipsnbsd_lp64_fetch_link_map_offsets (void)
       lmo.r_version_offset = 0;
       lmo.r_version_size = 4;
       lmo.r_map_offset = 8;
+      lmo.r_brk_offset = 16;
       lmo.r_ldsomap_offset = -1;
 
       /* Everything we need is in the first 40 bytes.  */
       lmo.link_map_size = 48;
       lmo.l_addr_offset = 0;
-      lmo.l_addr_size = 8;
       lmo.l_name_offset = 16; 
-      lmo.l_name_size = 8;
       lmo.l_ld_offset = 24;
-      lmo.l_ld_size = 8;
       lmo.l_next_offset = 32;
-      lmo.l_next_size = 8;
       lmo.l_prev_offset = 40;
-      lmo.l_prev_size = 8;
     }
 
   return lmp;
@@ -405,14 +375,8 @@ mipsnbsd_init_abi (struct gdbarch_info info,
 }
 
 
-static enum gdb_osabi
-mipsnbsd_core_osabi_sniffer (bfd *abfd)
-{
-  if (strcmp (bfd_get_target (abfd), "netbsd-core") == 0)
-    return GDB_OSABI_NETBSD_ELF;
-
-  return GDB_OSABI_UNKNOWN;
-}
+/* Provide a prototype to silence -Wmissing-prototypes.  */
+extern initialize_file_ftype _initialize_mipsnbsd_tdep;
 
 void
 _initialize_mipsnbsd_tdep (void)

@@ -1,12 +1,12 @@
 /* Main header for the CRIS simulator, based on the m32r header.
-   Copyright (C) 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by Axis Communications.
 
 This file is part of the GNU simulators.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
+the Free Software Foundation; either version 3 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* All FIXME:s present in m32r apply here too; I just refuse to blindly
    carry them over, as I don't know if they're really things that need
@@ -191,6 +190,9 @@ struct _sim_cpu {
      initialized in *_init_cpu, but we can't modify that for now.  */
   void* (*make_thread_cpu_data) (SIM_CPU *, void *);
   size_t thread_cpu_data_size;
+
+  /* The register differs, so we dispatch to a CPU-specific function.  */
+  void (*set_target_thread_data) (SIM_CPU *, USI);
 
   /* CPU-model specific parts go here.
      Note that in files that don't need to access these pieces WANT_CPU_FOO

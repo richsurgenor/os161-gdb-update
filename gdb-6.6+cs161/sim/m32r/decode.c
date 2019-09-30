@@ -2,23 +2,22 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003 Free Software Foundation, Inc.
+Copyright 1996-2013 Free Software Foundation, Inc.
 
 This file is part of the GNU simulators.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -152,7 +151,8 @@ static const struct insn_sem m32rbf_insn_sem[] =
   { M32R_INSN_BTST, M32RBF_INSN_BTST, M32RBF_SFMT_BTST },
 };
 
-static const struct insn_sem m32rbf_insn_sem_invalid = {
+static const struct insn_sem m32rbf_insn_sem_invalid =
+{
   VIRTUAL_INSN_X_INVALID, M32RBF_INSN_X_INVALID, M32RBF_SFMT_EMPTY
 };
 
@@ -216,14 +216,14 @@ m32rbf_init_idesc_table (SIM_CPU *cpu)
 
 const IDESC *
 m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
-              CGEN_INSN_INT base_insn, CGEN_INSN_INT entire_insn,
+              CGEN_INSN_WORD base_insn, CGEN_INSN_WORD entire_insn,
               ARGBUF *abuf)
 {
   /* Result of decoder.  */
   M32RBF_INSN_TYPE itype;
 
   {
-    CGEN_INSN_INT insn = base_insn;
+    CGEN_INSN_WORD insn = base_insn;
 
     {
       unsigned int val = (((insn >> 8) & (15 << 4)) | ((insn >> 4) & (15 << 0)));
@@ -242,7 +242,10 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
       case 12 : itype = M32RBF_INSN_AND; goto extract_sfmt_add;
       case 13 : itype = M32RBF_INSN_XOR; goto extract_sfmt_add;
       case 14 : itype = M32RBF_INSN_OR; goto extract_sfmt_add;
-      case 15 : itype = M32RBF_INSN_BTST; goto extract_sfmt_btst;
+      case 15 :
+        if ((entire_insn & 0xf8f0) == 0xf0)
+          { itype = M32RBF_INSN_BTST; goto extract_sfmt_btst; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 16 : itype = M32RBF_INSN_SRL; goto extract_sfmt_add;
       case 18 : itype = M32RBF_INSN_SRA; goto extract_sfmt_add;
       case 20 : itype = M32RBF_INSN_SLL; goto extract_sfmt_add;
@@ -255,13 +258,25 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
           unsigned int val = (((insn >> 8) & (1 << 0)));
           switch (val)
           {
-          case 0 : itype = M32RBF_INSN_JL; goto extract_sfmt_jl;
-          case 1 : itype = M32RBF_INSN_JMP; goto extract_sfmt_jmp;
+          case 0 :
+            if ((entire_insn & 0xfff0) == 0x1ec0)
+              { itype = M32RBF_INSN_JL; goto extract_sfmt_jl; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 1 :
+            if ((entire_insn & 0xfff0) == 0x1fc0)
+              { itype = M32RBF_INSN_JMP; goto extract_sfmt_jmp; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           default : itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           }
         }
-      case 29 : itype = M32RBF_INSN_RTE; goto extract_sfmt_rte;
-      case 31 : itype = M32RBF_INSN_TRAP; goto extract_sfmt_trap;
+      case 29 :
+        if ((entire_insn & 0xffff) == 0x10d6)
+          { itype = M32RBF_INSN_RTE; goto extract_sfmt_rte; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 31 :
+        if ((entire_insn & 0xfff0) == 0x10f0)
+          { itype = M32RBF_INSN_TRAP; goto extract_sfmt_trap; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 32 : itype = M32RBF_INSN_STB; goto extract_sfmt_stb;
       case 34 : itype = M32RBF_INSN_STH; goto extract_sfmt_sth;
       case 36 : itype = M32RBF_INSN_ST; goto extract_sfmt_st;
@@ -310,21 +325,42 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
           unsigned int val = (((insn >> 0) & (1 << 0)));
           switch (val)
           {
-          case 0 : itype = M32RBF_INSN_MVTACHI; goto extract_sfmt_mvtachi;
-          case 1 : itype = M32RBF_INSN_MVTACLO; goto extract_sfmt_mvtachi;
+          case 0 :
+            if ((entire_insn & 0xf0ff) == 0x5070)
+              { itype = M32RBF_INSN_MVTACHI; goto extract_sfmt_mvtachi; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 1 :
+            if ((entire_insn & 0xf0ff) == 0x5071)
+              { itype = M32RBF_INSN_MVTACLO; goto extract_sfmt_mvtachi; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           default : itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           }
         }
-      case 88 : itype = M32RBF_INSN_RACH; goto extract_sfmt_rac;
-      case 89 : itype = M32RBF_INSN_RAC; goto extract_sfmt_rac;
+      case 88 :
+        if ((entire_insn & 0xffff) == 0x5080)
+          { itype = M32RBF_INSN_RACH; goto extract_sfmt_rac; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 89 :
+        if ((entire_insn & 0xffff) == 0x5090)
+          { itype = M32RBF_INSN_RAC; goto extract_sfmt_rac; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 95 :
         {
           unsigned int val = (((insn >> 0) & (3 << 0)));
           switch (val)
           {
-          case 0 : itype = M32RBF_INSN_MVFACHI; goto extract_sfmt_mvfachi;
-          case 1 : itype = M32RBF_INSN_MVFACLO; goto extract_sfmt_mvfachi;
-          case 2 : itype = M32RBF_INSN_MVFACMI; goto extract_sfmt_mvfachi;
+          case 0 :
+            if ((entire_insn & 0xf0ff) == 0x50f0)
+              { itype = M32RBF_INSN_MVFACHI; goto extract_sfmt_mvfachi; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 1 :
+            if ((entire_insn & 0xf0ff) == 0x50f1)
+              { itype = M32RBF_INSN_MVFACLO; goto extract_sfmt_mvfachi; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 2 :
+            if ((entire_insn & 0xf0ff) == 0x50f2)
+              { itype = M32RBF_INSN_MVFACMI; goto extract_sfmt_mvfachi; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           default : itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           }
         }
@@ -349,7 +385,10 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
           unsigned int val = (((insn >> 8) & (15 << 0)));
           switch (val)
           {
-          case 0 : itype = M32RBF_INSN_NOP; goto extract_sfmt_nop;
+          case 0 :
+            if ((entire_insn & 0xffff) == 0x7000)
+              { itype = M32RBF_INSN_NOP; goto extract_sfmt_nop; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           case 1 : itype = M32RBF_INSN_SETPSW; goto extract_sfmt_setpsw;
           case 2 : itype = M32RBF_INSN_CLRPSW; goto extract_sfmt_clrpsw;
           case 12 : itype = M32RBF_INSN_BC8; goto extract_sfmt_bc8;
@@ -387,26 +426,53 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
           default : itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           }
         }
-      case 132 : itype = M32RBF_INSN_CMPI; goto extract_sfmt_cmpi;
-      case 133 : itype = M32RBF_INSN_CMPUI; goto extract_sfmt_cmpi;
+      case 132 :
+        if ((entire_insn & 0xfff00000) == 0x80400000)
+          { itype = M32RBF_INSN_CMPI; goto extract_sfmt_cmpi; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 133 :
+        if ((entire_insn & 0xfff00000) == 0x80500000)
+          { itype = M32RBF_INSN_CMPUI; goto extract_sfmt_cmpi; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 136 : itype = M32RBF_INSN_ADDV3; goto extract_sfmt_addv3;
       case 138 : itype = M32RBF_INSN_ADD3; goto extract_sfmt_add3;
       case 140 : itype = M32RBF_INSN_AND3; goto extract_sfmt_and3;
       case 141 : itype = M32RBF_INSN_XOR3; goto extract_sfmt_and3;
       case 142 : itype = M32RBF_INSN_OR3; goto extract_sfmt_or3;
-      case 144 : itype = M32RBF_INSN_DIV; goto extract_sfmt_div;
-      case 145 : itype = M32RBF_INSN_DIVU; goto extract_sfmt_div;
-      case 146 : itype = M32RBF_INSN_REM; goto extract_sfmt_div;
-      case 147 : itype = M32RBF_INSN_REMU; goto extract_sfmt_div;
+      case 144 :
+        if ((entire_insn & 0xf0f0ffff) == 0x90000000)
+          { itype = M32RBF_INSN_DIV; goto extract_sfmt_div; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 145 :
+        if ((entire_insn & 0xf0f0ffff) == 0x90100000)
+          { itype = M32RBF_INSN_DIVU; goto extract_sfmt_div; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 146 :
+        if ((entire_insn & 0xf0f0ffff) == 0x90200000)
+          { itype = M32RBF_INSN_REM; goto extract_sfmt_div; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 147 :
+        if ((entire_insn & 0xf0f0ffff) == 0x90300000)
+          { itype = M32RBF_INSN_REMU; goto extract_sfmt_div; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 152 : itype = M32RBF_INSN_SRL3; goto extract_sfmt_sll3;
       case 154 : itype = M32RBF_INSN_SRA3; goto extract_sfmt_sll3;
       case 156 : itype = M32RBF_INSN_SLL3; goto extract_sfmt_sll3;
-      case 159 : itype = M32RBF_INSN_LDI16; goto extract_sfmt_ldi16;
+      case 159 :
+        if ((entire_insn & 0xf0ff0000) == 0x90f00000)
+          { itype = M32RBF_INSN_LDI16; goto extract_sfmt_ldi16; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 160 : itype = M32RBF_INSN_STB_D; goto extract_sfmt_stb_d;
       case 162 : itype = M32RBF_INSN_STH_D; goto extract_sfmt_sth_d;
       case 164 : itype = M32RBF_INSN_ST_D; goto extract_sfmt_st_d;
-      case 166 : itype = M32RBF_INSN_BSET; goto extract_sfmt_bset;
-      case 167 : itype = M32RBF_INSN_BCLR; goto extract_sfmt_bset;
+      case 166 :
+        if ((entire_insn & 0xf8f00000) == 0xa0600000)
+          { itype = M32RBF_INSN_BSET; goto extract_sfmt_bset; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 167 :
+        if ((entire_insn & 0xf8f00000) == 0xa0700000)
+          { itype = M32RBF_INSN_BCLR; goto extract_sfmt_bset; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 168 : itype = M32RBF_INSN_LDB_D; goto extract_sfmt_ldb_d;
       case 169 : itype = M32RBF_INSN_LDUB_D; goto extract_sfmt_ldb_d;
       case 170 : itype = M32RBF_INSN_LDH_D; goto extract_sfmt_ldh_d;
@@ -414,13 +480,34 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
       case 172 : itype = M32RBF_INSN_LD_D; goto extract_sfmt_ld_d;
       case 176 : itype = M32RBF_INSN_BEQ; goto extract_sfmt_beq;
       case 177 : itype = M32RBF_INSN_BNE; goto extract_sfmt_beq;
-      case 184 : itype = M32RBF_INSN_BEQZ; goto extract_sfmt_beqz;
-      case 185 : itype = M32RBF_INSN_BNEZ; goto extract_sfmt_beqz;
-      case 186 : itype = M32RBF_INSN_BLTZ; goto extract_sfmt_beqz;
-      case 187 : itype = M32RBF_INSN_BGEZ; goto extract_sfmt_beqz;
-      case 188 : itype = M32RBF_INSN_BLEZ; goto extract_sfmt_beqz;
-      case 189 : itype = M32RBF_INSN_BGTZ; goto extract_sfmt_beqz;
-      case 220 : itype = M32RBF_INSN_SETH; goto extract_sfmt_seth;
+      case 184 :
+        if ((entire_insn & 0xfff00000) == 0xb0800000)
+          { itype = M32RBF_INSN_BEQZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 185 :
+        if ((entire_insn & 0xfff00000) == 0xb0900000)
+          { itype = M32RBF_INSN_BNEZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 186 :
+        if ((entire_insn & 0xfff00000) == 0xb0a00000)
+          { itype = M32RBF_INSN_BLTZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 187 :
+        if ((entire_insn & 0xfff00000) == 0xb0b00000)
+          { itype = M32RBF_INSN_BGEZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 188 :
+        if ((entire_insn & 0xfff00000) == 0xb0c00000)
+          { itype = M32RBF_INSN_BLEZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 189 :
+        if ((entire_insn & 0xfff00000) == 0xb0d00000)
+          { itype = M32RBF_INSN_BGTZ; goto extract_sfmt_beqz; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+      case 220 :
+        if ((entire_insn & 0xf0ff0000) == 0xd0c00000)
+          { itype = M32RBF_INSN_SETH; goto extract_sfmt_seth; }
+        itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
       case 224 : /* fall through */
       case 225 : /* fall through */
       case 226 : /* fall through */
@@ -457,10 +544,22 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
           unsigned int val = (((insn >> 8) & (3 << 0)));
           switch (val)
           {
-          case 0 : itype = M32RBF_INSN_BC24; goto extract_sfmt_bc24;
-          case 1 : itype = M32RBF_INSN_BNC24; goto extract_sfmt_bc24;
-          case 2 : itype = M32RBF_INSN_BL24; goto extract_sfmt_bl24;
-          case 3 : itype = M32RBF_INSN_BRA24; goto extract_sfmt_bra24;
+          case 0 :
+            if ((entire_insn & 0xff000000) == 0xfc000000)
+              { itype = M32RBF_INSN_BC24; goto extract_sfmt_bc24; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 1 :
+            if ((entire_insn & 0xff000000) == 0xfd000000)
+              { itype = M32RBF_INSN_BNC24; goto extract_sfmt_bc24; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 2 :
+            if ((entire_insn & 0xff000000) == 0xfe000000)
+              { itype = M32RBF_INSN_BL24; goto extract_sfmt_bl24; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
+          case 3 :
+            if ((entire_insn & 0xff000000) == 0xff000000)
+              { itype = M32RBF_INSN_BRA24; goto extract_sfmt_bra24; }
+            itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           default : itype = M32RBF_INSN_X_INVALID; goto extract_sfmt_empty;
           }
         }
@@ -474,7 +573,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_empty:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
 
 
   /* Record the fields for the semantic handler.  */
@@ -487,7 +586,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_add:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add.f
     UINT f_r1;
     UINT f_r2;
@@ -518,7 +617,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_add3:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -526,7 +625,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -551,7 +650,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_and3:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_and3.f
     UINT f_r1;
     UINT f_r2;
@@ -584,7 +683,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_or3:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_and3.f
     UINT f_r1;
     UINT f_r2;
@@ -617,13 +716,13 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_addi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_addi.f
     UINT f_r1;
     INT f_simm8;
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 16, 4, 4);
-    f_simm8 = EXTRACT_MSB0_INT (insn, 16, 8, 8);
+    f_simm8 = EXTRACT_MSB0_SINT (insn, 16, 8, 8);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_r1) = f_r1;
@@ -646,7 +745,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_addv:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add.f
     UINT f_r1;
     UINT f_r2;
@@ -677,7 +776,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_addv3:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -685,7 +784,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -710,7 +809,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_addx:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add.f
     UINT f_r1;
     UINT f_r2;
@@ -741,11 +840,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bc8:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl8.f
     SI f_disp8;
 
-    f_disp8 = ((((EXTRACT_MSB0_INT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
+    f_disp8 = ((((EXTRACT_MSB0_SINT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp8) = f_disp8;
@@ -764,11 +863,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bc24:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl24.f
     SI f_disp24;
 
-    f_disp24 = ((((EXTRACT_MSB0_INT (insn, 32, 8, 24)) << (2))) + (pc));
+    f_disp24 = ((((EXTRACT_MSB0_SINT (insn, 32, 8, 24)) << (2))) + (pc));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp24) = f_disp24;
@@ -787,7 +886,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_beq:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_beq.f
     UINT f_r1;
     UINT f_r2;
@@ -795,7 +894,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_disp16 = ((((EXTRACT_MSB0_INT (insn, 32, 16, 16)) << (2))) + (pc));
+    f_disp16 = ((((EXTRACT_MSB0_SINT (insn, 32, 16, 16)) << (2))) + (pc));
 
   /* Record the fields for the semantic handler.  */
   FLD (f_r1) = f_r1;
@@ -820,13 +919,13 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_beqz:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_beq.f
     UINT f_r2;
     SI f_disp16;
 
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_disp16 = ((((EXTRACT_MSB0_INT (insn, 32, 16, 16)) << (2))) + (pc));
+    f_disp16 = ((((EXTRACT_MSB0_SINT (insn, 32, 16, 16)) << (2))) + (pc));
 
   /* Record the fields for the semantic handler.  */
   FLD (f_r2) = f_r2;
@@ -848,11 +947,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bl8:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl8.f
     SI f_disp8;
 
-    f_disp8 = ((((EXTRACT_MSB0_INT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
+    f_disp8 = ((((EXTRACT_MSB0_SINT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp8) = f_disp8;
@@ -872,11 +971,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bl24:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl24.f
     SI f_disp24;
 
-    f_disp24 = ((((EXTRACT_MSB0_INT (insn, 32, 8, 24)) << (2))) + (pc));
+    f_disp24 = ((((EXTRACT_MSB0_SINT (insn, 32, 8, 24)) << (2))) + (pc));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp24) = f_disp24;
@@ -896,11 +995,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bra8:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl8.f
     SI f_disp8;
 
-    f_disp8 = ((((EXTRACT_MSB0_INT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
+    f_disp8 = ((((EXTRACT_MSB0_SINT (insn, 16, 8, 8)) << (2))) + (((pc) & (-4))));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp8) = f_disp8;
@@ -919,11 +1018,11 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bra24:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bl24.f
     SI f_disp24;
 
-    f_disp24 = ((((EXTRACT_MSB0_INT (insn, 32, 8, 24)) << (2))) + (pc));
+    f_disp24 = ((((EXTRACT_MSB0_SINT (insn, 32, 8, 24)) << (2))) + (pc));
 
   /* Record the fields for the semantic handler.  */
   FLD (i_disp24) = f_disp24;
@@ -942,7 +1041,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_cmp:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -972,13 +1071,13 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_cmpi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_d.f
     UINT f_r2;
     INT f_simm16;
 
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1000,7 +1099,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_div:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add.f
     UINT f_r1;
     UINT f_r2;
@@ -1031,7 +1130,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_jl:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_jl.f
     UINT f_r2;
 
@@ -1057,7 +1156,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_jmp:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_jl.f
     UINT f_r2;
 
@@ -1082,7 +1181,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ld:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1112,7 +1211,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ld_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -1120,7 +1219,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1145,7 +1244,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldb:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1175,7 +1274,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldb_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -1183,7 +1282,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1208,7 +1307,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldh:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1238,7 +1337,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldh_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -1246,7 +1345,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1271,7 +1370,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ld_plus:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1302,7 +1401,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ld24:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld24.f
     UINT f_r1;
     UINT f_uimm24;
@@ -1330,13 +1429,13 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldi8:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_addi.f
     UINT f_r1;
     INT f_simm8;
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 16, 4, 4);
-    f_simm8 = EXTRACT_MSB0_INT (insn, 16, 8, 8);
+    f_simm8 = EXTRACT_MSB0_SINT (insn, 16, 8, 8);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm8) = f_simm8;
@@ -1358,13 +1457,13 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_ldi16:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     INT f_simm16;
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1386,7 +1485,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_lock:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1416,7 +1515,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_machi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1446,7 +1545,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mulhi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1476,7 +1575,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mv:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1506,7 +1605,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mvfachi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_seth.f
     UINT f_r1;
 
@@ -1531,7 +1630,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mvfc:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1559,7 +1658,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mvtachi:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
 
@@ -1584,7 +1683,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_mvtc:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_ld_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1612,7 +1711,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_nop:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
 
 
   /* Record the fields for the semantic handler.  */
@@ -1625,7 +1724,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_rac:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
 
 
   /* Record the fields for the semantic handler.  */
@@ -1638,7 +1737,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_rte:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
 
 
   /* Record the fields for the semantic handler.  */
@@ -1657,7 +1756,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_seth:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_seth.f
     UINT f_r1;
     UINT f_hi16;
@@ -1685,7 +1784,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_sll3:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_add3.f
     UINT f_r1;
     UINT f_r2;
@@ -1693,7 +1792,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1718,7 +1817,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_slli:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_slli.f
     UINT f_r1;
     UINT f_uimm5;
@@ -1747,7 +1846,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_st:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1777,7 +1876,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_st_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_d.f
     UINT f_r1;
     UINT f_r2;
@@ -1785,7 +1884,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1810,7 +1909,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_stb:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1840,7 +1939,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_stb_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_d.f
     UINT f_r1;
     UINT f_r2;
@@ -1848,7 +1947,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1873,7 +1972,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_sth:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1903,7 +2002,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_sth_d:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_d.f
     UINT f_r1;
     UINT f_r2;
@@ -1911,7 +2010,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_r1 = EXTRACT_MSB0_UINT (insn, 32, 4, 4);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -1936,7 +2035,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_st_plus:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -1967,7 +2066,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_trap:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_trap.f
     UINT f_uimm4;
 
@@ -1990,7 +2089,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_unlock:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_st_plus.f
     UINT f_r1;
     UINT f_r2;
@@ -2020,7 +2119,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_clrpsw:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_clrpsw.f
     UINT f_uimm8;
 
@@ -2037,7 +2136,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_setpsw:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_clrpsw.f
     UINT f_uimm8;
 
@@ -2054,7 +2153,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_bset:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bset.f
     UINT f_uimm3;
     UINT f_r2;
@@ -2062,7 +2161,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
 
     f_uimm3 = EXTRACT_MSB0_UINT (insn, 32, 5, 3);
     f_r2 = EXTRACT_MSB0_UINT (insn, 32, 12, 4);
-    f_simm16 = EXTRACT_MSB0_INT (insn, 32, 16, 16);
+    f_simm16 = EXTRACT_MSB0_SINT (insn, 32, 16, 16);
 
   /* Record the fields for the semantic handler.  */
   FLD (f_simm16) = f_simm16;
@@ -2085,7 +2184,7 @@ m32rbf_decode (SIM_CPU *current_cpu, IADDR pc,
  extract_sfmt_btst:
   {
     const IDESC *idesc = &m32rbf_insn_data[itype];
-    CGEN_INSN_INT insn = entire_insn;
+    CGEN_INSN_WORD insn = entire_insn;
 #define FLD(f) abuf->fields.sfmt_bset.f
     UINT f_uimm3;
     UINT f_r2;

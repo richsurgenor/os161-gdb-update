@@ -1,12 +1,12 @@
 /* Target-dependent code for FreeBSD/amd64.
 
-   Copyright (C) 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "arch-utils.h"
@@ -35,18 +33,18 @@
 
 /* Support for signal handlers.  */
 
-/* Assuming NEXT_FRAME is for a frame following a BSD sigtramp
-   routine, return the address of the associated sigcontext structure.  */
+/* Assuming THIS_FRAME is for a BSD sigtramp routine, return the
+   address of the associated sigcontext structure.  */
 
 static CORE_ADDR
-amd64fbsd_sigcontext_addr (struct frame_info *next_frame)
+amd64fbsd_sigcontext_addr (struct frame_info *this_frame)
 {
   CORE_ADDR sp;
 
   /* The `struct sigcontext' (which really is an `ucontext_t' on
      FreeBSD/amd64) lives at a fixed offset in the signal frame.  See
      <machine/sigframe.h>.  */
-  sp = frame_unwind_register_unsigned (next_frame, AMD64_RSP_REGNUM);
+  sp = frame_unwind_register_unsigned (this_frame, AMD64_RSP_REGNUM);
   return sp + 16;
 }
 
@@ -69,7 +67,7 @@ static int amd64fbsd_r_reg_offset[] =
   8 * 8,			/* %rdi */
   10 * 8,			/* %rbp */
   20 * 8,			/* %rsp */
-  7 * 8,			/* %r8 ... */
+  7 * 8,			/* %r8 ...  */
   6 * 8,
   5 * 8,
   4 * 8,
@@ -88,8 +86,8 @@ static int amd64fbsd_r_reg_offset[] =
 };
 
 /* Location of the signal trampoline.  */
-CORE_ADDR amd64fbsd_sigtramp_start_addr = 0x7fffffffffc0;
-CORE_ADDR amd64fbsd_sigtramp_end_addr = 0x7fffffffffe0;
+CORE_ADDR amd64fbsd_sigtramp_start_addr = 0x7fffffffffc0ULL;
+CORE_ADDR amd64fbsd_sigtramp_end_addr = 0x7fffffffffe0ULL;
 
 /* From <machine/signal.h>.  */
 int amd64fbsd_sc_reg_offset[] =
@@ -102,7 +100,7 @@ int amd64fbsd_sc_reg_offset[] =
   24 + 0 * 8,			/* %rdi */
   24 + 8 * 8,			/* %rbp */
   24 + 22 * 8,			/* %rsp */
-  24 + 4 * 8,			/* %r8 ... */
+  24 + 4 * 8,			/* %r8 ...  */
   24 + 5 * 8,
   24 + 9 * 8,
   24 + 10 * 8,
@@ -131,11 +129,11 @@ static int amd64fbsd_jmp_buf_reg_offset[] =
   -1,				/* %rdi */
   3 * 8,			/* %rbp */
   2 * 8,			/* %rsp */
-  -1,				/* %r8 ... */
+  -1,				/* %r8 ...  */
   -1,
   -1,
   -1,				/* ... %r11 */
-  4 * 8,			/* %r12 ... */
+  4 * 8,			/* %r12 ...  */
   5 * 8,
   6 * 8,
   7 * 8,			/* ... %r15 */
@@ -182,7 +180,7 @@ amd64fbsd_collect_uthread (const struct regcache *regcache,
     }
 }
 
-void
+static void
 amd64fbsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 {
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);

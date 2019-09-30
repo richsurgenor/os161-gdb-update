@@ -1,16 +1,18 @@
 /* Instruction printing code for the DLX Microprocessor
-   Copyright 2002, 2005 Free Software Foundation, Inc.
+   Copyright 2002, 2005, 2007, 2010 Free Software Foundation, Inc.
    Contributed by Kuang Hwa Lin.  Written by Kuang Hwa Lin, 03/2002.
 
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   This file is part of the GNU opcodes library.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   This library is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
+
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
@@ -435,19 +437,18 @@ print_insn_dlx (bfd_vma memaddr, struct disassemble_info* info)
   bfd_byte buffer[4];
   int insn_idx;
   unsigned long insn_word;
-  unsigned char rtn_code;
-  unsigned long dlx_insn_type[] =
+  dlx_insn dlx_insn_type[] =
   {
-    (unsigned long) dlx_r_type,
-    (unsigned long) dlx_load_type,
-    (unsigned long) dlx_store_type,
-    (unsigned long) dlx_aluI_type,
-    (unsigned long) dlx_br_type,
-    (unsigned long) dlx_jmp_type,
-    (unsigned long) dlx_jr_type,
-    (unsigned long) NULL
+    dlx_r_type,
+    dlx_load_type,
+    dlx_store_type,
+    dlx_aluI_type,
+    dlx_br_type,
+    dlx_jmp_type,
+    dlx_jr_type,
+    (dlx_insn) NULL
   };
-  int dlx_insn_type_num = ((sizeof dlx_insn_type) / (sizeof (unsigned long))) - 1;
+  int dlx_insn_type_num = ((sizeof dlx_insn_type) / (sizeof (dlx_insn))) - 1;
   int status =
     (*info->read_memory_func) (memaddr, (bfd_byte *) &buffer[0], 4, info);
 
@@ -479,11 +480,10 @@ print_insn_dlx (bfd_vma memaddr, struct disassemble_info* info)
 #endif
 
   /* Scan through all the insn type and print the insn out.  */
-  rtn_code = 0;
   current_insn_addr = (unsigned long) memaddr;
 
   for (insn_idx = 0; dlx_insn_type[insn_idx] != 0x0; insn_idx++)
-    switch (((dlx_insn) (dlx_insn_type[insn_idx])) (info))
+    switch ((dlx_insn_type[insn_idx]) (info))
       {
 	/* Found the correct opcode   */
       case R_TYPE:

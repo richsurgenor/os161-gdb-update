@@ -1,12 +1,12 @@
 /* Native-dependent code for Motorola 68000 BSD's.
 
-   Copyright (C) 2004 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "gdbcore.h"
@@ -61,12 +59,13 @@ m68kbsd_supply_gregset (struct regcache *regcache, const void *gregs)
 static void
 m68kbsd_supply_fpregset (struct regcache *regcache, const void *fpregs)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   const char *regs = fpregs;
   int regnum;
 
   for (regnum = M68K_FP0_REGNUM; regnum <= M68K_FPI_REGNUM; regnum++)
     regcache_raw_supply (regcache, regnum,
-			 regs + m68kbsd_fpreg_offset (regnum));
+			 regs + m68kbsd_fpreg_offset (gdbarch, regnum));
 }
 
 /* Collect the general-purpose registers from REGCACHE and store them
@@ -93,13 +92,15 @@ static void
 m68kbsd_collect_fpregset (struct regcache *regcache,
 			  void *fpregs, int regnum)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   char *regs = fpregs;
   int i;
 
   for (i = M68K_FP0_REGNUM; i <= M68K_FPI_REGNUM; i++)
     {
       if (regnum == -1 || regnum == i)
-	regcache_raw_collect (regcache, i, regs + m68kbsd_fpreg_offset (i));
+	regcache_raw_collect (regcache, i,
+			      regs + m68kbsd_fpreg_offset (gdbarch, i));
     }
 }
 
@@ -108,7 +109,8 @@ m68kbsd_collect_fpregset (struct regcache *regcache,
    for all registers (including the floating-point registers).  */
 
 static void
-m68kbsd_fetch_inferior_registers (int regnum)
+m68kbsd_fetch_inferior_registers (struct target_ops *ops,
+				  struct regcache *regcache, int regnum)
 {
   if (regnum == -1 || m68kbsd_gregset_supplies_p (regnum))
     {
@@ -118,7 +120,7 @@ m68kbsd_fetch_inferior_registers (int regnum)
 		  (PTRACE_TYPE_ARG3) &regs, 0) == -1)
 	perror_with_name (_("Couldn't get registers"));
 
-      m68kbsd_supply_gregset (current_regcache, &regs);
+      m68kbsd_supply_gregset (regcache, &regs);
     }
 
   if (regnum == -1 || m68kbsd_fpregset_supplies_p (regnum))
@@ -129,7 +131,7 @@ m68kbsd_fetch_inferior_registers (int regnum)
 		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get floating point status"));
 
-      m68kbsd_supply_fpregset (current_regcache, &fpregs);
+      m68kbsd_supply_fpregset (regcache, &fpregs);
     }
 }
 
@@ -137,7 +139,8 @@ m68kbsd_fetch_inferior_registers (int regnum)
    this for all registers (including the floating-point registers).  */
 
 static void
-m68kbsd_store_inferior_registers (int regnum)
+m68kbsd_store_inferior_registers (struct target_ops *ops,
+				  struct regcache *regcache, int regnum)
 {
   if (regnum == -1 || m68kbsd_gregset_supplies_p (regnum))
     {
@@ -147,7 +150,7 @@ m68kbsd_store_inferior_registers (int regnum)
                   (PTRACE_TYPE_ARG3) &regs, 0) == -1)
         perror_with_name (_("Couldn't get registers"));
 
-      m68kbsd_collect_gregset (current_regcache, &regs, regnum);
+      m68kbsd_collect_gregset (regcache, &regs, regnum);
 
       if (ptrace (PT_SETREGS, PIDGET (inferior_ptid),
 	          (PTRACE_TYPE_ARG3) &regs, 0) == -1)
@@ -162,7 +165,7 @@ m68kbsd_store_inferior_registers (int regnum)
 		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get floating point status"));
 
-      m68kbsd_collect_fpregset (current_regcache, &fpregs, regnum);
+      m68kbsd_collect_fpregset (regcache, &fpregs, regnum);
 
       if (ptrace (PT_SETFPREGS, PIDGET (inferior_ptid),
 		  (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)

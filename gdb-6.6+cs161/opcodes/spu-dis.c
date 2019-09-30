@@ -1,25 +1,26 @@
 /* Disassemble SPU instructions
 
-   Copyright 2006 Free Software Foundation, Inc.
+   Copyright 2006, 2007, 2012  Free Software Foundation, Inc.
 
-   This file is part of GDB, GAS, and the GNU binutils.
+   This file is part of the GNU opcodes library.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this file; see the file COPYING.  If not, write to the
+   Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include <stdio.h>
 #include "sysdep.h"
+#include <stdio.h>
 #include "dis-asm.h"
 #include "opcode/spu.h"
 
@@ -52,7 +53,7 @@ init_spu_disassemble (void)
 static const struct spu_opcode *
 get_index_for_opcode (unsigned int insn)
 {
-  const struct spu_opcode *index;
+  const struct spu_opcode *op_index;
   unsigned int opcode = insn >> (32-11);
 
   /* Init the table.  This assumes that element 0/opcode 0 (currently
@@ -60,28 +61,28 @@ get_index_for_opcode (unsigned int insn)
   if (spu_disassemble_table[0] == 0)
     init_spu_disassemble ();
 
-  if ((index = spu_disassemble_table[opcode & 0x780]) != 0
-      && index->insn_type == RRR)
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x780]) != 0
+      && op_index->insn_type == RRR)
+    return op_index;
 
-  if ((index = spu_disassemble_table[opcode & 0x7f0]) != 0
-      && (index->insn_type == RI18 || index->insn_type == LBT))
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x7f0]) != 0
+      && (op_index->insn_type == RI18 || op_index->insn_type == LBT))
+    return op_index;
 
-  if ((index = spu_disassemble_table[opcode & 0x7f8]) != 0
-      && index->insn_type == RI10)
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x7f8]) != 0
+      && op_index->insn_type == RI10)
+    return op_index;
 
-  if ((index = spu_disassemble_table[opcode & 0x7fc]) != 0
-      && (index->insn_type == RI16))
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x7fc]) != 0
+      && (op_index->insn_type == RI16))
+    return op_index;
 
-  if ((index = spu_disassemble_table[opcode & 0x7fe]) != 0
-      && (index->insn_type == RI8))
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x7fe]) != 0
+      && (op_index->insn_type == RI8))
+    return op_index;
 
-  if ((index = spu_disassemble_table[opcode & 0x7ff]) != 0)
-    return index;
+  if ((op_index = spu_disassemble_table[opcode & 0x7ff]) != 0)
+    return op_index;
 
   return 0;
 }
@@ -96,7 +97,7 @@ print_insn_spu (bfd_vma memaddr, struct disassemble_info *info)
   int hex_value;
   int status;
   unsigned int insn;
-  const struct spu_opcode *index;
+  const struct spu_opcode *op_index;
   enum spu_insns tag;
 
   status = (*info->read_memory_func) (memaddr, buffer, 4, info);
@@ -108,9 +109,9 @@ print_insn_spu (bfd_vma memaddr, struct disassemble_info *info)
 
   insn = bfd_getb32 (buffer);
 
-  index = get_index_for_opcode (insn);
+  op_index = get_index_for_opcode (insn);
 
-  if (index == 0)
+  if (op_index == 0)
     {
       (*info->fprintf_func) (info->stream, ".long 0x%x", insn);
     }
@@ -118,8 +119,8 @@ print_insn_spu (bfd_vma memaddr, struct disassemble_info *info)
     {
       int i;
       int paren = 0;
-      tag = (enum spu_insns)(index - spu_opcodes);
-      (*info->fprintf_func) (info->stream, "%s", index->mnemonic);
+      tag = (enum spu_insns)(op_index - spu_opcodes);
+      (*info->fprintf_func) (info->stream, "%s", op_index->mnemonic);
       if (tag == M_BI || tag == M_BISL || tag == M_IRET || tag == M_BISLED
 	  || tag == M_BIHNZ || tag == M_BIHZ || tag == M_BINZ || tag == M_BIZ
           || tag == M_SYNC || tag == M_HBR)
@@ -132,12 +133,12 @@ print_insn_spu (bfd_vma memaddr, struct disassemble_info *info)
 	  if (fb & 0x10)
 	    (*info->fprintf_func) (info->stream, "e");
 	}
-      if (index->arg[0] != 0)
+      if (op_index->arg[0] != 0)
 	(*info->fprintf_func) (info->stream, "\t");
       hex_value = 0;
-      for (i = 1;  i <= index->arg[0]; i++)
+      for (i = 1;  i <= op_index->arg[0]; i++)
 	{
-	  int arg = index->arg[i];
+	  int arg = op_index->arg[i];
 	  if (arg != A_P && !paren && i > 1)
 	    (*info->fprintf_func) (info->stream, ",");
 

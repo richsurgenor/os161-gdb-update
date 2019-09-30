@@ -1,6 +1,6 @@
 /* BFD back-end for ieee-695 objects.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010, 2011
    Free Software Foundation, Inc.
 
    Written by Steve Chamberlain of Cygnus Support.
@@ -9,7 +9,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -19,7 +19,9 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 #define KEEPMINUSPCININST 0
 
@@ -27,8 +29,8 @@
    token (which is one byte in this lexicon) lookahead recursive decent
    parser.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "ieee.h"
 #include "libieee.h"
@@ -226,7 +228,7 @@ ieee_write_expression (bfd *abfd,
 		       bfd_vma value,
 		       asymbol *symbol,
 		       bfd_boolean pcrel,
-		       unsigned int index)
+		       unsigned int sindex)
 {
   unsigned int term_count = 0;
 
@@ -295,7 +297,7 @@ ieee_write_expression (bfd *abfd,
       /* Subtract the pc from here by asking for PC of this section.  */
       if (! ieee_write_byte (abfd, ieee_variable_P_enum)
 	  || ! ieee_write_byte (abfd,
-				(bfd_byte) (index + IEEE_SECTION_NUMBER_BASE))
+				(bfd_byte) (sindex + IEEE_SECTION_NUMBER_BASE))
 	  || ! ieee_write_byte (abfd, ieee_function_minus_enum))
 	return FALSE;
     }
@@ -370,7 +372,7 @@ parse_int (common_header_type *ieee, bfd_vma *value_ptr)
 static int
 parse_i (common_header_type *ieee, bfd_boolean *ok)
 {
-  bfd_vma x;
+  bfd_vma x = 0;
   *ok = parse_int (ieee, &x);
   return x;
 }
@@ -378,7 +380,7 @@ parse_i (common_header_type *ieee, bfd_boolean *ok)
 static bfd_vma
 must_parse_int (common_header_type *ieee)
 {
-  bfd_vma result;
+  bfd_vma result = 0;
   BFD_ASSERT (parse_int (ieee, &result));
   return result;
 }
@@ -531,6 +533,7 @@ parse_expression (ieee_data_type *ieee,
 	    next_byte (&(ieee->h));
 	    *pcrel = TRUE;
 	    section_n = must_parse_int (&(ieee->h));
+	    (void) section_n;
 	    PUSH (NOSYMBOL, bfd_abs_section_ptr, 0);
 	    break;
 	  }
@@ -635,6 +638,8 @@ parse_expression (ieee_data_type *ieee,
       ieee_symbol_index_type sy1;
 
       POP (sy1, section1, *extra);
+      (void) section1;
+      (void) sy1;
     }
 
   POP (*symbol, dummy, *value);
@@ -767,13 +772,14 @@ ieee_slurp_external_symbols (bfd *abfd)
 	    unsigned int symbol_name_index;
 	    unsigned int symbol_type_index;
 	    unsigned int symbol_attribute_def;
-	    bfd_vma value;
+	    bfd_vma value = 0;
 
 	    switch (read_2bytes (&ieee->h))
 	      {
 	      case ieee_attribute_record_enum:
 		symbol_name_index = must_parse_int (&(ieee->h));
 		symbol_type_index = must_parse_int (&(ieee->h));
+		(void) symbol_type_index;
 		symbol_attribute_def = must_parse_int (&(ieee->h));
 		switch (symbol_attribute_def)
 		  {
@@ -848,6 +854,7 @@ ieee_slurp_external_symbols (bfd *abfd)
 	    next_byte (&(ieee->h));
 
 	    symbol_name_index = must_parse_int (&(ieee->h));
+	    (void) symbol_name_index;
 	    parse_expression (ieee,
 			      &symbol->symbol.value,
 			      &symbol_ignore,
@@ -1043,9 +1050,9 @@ ieee_canonicalize_symtab (bfd *abfd, asymbol **location)
 }
 
 static asection *
-get_section_entry (bfd *abfd, ieee_data_type *ieee, unsigned int index)
+get_section_entry (bfd *abfd, ieee_data_type *ieee, unsigned int sindex)
 {
-  if (index >= ieee->section_table_size)
+  if (sindex >= ieee->section_table_size)
     {
       unsigned int c, i;
       asection **n;
@@ -1054,7 +1061,7 @@ get_section_entry (bfd *abfd, ieee_data_type *ieee, unsigned int index)
       c = ieee->section_table_size;
       if (c == 0)
 	c = 20;
-      while (c <= index)
+      while (c <= sindex)
 	c *= 2;
 
       amt = c;
@@ -1070,20 +1077,20 @@ get_section_entry (bfd *abfd, ieee_data_type *ieee, unsigned int index)
       ieee->section_table_size = c;
     }
 
-  if (ieee->section_table[index] == (asection *) NULL)
+  if (ieee->section_table[sindex] == (asection *) NULL)
     {
       char *tmp = bfd_alloc (abfd, (bfd_size_type) 11);
       asection *section;
 
       if (!tmp)
 	return NULL;
-      sprintf (tmp, " fsec%4d", index);
+      sprintf (tmp, " fsec%4d", sindex);
       section = bfd_make_section (abfd, tmp);
-      ieee->section_table[index] = section;
-      section->target_index = index;
-      ieee->section_table[index] = section;
+      ieee->section_table[sindex] = section;
+      section->target_index = sindex;
+      ieee->section_table[sindex] = section;
     }
-  return ieee->section_table[index];
+  return ieee->section_table[sindex];
 }
 
 static void
@@ -1655,7 +1662,7 @@ ieee_slurp_section_data (bfd *abfd)
   unsigned int section_number;
   ieee_per_section_type *current_map = NULL;
   asection *s;
-  
+
   /* Seek to the start of the data area.  */
   if (ieee->read_data)
     return TRUE;
@@ -2667,6 +2674,7 @@ drop_int (struct output_buffer_struct *buf)
 	  break;
 	}
     }
+  (void) ch;
   OUT (0x84);
   buf->ptrp = output_ptr;
   buf->buffer = output_buffer;
@@ -3485,6 +3493,12 @@ ieee_write_processor (bfd *abfd)
 	  case bfd_mach_mcf_isa_b_float: id = "isa-b:float"; break;
 	  case bfd_mach_mcf_isa_b_float_mac: id = "isa-b:float:mac"; break;
 	  case bfd_mach_mcf_isa_b_float_emac: id = "isa-b:float:emac"; break;
+	  case bfd_mach_mcf_isa_c: id = "isa-c"; break;
+	  case bfd_mach_mcf_isa_c_mac: id = "isa-c:mac"; break;
+	  case bfd_mach_mcf_isa_c_emac: id = "isa-c:emac"; break;
+	  case bfd_mach_mcf_isa_c_nodiv: id = "isa-c:nodiv"; break;
+	  case bfd_mach_mcf_isa_c_nodiv_mac: id = "isa-c:nodiv:mac"; break;
+	  case bfd_mach_mcf_isa_c_nodiv_emac: id = "isa-c:nodiv:emac"; break;
 	  }
 
 	if (! ieee_write_id (abfd, id))
@@ -3619,12 +3633,12 @@ static asymbol *
 ieee_make_empty_symbol (bfd *abfd)
 {
   bfd_size_type amt = sizeof (ieee_symbol_type);
-  ieee_symbol_type *new = bfd_zalloc (abfd, amt);
+  ieee_symbol_type *new_symbol = (ieee_symbol_type *) bfd_zalloc (abfd, amt);
 
-  if (!new)
+  if (!new_symbol)
     return NULL;
-  new->symbol.the_bfd = abfd;
-  return &new->symbol;
+  new_symbol->symbol.the_bfd = abfd;
+  return &new_symbol->symbol;
 }
 
 static bfd *
@@ -3735,6 +3749,7 @@ ieee_sizeof_headers (bfd *abfd ATTRIBUTE_UNUSED,
     (bfd *, unsigned int, struct orl *, unsigned int, int)) \
    bfd_true)
 #define ieee_read_ar_hdr bfd_nullvoidptr
+#define ieee_write_ar_hdr ((bfd_boolean (*) (bfd *, bfd *)) bfd_false)
 #define ieee_update_armap_timestamp bfd_true
 #define ieee_get_elt_at_index _bfd_generic_get_elt_at_index
 
@@ -3747,6 +3762,7 @@ ieee_sizeof_headers (bfd *abfd ATTRIBUTE_UNUSED,
 #define ieee_minisymbol_to_symbol _bfd_generic_minisymbol_to_symbol
 
 #define ieee_bfd_reloc_type_lookup _bfd_norelocs_bfd_reloc_type_lookup
+#define ieee_bfd_reloc_name_lookup _bfd_norelocs_bfd_reloc_name_lookup
 
 #define ieee_set_arch_mach _bfd_generic_set_arch_mach
 
@@ -3756,15 +3772,19 @@ ieee_sizeof_headers (bfd *abfd ATTRIBUTE_UNUSED,
   bfd_generic_get_relocated_section_contents
 #define ieee_bfd_relax_section bfd_generic_relax_section
 #define ieee_bfd_gc_sections bfd_generic_gc_sections
+#define ieee_bfd_lookup_section_flags bfd_generic_lookup_section_flags
 #define ieee_bfd_merge_sections bfd_generic_merge_sections
 #define ieee_bfd_is_group_section bfd_generic_is_group_section
 #define ieee_bfd_discard_group bfd_generic_discard_group
 #define ieee_section_already_linked \
   _bfd_generic_section_already_linked
+#define ieee_bfd_define_common_symbol bfd_generic_define_common_symbol
 #define ieee_bfd_link_hash_table_create _bfd_generic_link_hash_table_create
 #define ieee_bfd_link_hash_table_free _bfd_generic_link_hash_table_free
 #define ieee_bfd_link_add_symbols _bfd_generic_link_add_symbols
 #define ieee_bfd_link_just_syms _bfd_generic_link_just_syms
+#define ieee_bfd_copy_link_hash_symbol_type \
+  _bfd_generic_copy_link_hash_symbol_type
 #define ieee_bfd_final_link _bfd_generic_final_link
 #define ieee_bfd_link_split_section  _bfd_generic_link_split_section
 
@@ -3782,6 +3802,7 @@ const bfd_target ieee_vec =
   '_',				/* Leading underscore.  */
   ' ',				/* AR_pad_char.  */
   16,				/* AR_max_namelen.  */
+  0,				/* match priority.  */
   bfd_getb64, bfd_getb_signed_64, bfd_putb64,
   bfd_getb32, bfd_getb_signed_32, bfd_putb32,
   bfd_getb16, bfd_getb_signed_16, bfd_putb16,	/* Data.  */

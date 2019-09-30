@@ -1,13 +1,14 @@
 /* BFD back-end for MIPS PE COFF files.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2011
+   Free Software Foundation, Inc.
    Modified from coff-i386.c by DJ Delorie, dj@cygnus.com
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,14 +18,21 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #define COFF_WITH_PE
+/* pei-mips.c may have defined this to default off (0) before
+  including this file, so don't redefine if that's the case.
+  Otherwise we're generating objects, not executable images,
+  so we want to define it to default on.  */
+#ifndef COFF_LONG_SECTION_NAMES
 #define COFF_LONG_SECTION_NAMES
+#endif /* COFF_LONG_SECTION_NAMES */
 #define PCRELOFFSET TRUE
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "coff/mipspe.h"
 #include "coff/internal.h"
@@ -453,6 +461,7 @@ coff_mips_rtype_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
 
 #define coff_rtype_to_howto         coff_mips_rtype_to_howto
 #define coff_bfd_reloc_type_lookup  coff_mips_reloc_type_lookup
+#define coff_bfd_reloc_name_lookup coff_mips_reloc_name_lookup
 
 /* Get the howto structure for a generic reloc type.  */
 
@@ -496,6 +505,22 @@ coff_mips_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
   return & howto_table [mips_type];
 }
 
+static reloc_howto_type *
+coff_mips_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			     const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < sizeof (howto_table) / sizeof (howto_table[0]);
+       i++)
+    if (howto_table[i].name != NULL
+	&& strcasecmp (howto_table[i].name, r_name) == 0)
+      return &howto_table[i];
+
+  return NULL;
+}
+
 static void
 mips_swap_reloc_in (bfd * abfd, void * src, void * dst)
 {
@@ -527,7 +552,6 @@ mips_swap_reloc_in (bfd * abfd, void * src, void * dst)
 static unsigned int
 mips_swap_reloc_out (bfd * abfd, void * src, void * dst)
 {
-  static int prev_offset = 1;
   static bfd_vma prev_addr = 0;
   struct internal_reloc *reloc_src = (struct internal_reloc *)src;
   struct external_reloc *reloc_dst = (struct external_reloc *)dst;
@@ -536,7 +560,6 @@ mips_swap_reloc_out (bfd * abfd, void * src, void * dst)
     {
     case MIPS_R_REFHI:
       prev_addr = reloc_src->r_vaddr;
-      prev_offset = reloc_src->r_offset;
       break;
     case MIPS_R_REFLO:
       if (reloc_src->r_vaddr == prev_addr)
@@ -574,13 +597,9 @@ coff_pe_mips_relocate_section (bfd *output_bfd,
 			       struct internal_syment *syms,
 			       asection **sections)
 {
-  bfd_vma gp;
-  bfd_boolean gp_undefined;
-  size_t adjust;
   struct internal_reloc *rel;
   struct internal_reloc *rel_end;
   unsigned int i;
-  bfd_boolean got_lo;
 
   if (info->relocatable)
     {
@@ -593,10 +612,6 @@ coff_pe_mips_relocate_section (bfd *output_bfd,
   BFD_ASSERT (input_bfd->xvec->byteorder
 	      == output_bfd->xvec->byteorder);
 
-  gp = _bfd_get_gp_value (output_bfd);
-  gp_undefined = (gp == 0) ? TRUE : FALSE;
-  got_lo = FALSE;
-  adjust = 0;
   rel = relocs;
   rel_end = rel + input_section->reloc_count;
 
@@ -833,6 +848,10 @@ coff_mips_is_local_label_name (bfd *abfd, const char *name)
 
 #define COFF_NO_HACK_SCNHDR_SIZE
 
+#ifndef bfd_pe_print_pdata
+#define bfd_pe_print_pdata	NULL
+#endif
+
 #include "coffcode.h"
 
 const bfd_target
@@ -871,6 +890,7 @@ const bfd_target
 #endif
   '/',				/* AR_pad_char.  */
   15,				/* AR_max_namelen.  */
+  0,				/* match priority.  */
 
   bfd_getl64, bfd_getl_signed_64, bfd_putl64,
      bfd_getl32, bfd_getl_signed_32, bfd_putl32,

@@ -1,12 +1,12 @@
 /* Target-dependent code for OpenBSD/mips64.
 
-   Copyright (C) 2004 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,11 +15,10 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "gdbtypes.h"
 #include "osabi.h"
 #include "regcache.h"
 #include "regset.h"
@@ -31,6 +30,10 @@
 
 #include "mips-tdep.h"
 #include "solib-svr4.h"
+
+/* The MIPS64 Floating-Point Quad-Precision format is similar to
+   big-endian IA-64 Quad-Precision format.  */
+#define floatformats_mips64_quad floatformats_ia64_quad
 
 #define MIPS64OBSD_NUM_REGS 73
 
@@ -81,33 +84,42 @@ mips64obsd_regset_from_core_section (struct gdbarch *gdbarch,
 
 static void
 mips64obsd_sigframe_init (const struct tramp_frame *self,
-			  struct frame_info *next_frame,
+			  struct frame_info *this_frame,
 			  struct trad_frame_cache *cache,
 			  CORE_ADDR func)
 {
-  struct gdbarch *gdbarch = get_frame_arch (next_frame);
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
   CORE_ADDR sp, sigcontext_addr, addr;
   int regnum;
 
   /* We find the appropriate instance of `struct sigcontext' at a
      fixed offset in the signal frame.  */
-  sp = frame_unwind_register_signed (next_frame, MIPS_SP_REGNUM + NUM_REGS);
+  sp = get_frame_register_signed (this_frame,
+				  MIPS_SP_REGNUM + gdbarch_num_regs (gdbarch));
   sigcontext_addr = sp + 32;
 
   /* PC.  */
   regnum = mips_regnum (gdbarch)->pc;
-  trad_frame_set_reg_addr (cache, regnum + NUM_REGS, sigcontext_addr + 16);
+  trad_frame_set_reg_addr (cache,
+			   regnum + gdbarch_num_regs (gdbarch),
+			    sigcontext_addr + 16);
 
   /* GPRs.  */
   for (regnum = MIPS_AT_REGNUM, addr = sigcontext_addr + 32;
        regnum <= MIPS_RA_REGNUM; regnum++, addr += 8)
-    trad_frame_set_reg_addr (cache, regnum + NUM_REGS, addr);
+    trad_frame_set_reg_addr (cache,
+			     regnum + gdbarch_num_regs (gdbarch),
+			     addr);
 
   /* HI and LO.  */
   regnum = mips_regnum (gdbarch)->lo;
-  trad_frame_set_reg_addr (cache, regnum + NUM_REGS, sigcontext_addr + 280);
+  trad_frame_set_reg_addr (cache,
+			   regnum + gdbarch_num_regs (gdbarch),
+			   sigcontext_addr + 280);
   regnum = mips_regnum (gdbarch)->hi;
-  trad_frame_set_reg_addr (cache, regnum + NUM_REGS, sigcontext_addr + 288);
+  trad_frame_set_reg_addr (cache,
+			   regnum + gdbarch_num_regs (gdbarch),
+			   sigcontext_addr + 288);
 
   /* TODO: Handle the floating-point registers.  */
 
@@ -139,6 +151,9 @@ mips64obsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
     (gdbarch, mips64obsd_regset_from_core_section);
 
   tramp_frame_prepend_unwinder (gdbarch, &mips64obsd_sigframe);
+
+  set_gdbarch_long_double_bit (gdbarch, 128);
+  set_gdbarch_long_double_format (gdbarch, floatformats_mips64_quad);
 
   /* OpenBSD/mips64 has SVR4-style shared libraries.  */
   set_solib_svr4_fetch_link_map_offsets

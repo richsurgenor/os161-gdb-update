@@ -1,24 +1,22 @@
 /* reg.c --- register set model for M32C simulator.
 
-Copyright (C) 2005 Free Software Foundation, Inc.
+Copyright (C) 2005-2013 Free Software Foundation, Inc.
 Contributed by Red Hat, Inc.
 
 This file is part of the GNU simulators.
 
-The GNU simulators are free software; you can redistribute them and/or
-modify them under the terms of the GNU General Public License as
-published by the Free Software Foundation; either version 2 of the
-License, or (at your option) any later version.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
-The GNU simulators are distributed in the hope that they will be
-useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with the GNU simulators; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA  */
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #include <stdio.h>
@@ -30,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 int verbose = 0;
 int trace = 0;
 int enable_counting = 0;
+int in_gdb = 1;
 
 regs_type regs;
 int addr_mask = 0xffff;
@@ -76,6 +75,8 @@ int b2maxsigned[] = { 0, 0x7f, 0x7fff, 0x7fffff, 0x7fffffff };
 int b2minsigned[] = { 0, -128, -32768, -8388608, -2147483647 - 1 };
 
 static regs_type oldregs;
+
+int m32c_opcode_pc;
 
 void
 init_regs (void)
@@ -583,6 +584,17 @@ put_reg_ll (reg_id id, DI v)
     }
 }
 
+static void
+print_flags (int f)
+{
+  int i;
+  static char fn[] = "CDZSBOIU";
+  printf ("%d.", (f >> 12) & 7);
+  for (i = 7; i >= 0; i--)
+    if (f & (1 << i))
+      putchar (fn[i]);
+}
+
 #define TRC(f,n, id) \
   if (oldregs.f != regs.f) \
     { \
@@ -619,6 +631,49 @@ trace_register_changes ()
   TRC (r_usp, "usp", usp);
   TRC (r_isp, "isp", isp);
   TRC (r_pc, "pc", pc);
-  TRC (r_flags, "flags", flags);
+  if (oldregs.r_flags != regs.r_flags)
+    {
+      printf ("  flags ");
+      print_flags (oldregs.r_flags);
+      printf (":");
+      print_flags (regs.r_flags);
+    }
   printf ("\033[0m\n");
+}
+
+#define DRC(f, n, id) \
+  printf("  %-3s %0*x", n,			       \
+	 reg_bytes[id]*2, (unsigned int)regs.f);       \
+
+void
+m32c_dump_all_registers ()
+{
+  printf ("\033[36mREGS:");
+  DRC (r[0].r_r0, "r0", r0);
+  DRC (r[0].r_r1, "r1", r1);
+  DRC (r[0].r_r2, "r2", r2);
+  DRC (r[0].r_r3, "r3", r3);
+  DRC (r[0].r_a0, "a0", a0);
+  DRC (r[0].r_a1, "a1", a1);
+  DRC (r[0].r_sb, "sb", sb);
+  DRC (r[0].r_fb, "fb", fb);
+  printf ("\n     ");
+  DRC (r[1].r_r0, "r0'", r0);
+  DRC (r[1].r_r1, "r1'", r1);
+  DRC (r[1].r_r2, "r2'", r2);
+  DRC (r[1].r_r3, "r3'", r3);
+  DRC (r[1].r_a0, "a0'", a0);
+  DRC (r[1].r_a1, "a1'", a1);
+  DRC (r[1].r_sb, "sb'", sb);
+  DRC (r[1].r_fb, "fb'", fb);
+  printf ("     \n");
+  DRC (r_intbh, "intbh", intbh);
+  DRC (r_intbl, "intbl", intbl);
+  DRC (r_usp, "usp", usp);
+  DRC (r_isp, "isp", isp);
+  DRC (r_pc, "pc", pc);
+  printf ("  flags ");
+  print_flags (regs.r_flags);
+  printf ("\033[0m\n");
+  /*sim_disasm_one (); */
 }

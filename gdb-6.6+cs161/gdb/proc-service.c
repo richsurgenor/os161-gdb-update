@@ -1,12 +1,12 @@
 /* <proc_service.h> implementation.
 
-   Copyright (C) 1999, 2000, 2002 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,18 +15,19 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 
-#include "gdb_proc_service.h"
-#include <sys/procfs.h>
-
+#include "gdbcore.h"
 #include "inferior.h"
 #include "symtab.h"
 #include "target.h"
+#include "regcache.h"
+
+#include "gdb_proc_service.h"
+
+#include <sys/procfs.h>
 
 /* Prototypes for supply_gregset etc.  */
 #include "gregset.h"
@@ -57,6 +58,28 @@ typedef size_t gdb_ps_size_t;
 
 /* Helper functions.  */
 
+/* Convert a psaddr_t to a CORE_ADDR.  */
+
+static CORE_ADDR
+ps_addr_to_core_addr (psaddr_t addr)
+{
+  if (exec_bfd && bfd_get_sign_extend_vma (exec_bfd))
+    return (intptr_t) addr;
+  else
+    return (uintptr_t) addr;
+}
+
+/* Convert a CORE_ADDR to a psaddr_t.  */
+
+static psaddr_t
+core_addr_to_ps_addr (CORE_ADDR addr)
+{
+  if (exec_bfd && bfd_get_sign_extend_vma (exec_bfd))
+    return (psaddr_t) (intptr_t) addr;
+  else
+    return (psaddr_t) (uintptr_t) addr;
+}
+
 /* Transfer LEN bytes of memory between BUF and address ADDR in the
    process specified by PH.  If WRITE, transfer them to the process,
    else transfer them from the process.  Returns PS_OK for success,
@@ -66,18 +89,19 @@ typedef size_t gdb_ps_size_t;
    ps_ptwrite.  */
 
 static ps_err_e
-ps_xfer_memory (const struct ps_prochandle *ph, paddr_t addr,
+ps_xfer_memory (const struct ps_prochandle *ph, psaddr_t addr,
 		gdb_byte *buf, size_t len, int write)
 {
   struct cleanup *old_chain = save_inferior_ptid ();
   int ret;
+  CORE_ADDR core_addr = ps_addr_to_core_addr (addr);
 
-  inferior_ptid = pid_to_ptid (ph->pid);
+  inferior_ptid = ph->ptid;
 
   if (write)
-    ret = target_write_memory (addr, buf, len);
+    ret = target_write_memory (core_addr, buf, len);
   else
-    ret = target_read_memory (addr, buf, len);
+    ret = target_read_memory (core_addr, buf, len);
 
   do_cleanups (old_chain);
 
@@ -164,6 +188,7 @@ ps_plog (const char *fmt, ...)
 
   va_start (args, fmt);
   vfprintf_filtered (gdb_stderr, fmt, args);
+  va_end (args);
 }
 
 /* Search for the symbol named NAME within the object named OBJ within
@@ -172,24 +197,34 @@ ps_plog (const char *fmt, ...)
 
 ps_err_e
 ps_pglobal_lookup (gdb_ps_prochandle_t ph, const char *obj,
-		   const char *name, paddr_t *sym_addr)
+		   const char *name, psaddr_t *sym_addr)
 {
   struct minimal_symbol *ms;
+  struct cleanup *old_chain = save_current_program_space ();
+  struct inferior *inf = find_inferior_pid (ptid_get_pid (ph->ptid));
+  ps_err_e result;
+
+  set_current_program_space (inf->pspace);
 
   /* FIXME: kettenis/2000-09-03: What should we do with OBJ?  */
   ms = lookup_minimal_symbol (name, NULL, NULL);
   if (ms == NULL)
-    return PS_NOSYM;
+    result = PS_NOSYM;
+  else
+    {
+      *sym_addr = core_addr_to_ps_addr (SYMBOL_VALUE_ADDRESS (ms));
+      result = PS_OK;
+    }
 
-  *sym_addr = SYMBOL_VALUE_ADDRESS (ms);
-  return PS_OK;
+  do_cleanups (old_chain);
+  return result;
 }
 
 /* Read SIZE bytes from the target process PH at address ADDR and copy
    them into BUF.  */
 
 ps_err_e
-ps_pdread (gdb_ps_prochandle_t ph, paddr_t addr,
+ps_pdread (gdb_ps_prochandle_t ph, psaddr_t addr,
 	   gdb_ps_read_buf_t buf, gdb_ps_size_t size)
 {
   return ps_xfer_memory (ph, addr, buf, size, 0);
@@ -198,7 +233,7 @@ ps_pdread (gdb_ps_prochandle_t ph, paddr_t addr,
 /* Write SIZE bytes from BUF into the target process PH at address ADDR.  */
 
 ps_err_e
-ps_pdwrite (gdb_ps_prochandle_t ph, paddr_t addr,
+ps_pdwrite (gdb_ps_prochandle_t ph, psaddr_t addr,
 	    gdb_ps_write_buf_t buf, gdb_ps_size_t size)
 {
   return ps_xfer_memory (ph, addr, (gdb_byte *) buf, size, 1);
@@ -208,7 +243,7 @@ ps_pdwrite (gdb_ps_prochandle_t ph, paddr_t addr,
    them into BUF.  */
 
 ps_err_e
-ps_ptread (gdb_ps_prochandle_t ph, paddr_t addr,
+ps_ptread (gdb_ps_prochandle_t ph, psaddr_t addr,
 	   gdb_ps_read_buf_t buf, gdb_ps_size_t size)
 {
   return ps_xfer_memory (ph, addr, (gdb_byte *) buf, size, 0);
@@ -217,7 +252,7 @@ ps_ptread (gdb_ps_prochandle_t ph, paddr_t addr,
 /* Write SIZE bytes from BUF into the target process PH at address ADDR.  */
 
 ps_err_e
-ps_ptwrite (gdb_ps_prochandle_t ph, paddr_t addr,
+ps_ptwrite (gdb_ps_prochandle_t ph, psaddr_t addr,
 	    gdb_ps_write_buf_t buf, gdb_ps_size_t size)
 {
   return ps_xfer_memory (ph, addr, (gdb_byte *) buf, size, 1);
@@ -230,11 +265,13 @@ ps_err_e
 ps_lgetregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, prgregset_t gregset)
 {
   struct cleanup *old_chain = save_inferior_ptid ();
+  struct regcache *regcache;
 
-  inferior_ptid = BUILD_LWP (lwpid, ph->pid);
+  inferior_ptid = BUILD_LWP (lwpid, ptid_get_pid (ph->ptid));
+  regcache = get_thread_arch_regcache (inferior_ptid, target_gdbarch ());
 
-  target_fetch_registers (-1);
-  fill_gregset ((gdb_gregset_t *) gregset, -1);
+  target_fetch_registers (regcache, -1);
+  fill_gregset (regcache, (gdb_gregset_t *) gregset, -1);
 
   do_cleanups (old_chain);
   return PS_OK;
@@ -247,12 +284,13 @@ ps_err_e
 ps_lsetregs (gdb_ps_prochandle_t ph, lwpid_t lwpid, const prgregset_t gregset)
 {
   struct cleanup *old_chain = save_inferior_ptid ();
+  struct regcache *regcache;
 
-  inferior_ptid = BUILD_LWP (lwpid, ph->pid);
+  inferior_ptid = BUILD_LWP (lwpid, ptid_get_pid (ph->ptid));
+  regcache = get_thread_arch_regcache (inferior_ptid, target_gdbarch ());
 
-  /* FIXME: We should really make supply_gregset const-correct.  */
-  supply_gregset ((gdb_gregset_t *) gregset);
-  target_store_registers (-1);
+  supply_gregset (regcache, (const gdb_gregset_t *) gregset);
+  target_store_registers (regcache, -1);
 
   do_cleanups (old_chain);
   return PS_OK;
@@ -266,11 +304,13 @@ ps_lgetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid,
 	       gdb_prfpregset_t *fpregset)
 {
   struct cleanup *old_chain = save_inferior_ptid ();
+  struct regcache *regcache;
 
-  inferior_ptid = BUILD_LWP (lwpid, ph->pid);
+  inferior_ptid = BUILD_LWP (lwpid, ptid_get_pid (ph->ptid));
+  regcache = get_thread_arch_regcache (inferior_ptid, target_gdbarch ());
 
-  target_fetch_registers (-1);
-  fill_fpregset ((gdb_fpregset_t *) fpregset, -1);
+  target_fetch_registers (regcache, -1);
+  fill_fpregset (regcache, (gdb_fpregset_t *) fpregset, -1);
 
   do_cleanups (old_chain);
   return PS_OK;
@@ -284,12 +324,13 @@ ps_lsetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid,
 	       const gdb_prfpregset_t *fpregset)
 {
   struct cleanup *old_chain = save_inferior_ptid ();
+  struct regcache *regcache;
 
-  inferior_ptid = BUILD_LWP (lwpid, ph->pid);
+  inferior_ptid = BUILD_LWP (lwpid, ptid_get_pid (ph->ptid));
+  regcache = get_thread_arch_regcache (inferior_ptid, target_gdbarch ());
 
-  /* FIXME: We should really make supply_fpregset const-correct.  */
-  supply_fpregset ((gdb_fpregset_t *) fpregset);
-  target_store_registers (-1);
+  supply_fpregset (regcache, (const gdb_fpregset_t *) fpregset);
+  target_store_registers (regcache, -1);
 
   do_cleanups (old_chain);
   return PS_OK;
@@ -301,8 +342,11 @@ ps_lsetfpregs (gdb_ps_prochandle_t ph, lwpid_t lwpid,
 pid_t
 ps_getpid (gdb_ps_prochandle_t ph)
 {
-  return ph->pid;
+  return ptid_get_pid (ph->ptid);
 }
+
+/* Provide a prototype to silence -Wmissing-prototypes.  */
+extern initialize_file_ftype _initialize_proc_service;
 
 void
 _initialize_proc_service (void)

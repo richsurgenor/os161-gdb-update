@@ -1,7 +1,6 @@
 /* Basic C++ demangling support for GDB.
 
-   Copyright (C) 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000,
-   2001, 2003 Free Software Foundation, Inc.
+   Copyright (C) 1991-2013 Free Software Foundation, Inc.
 
    Written by Fred Fish at Cygnus Support.
 
@@ -9,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,18 +17,17 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 /*  This file contains support code for C++ demangling that is common
-   to a styles of demangling, and GDB specific. */
+   to a styles of demangling, and GDB specific.  */
 
 #include "defs.h"
 #include "command.h"
 #include "gdbcmd.h"
 #include "demangle.h"
+#include "gdb-demangle.h"
 #include "gdb_string.h"
 
 /* Select the default C++ demangling style to use.  The default is "auto",
@@ -38,17 +36,41 @@
    "lucid", "arm", "hp", etc.) in which case gdb will never attempt to do auto
    selection of the style unless you do an explicit "set demangle auto".
    To select one of these as the default, set DEFAULT_DEMANGLING_STYLE in
-   the appropriate target configuration file. */
+   the appropriate target configuration file.  */
 
 #ifndef DEFAULT_DEMANGLING_STYLE
 #define DEFAULT_DEMANGLING_STYLE AUTO_DEMANGLING_STYLE_STRING
 #endif
 
-extern void _initialize_demangler (void);
+/* See documentation in gdb-demangle.h.  */
+int demangle = 1;
+
+static void
+show_demangle (struct ui_file *file, int from_tty,
+	       struct cmd_list_element *c, const char *value)
+{
+  fprintf_filtered (file,
+		    _("Demangling of encoded C++/ObjC names "
+		      "when displaying symbols is %s.\n"),
+		    value);
+}
+
+/* See documentation in gdb-demangle.h.  */
+int asm_demangle = 0;
+
+static void
+show_asm_demangle (struct ui_file *file, int from_tty,
+		   struct cmd_list_element *c, const char *value)
+{
+  fprintf_filtered (file,
+		    _("Demangling of C++/ObjC names in "
+		      "disassembly listings is %s.\n"),
+		    value);
+}
 
 /* String name for the current demangling style.  Set by the
    "set demangle-style" command, printed as part of the output by the
-   "show demangle-style" command. */
+   "show demangle-style" command.  */
 
 static char *current_demangling_style_string;
 
@@ -64,9 +86,6 @@ show_demangling_style_names(struct ui_file *file, int from_tty,
 		    value);
 }
 
-
-static void set_demangling_command (char *, int, struct cmd_list_element *);
-
 /* Set current demangling style.  Called by the "set demangle-style"
    command after it has updated the current_demangling_style_string to
    match what the user has entered.
@@ -81,7 +100,7 @@ static void set_demangling_command (char *, int, struct cmd_list_element *);
    enum value.
 
    Note:  Assumes that current_demangling_style_string always points to
-   a malloc'd string, even if it is a null-string. */
+   a malloc'd string, even if it is a null-string.  */
 
 static void
 set_demangling_command (char *ignore, int from_tty, struct cmd_list_element *c)
@@ -91,7 +110,7 @@ set_demangling_command (char *ignore, int from_tty, struct cmd_list_element *c)
   /*  First just try to match whatever style name the user supplied with
      one of the known ones.  Don't bother special casing for an empty
      name, we just treat it as any other style name that doesn't match.
-     If we match, update the current demangling style enum. */
+     If we match, update the current demangling style enum.  */
 
   for (dem = libiberty_demanglers; 
        dem->demangling_style != unknown_demangling; 
@@ -106,8 +125,8 @@ set_demangling_command (char *ignore, int from_tty, struct cmd_list_element *c)
     }
 
   /* Check to see if we found a match.  If not, gripe about any non-empty
-     style name and supply a list of valid ones.  FIXME:  This should
-     probably be done with some sort of completion and with help. */
+     style name and supply a list of valid ones.  FIXME: This should
+     probably be done with some sort of completion and with help.  */
 
   if (dem->demangling_style == unknown_demangling)
     {
@@ -127,27 +146,24 @@ set_demangling_command (char *ignore, int from_tty, struct cmd_list_element *c)
 	    {
 	      xfree (current_demangling_style_string);
 	      current_demangling_style_string =
-		savestring (dem->demangling_style_name,
-			    strlen (dem->demangling_style_name));
+		xstrdup (dem->demangling_style_name);
 	    }
 	}
       if (current_demangling_style == unknown_demangling)
 	{
 	  /* This can happen during initialization if gdb is compiled with
 	     a DEMANGLING_STYLE value that is unknown, so pick the first
-	     one as the default. */
+	     one as the default.  */
 	  current_demangling_style = libiberty_demanglers[0].demangling_style;
 	  current_demangling_style_string =
-	    savestring (
-              libiberty_demanglers[0].demangling_style_name,
-	      strlen (libiberty_demanglers[0].demangling_style_name));
+	    xstrdup (libiberty_demanglers[0].demangling_style_name);
 	  warning (_("`%s' style demangling chosen as the default."),
 		   current_demangling_style_string);
 	}
     }
 }
 
-/* Fake a "set demangle-style" command. */
+/* See documentation in gdb-demangle.h.  */
 
 void
 set_demangling_style (char *style)
@@ -156,7 +172,7 @@ set_demangling_style (char *style)
     {
       xfree (current_demangling_style_string);
     }
-  current_demangling_style_string = savestring (style, strlen (style));
+  current_demangling_style_string = xstrdup (style);
   set_demangling_command ((char *) NULL, 0, (struct cmd_list_element *) NULL);
 }
 
@@ -173,16 +189,19 @@ set_demangling_style (char *style)
 
 static char cplus_markers[] = {'$', '.', '\0'};
 
+/* See documentation in gdb-demangle.h.  */
+
 int
 is_cplus_marker (int c)
 {
   return c && strchr (cplus_markers, c) != NULL;
 }
 
+extern initialize_file_ftype _initialize_demangler; /* -Wmissing-prototypes */
+
 void
 _initialize_demangler (void)
 {
-  struct cmd_list_element *set, *show;
   int i, ndems;
 
   /* Fill the demangling_style_names[] array.  */
@@ -196,6 +215,20 @@ _initialize_demangler (void)
        i++)
     demangling_style_names[i] =
       xstrdup (libiberty_demanglers[i].demangling_style_name);
+
+  add_setshow_boolean_cmd ("demangle", class_support, &demangle, _("\
+Set demangling of encoded C++/ObjC names when displaying symbols."), _("\
+Show demangling of encoded C++/ObjC names when displaying symbols."), NULL,
+			   NULL,
+			   show_demangle,
+			   &setprintlist, &showprintlist);
+
+  add_setshow_boolean_cmd ("asm-demangle", class_support, &asm_demangle, _("\
+Set demangling of C++/ObjC names in disassembly listings."), _("\
+Show demangling of C++/ObjC names in disassembly listings."), NULL,
+			   NULL,
+			   show_asm_demangle,
+			   &setprintlist, &showprintlist);
 
   /* FIXME: cagney/2005-02-20: The code implementing this variable are
      malloc-ing and free-ing current_demangling_style_string when it
@@ -211,6 +244,6 @@ Use `set demangle-style' without arguments for a list of demangling styles."),
 			show_demangling_style_names,
 			&setlist, &showlist);
 
-  /* Set the default demangling style chosen at compilation time. */
+  /* Set the default demangling style chosen at compilation time.  */
   set_demangling_style (DEFAULT_DEMANGLING_STYLE);
 }

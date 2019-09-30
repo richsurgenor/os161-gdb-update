@@ -1,20 +1,21 @@
 /*  iwmmxt.c -- Intel(r) Wireless MMX(tm) technology co-processor interface.
-    Copyright (C) 2002 Free Software Foundation, Inc.
+    Copyright (C) 2002-2013 Free Software Foundation, Inc.
     Contributed by matthew green (mrg@redhat.com).
  
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
- 
+
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
- 
+
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA. */
+    along with this program.  If not, see <http://www.gnu.org/licenses/>. */
+
+#include <string.h>
 
 #include "armdefs.h"
 #include "armos.h"
@@ -1742,11 +1743,12 @@ WCMPGT (ARMul_State * state, ARMword instr)
 	    {
 	      signed long a, b;
 
-	      a = wRWORD (BITS (16, 19), i);
-	      b = wRWORD (BITS (0, 3), i);
+	      a = EXTEND32 (wRWORD (BITS (16, 19), i));
+	      b = EXTEND32 (wRWORD (BITS (0, 3), i));
 
 	      s = (a > b) ? 0xffffffff : 0;
 	      r |= s << (i * 32);
+
 	      SIMD32_SET (psr, NBIT32 (s), SIMD_NBIT, i);
 	      SIMD32_SET (psr, ZBIT32 (s), SIMD_ZBIT, i);
 	    }
@@ -2126,13 +2128,15 @@ WMAC (ARMword instr)
         }
     }
 
-  if (BIT (20))
-    wR [BITS (12, 15)] = 0;
-
-  if (BIT (21))	/* Signed.  */
-    wR[BITS (12, 15)] += t;
+  if (BIT (21))
+    t = EXTEND32 (t);
   else
-    wR [BITS (12, 15)] += t;
+    t &= 0xffffffff;
+
+  if (BIT (20))
+    wR [BITS (12, 15)] = t;
+  else
+    wR[BITS (12, 15)] += t;
 
   wC [wCon] |= WCON_MUP;
 
@@ -2902,7 +2906,7 @@ WSRA (ARMul_State * state, ARMword instr)
 	    t = (wRWORD (BITS (16, 19), i) & 0x80000000) ? 0xffffffff : 0;
 	  else
 	    {
-	      t = wRWORD (BITS (16, 19), i);
+	      t = EXTEND32 (wRWORD (BITS (16, 19), i));
 	      t >>= shift;
 	    }
 	  s = t;

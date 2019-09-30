@@ -1,30 +1,32 @@
 /* BFD back-end for HP/UX core files.
-   Copyright 1993, 1994, 1996, 1998, 1999, 2001, 2002, 2003, 2004, 2006
-   Free Software Foundation, Inc.
+   Copyright 1993, 1994, 1996, 1998, 1999, 2001, 2002, 2003, 2004, 2005, 2006,
+   2007, 2008, 2010, 2011, 2012  Free Software Foundation, Inc.
    Written by Stu Grossman, Cygnus Support.
    Converted to back-end form by Ian Lance Taylor, Cygnus SUpport
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* This file can only be compiled on systems which use HP/UX style
    core files.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 
 #if defined (HOST_HPPAHPUX) || defined (HOST_HP300HPUX) || defined (HOST_HPPAMPEIX)
@@ -64,7 +66,6 @@ Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA. 
 #ifdef HPUX_CORE
 #include <machine/reg.h>
 #endif
-#include <sys/user.h>		/* After a.out.h  */
 #include <sys/file.h>
 
 /* Kludge: There's no explicit mechanism provided by sys/core.h to
@@ -102,6 +103,7 @@ struct hpux_core_struct
 #define core_kernel_thread_id(bfd) (core_hdr(bfd)->lwpid)
 #define core_user_thread_id(bfd) (core_hdr(bfd)->user_tid)
 #define hpux_core_core_file_matches_executable_p generic_core_file_matches_executable_p
+#define hpux_core_core_file_pid _bfd_nocore_core_file_pid
 
 static asection *make_bfd_asection (bfd *, const char *, flagword,
                                     bfd_size_type, bfd_vma, unsigned int);
@@ -385,9 +387,10 @@ const bfd_target hpux_core_vec =
      HAS_LINENO | HAS_DEBUG |
      HAS_SYMS | HAS_LOCALS | WP_TEXT | D_PAGED),
     (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_RELOC), /* section flags */
-    0,			                                   /* symbol prefix */
-    ' ',						   /* ar_pad_char */
-    16,							   /* ar_max_namelen */
+    0,				/* symbol prefix */
+    ' ',			/* ar_pad_char */
+    16,				/* ar_max_namelen */
+    0,				/* match priority.  */
     NO_GET64, NO_GETS64, NO_PUT64,	/* 64 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 32 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 16 bit data */
@@ -422,5 +425,5 @@ const bfd_target hpux_core_vec =
 
     NULL,
 
-    (PTR) 0			/* backend_data */
+    NULL			/* backend_data */
   };

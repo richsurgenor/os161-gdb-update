@@ -1,12 +1,12 @@
 /* Functions for deciding which macros are currently in scope.
-   Copyright (C) 2002 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 
@@ -29,11 +27,18 @@
 #include "inferior.h"
 #include "complaints.h"
 
+/* A table of user-defined macros.  Unlike the macro tables used for
+   symtabs, this one uses xmalloc for all its allocation, not an
+   obstack, and it doesn't bcache anything; it just xmallocs things.  So
+   it's perfectly possible to remove things from this, or redefine
+   things.  */
+struct macro_table *macro_user_macros;
+
 
 struct macro_scope *
 sal_macro_scope (struct symtab_and_line sal)
 {
-  struct macro_source_file *main, *inclusion;
+  struct macro_source_file *main_file, *inclusion;
   struct macro_scope *ms;
 
   if (! sal.symtab
@@ -42,8 +47,8 @@ sal_macro_scope (struct symtab_and_line sal)
 
   ms = (struct macro_scope *) xmalloc (sizeof (*ms));
 
-  main = macro_main (sal.symtab->macro_table);
-  inclusion = macro_lookup_inclusion (main, sal.symtab->filename);
+  main_file = macro_main (sal.symtab->macro_table);
+  inclusion = macro_lookup_inclusion (main_file, sal.symtab->filename);
 
   if (inclusion)
     {
@@ -66,13 +71,13 @@ sal_macro_scope (struct symtab_and_line sal)
 
          For the time being, though, we'll just treat these as
          occurring at the end of the main source file.  */
-      ms->file = main;
+      ms->file = main_file;
       ms->line = -1;
 
       complaint (&symfile_complaints,
                  _("symtab found for `%s', but that file\n"
                  "is not covered in the compilation unit's macro information"),
-                 sal.symtab->filename);
+                 symtab_to_filename_for_display (sal.symtab));
     }
 
   return ms;
@@ -80,22 +85,30 @@ sal_macro_scope (struct symtab_and_line sal)
 
 
 struct macro_scope *
+user_macro_scope (void)
+{
+  struct macro_scope *ms;
+
+  ms = XNEW (struct macro_scope);
+  ms->file = macro_main (macro_user_macros);
+  ms->line = -1;
+  return ms;
+}
+
+struct macro_scope *
 default_macro_scope (void)
 {
   struct symtab_and_line sal;
-  struct macro_source_file *main;
   struct macro_scope *ms;
+  struct frame_info *frame;
+  CORE_ADDR pc;
 
-  /* If there's a selected frame, use its PC.  */ 
-  if (deprecated_selected_frame)
-    sal = find_pc_line (get_frame_pc (deprecated_selected_frame), 0);
-  
-  /* If the target has any registers at all, then use its PC.  Why we
-     would have registers but no stack, I'm not sure.  */
-  else if (target_has_registers)
-    sal = find_pc_line (read_pc (), 0);
+  /* If there's a selected frame, use its PC.  */
+  frame = deprecated_safe_get_selected_frame ();
+  if (frame && get_frame_pc_if_available (frame, &pc))
+    sal = find_pc_line (pc, 0);
 
-  /* If all else fails, fall back to the current listing position.  */
+  /* Fall back to the current listing position.  */
   else
     {
       /* Don't call select_source_symtab here.  That can raise an
@@ -116,7 +129,11 @@ default_macro_scope (void)
       sal.line = cursal.line;
     }
 
-  return sal_macro_scope (sal);
+  ms = sal_macro_scope (sal);
+  if (! ms)
+    ms = user_macro_scope ();
+
+  return ms;
 }
 
 
@@ -127,6 +144,22 @@ struct macro_definition *
 standard_macro_lookup (const char *name, void *baton)
 {
   struct macro_scope *ms = (struct macro_scope *) baton;
+  struct macro_definition *result;
 
-  return macro_lookup_definition (ms->file, ms->line, name);
+  /* Give user-defined macros priority over all others.  */
+  result = macro_lookup_definition (macro_main (macro_user_macros), -1, name);
+  if (! result)
+    result = macro_lookup_definition (ms->file, ms->line, name);
+  return result;
+}
+
+/* Provide a prototype to silence -Wmissing-prototypes.  */
+extern initialize_file_ftype _initialize_macroscope;
+
+void
+_initialize_macroscope (void)
+{
+  macro_user_macros = new_macro_table (NULL, NULL, NULL);
+  macro_set_main (macro_user_macros, "<user-defined>");
+  macro_allow_redefinitions (macro_user_macros);
 }

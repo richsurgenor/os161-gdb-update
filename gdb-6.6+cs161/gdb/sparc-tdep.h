@@ -1,12 +1,12 @@
 /* Target-dependent code for SPARC.
 
-   Copyright (C) 2003, 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef SPARC_TDEP_H
 #define SPARC_TDEP_H 1
@@ -41,6 +39,12 @@ struct sparc_gregset
   int r_g1_offset;
   int r_l0_offset;
   int r_y_size;
+};
+
+struct sparc_fpregset
+{
+  int r_f0_offset;
+  int r_fsr_offset;
 };
 
 /* SPARC architecture-specific information.  */
@@ -67,7 +71,14 @@ struct gdbarch_tdep
   size_t plt_entry_size;
 
   /* Alternative location for trap return.  Used for single-stepping.  */
-  CORE_ADDR (*step_trap) (unsigned long insn);
+  CORE_ADDR (*step_trap) (struct frame_info *frame, unsigned long insn);
+
+  /* ISA-specific data types.  */
+  struct type *sparc_psr_type;
+  struct type *sparc_fsr_type;
+  struct type *sparc64_pstate_type;
+  struct type *sparc64_fsr_type;
+  struct type *sparc64_fprs_type;
 };
 
 /* Register numbers of various important registers.  */
@@ -108,6 +119,12 @@ enum sparc_regnum
   SPARC_I7_REGNUM,		/* %i7 */
   SPARC_F0_REGNUM,		/* %f0 */
   SPARC_F1_REGNUM,
+  SPARC_F2_REGNUM,
+  SPARC_F3_REGNUM,
+  SPARC_F4_REGNUM,
+  SPARC_F5_REGNUM,
+  SPARC_F6_REGNUM,
+  SPARC_F7_REGNUM,
   SPARC_F31_REGNUM		/* %f31 */
   = SPARC_F0_REGNUM + 31
 };
@@ -140,7 +157,16 @@ struct sparc_frame_cache
   /* Do we have a frame?  */
   int frameless_p;
 
-  /* Do we have a Structure, Union or Quad-Precision return value?.  */
+  /* The offset from the base register to the CFA.  */
+  int frame_offset;
+
+  /* Mask of `local' and `in' registers saved in the register save area.  */
+  unsigned short int saved_regs_mask;
+
+  /* Mask of `out' registers copied or renamed to their `in' sibling.  */
+  unsigned char copied_regs_mask;
+
+  /* Do we have a Structure, Union or Quad-Precision return value?  */
   int struct_return_p;
 
   /* Table of saved registers.  */
@@ -150,25 +176,26 @@ struct sparc_frame_cache
 /* Fetch the instruction at PC.  */
 extern unsigned long sparc_fetch_instruction (CORE_ADDR pc);
 
-/* Return the contents if register REGNUM as an address.  */
-extern CORE_ADDR sparc_address_from_register (int regnum);
-
 /* Fetch StackGhost Per-Process XOR cookie.  */
-extern ULONGEST sparc_fetch_wcookie (void);
+extern ULONGEST sparc_fetch_wcookie (struct gdbarch *gdbarch);
 
-extern CORE_ADDR sparc_analyze_prologue (CORE_ADDR pc, CORE_ADDR current_pc,
+/* Record the effect of a SAVE instruction on CACHE.  */
+extern void sparc_record_save_insn (struct sparc_frame_cache *cache);
+
+/* Do a full analysis of the prologue at PC and update CACHE accordingly.  */
+extern CORE_ADDR sparc_analyze_prologue (struct gdbarch *gdbarch,
+					 CORE_ADDR pc, CORE_ADDR current_pc,
 					 struct sparc_frame_cache *cache);
 
 extern struct sparc_frame_cache *
-  sparc_frame_cache (struct frame_info *next_frame, void **this_cache);
+  sparc_frame_cache (struct frame_info *this_frame, void **this_cache);
 
 extern struct sparc_frame_cache *
-  sparc32_frame_cache (struct frame_info *next_frame, void **this_cache);
+  sparc32_frame_cache (struct frame_info *this_frame, void **this_cache);
 
 
 
-extern void sparc_software_single_step (enum target_signal sig,
-					int insert_breakpoints_p);
+extern int sparc_software_single_step (struct frame_info *frame);
 
 extern void sparc_supply_rwindow (struct regcache *regcache,
 				  CORE_ADDR sp, int regnum);
@@ -177,6 +204,8 @@ extern void sparc_collect_rwindow (const struct regcache *regcache,
 
 /* Register offsets for SunOS 4.  */
 extern const struct sparc_gregset sparc32_sunos4_gregset;
+extern const struct sparc_fpregset sparc32_sunos4_fpregset;
+extern const struct sparc_fpregset sparc32_bsd_fpregset;
 
 extern void sparc32_supply_gregset (const struct sparc_gregset *gregset,
 				    struct regcache *regcache,
@@ -184,17 +213,22 @@ extern void sparc32_supply_gregset (const struct sparc_gregset *gregset,
 extern void sparc32_collect_gregset (const struct sparc_gregset *gregset,
 				     const struct regcache *regcache,
 				     int regnum, void *gregs);
-extern void sparc32_supply_fpregset (struct regcache *regcache,
+extern void sparc32_supply_fpregset (const struct sparc_fpregset *fpregset,
+				     struct regcache *regcache,
 				     int regnum, const void *fpregs);
-extern void sparc32_collect_fpregset (const struct regcache *regcache,
+extern void sparc32_collect_fpregset (const struct sparc_fpregset *fpregset,
+				      const struct regcache *regcache,
 				      int regnum, void *fpregs);
 
 /* Functions and variables exported from sparc-sol2-tdep.c.  */
 
 /* Register offsets for Solaris 2.  */
 extern const struct sparc_gregset sparc32_sol2_gregset;
+extern const struct sparc_fpregset sparc32_sol2_fpregset;
 
-extern int sparc_sol2_pc_in_sigtramp (CORE_ADDR pc, char *name);
+extern int sparc_sol2_pc_in_sigtramp (CORE_ADDR pc, const char *name);
+
+extern const char *sparc_sol2_static_transform_name (const char *name);
 
 extern void sparc32_sol2_init_abi (struct gdbarch_info info,
 				   struct gdbarch *gdbarch);
@@ -206,7 +240,8 @@ extern const struct sparc_gregset sparc32nbsd_gregset;
 
 /* Return the address of a system call's alternative return
    address.  */
-extern CORE_ADDR sparcnbsd_step_trap (unsigned long insn);
+extern CORE_ADDR sparcnbsd_step_trap (struct frame_info *frame,
+				      unsigned long insn);
 
 extern void sparc32nbsd_elf_init_abi (struct gdbarch_info info,
 				      struct gdbarch *gdbarch);

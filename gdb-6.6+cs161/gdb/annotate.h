@@ -1,12 +1,11 @@
 /* Annotation routines for GDB.
-   Copyright (C) 1986, 1989, 1990, 1991, 1992, 1994, 1998, 1999, 2000
-   Free Software Foundation, Inc.
+   Copyright (C) 1986-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,16 +14,11 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "symtab.h"
 #include "gdbtypes.h"
 
-extern void breakpoints_changed (void);
-
-extern void annotate_ignore_count_change (void);
 extern void annotate_breakpoint (int);
 extern void annotate_catchpoint (int);
 extern void annotate_watchpoint (int);
@@ -45,6 +39,10 @@ extern void annotate_record (void);
 extern void annotate_breakpoints_table_end (void);
 
 extern void annotate_frames_invalid (void);
+extern void annotate_new_thread (void);
+extern void annotate_thread_changed (void);
+
+extern void annotate_display_prompt (void);
 
 struct type;
 
@@ -76,9 +74,10 @@ extern void annotate_arg_name_end (void);
 extern void annotate_arg_value (struct type *);
 extern void annotate_arg_end (void);
 
-extern void annotate_source (char *, int, int, int, CORE_ADDR);
+extern void annotate_source (char *, int, int, int,
+			     struct gdbarch *, CORE_ADDR);
 
-extern void annotate_frame_begin (int, CORE_ADDR);
+extern void annotate_frame_begin (int, struct gdbarch *, CORE_ADDR);
 extern void annotate_function_call (void);
 extern void annotate_signal_handler_caller (void);
 extern void annotate_frame_address (void);
@@ -99,8 +98,5 @@ extern void annotate_elt_rep_end (void);
 extern void annotate_elt (void);
 extern void annotate_array_section_end (void);
 
-extern void (*deprecated_annotate_starting_hook) (void);
-extern void (*deprecated_annotate_stopped_hook) (void);
 extern void (*deprecated_annotate_signalled_hook) (void);
 extern void (*deprecated_annotate_signal_hook) (void);
-extern void (*deprecated_annotate_exited_hook) (void);

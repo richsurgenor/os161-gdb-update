@@ -1,13 +1,13 @@
 /* BFD support for the ARM processor
-   Copyright 1994, 1997, 1999, 2000, 2002, 2003, 2004, 2005
-   Free Software Foundation, Inc.
+   Copyright 1994, 1997, 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007,
+   2009, 2010 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (rwe@pegasus.esprit.ec.org)
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,10 +17,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "libiberty.h"
 
@@ -123,7 +124,8 @@ scan (const struct bfd_arch_info *info, const char *string)
 }
 
 #define N(number, print, default, next)  \
-{  32, 32, 8, bfd_arch_arm, number, "arm", print, 4, default, compatible, scan, next }
+{  32, 32, 8, bfd_arch_arm, number, "arm", print, 4, default, compatible, \
+   scan, bfd_arch_default_fill, next }
 
 static const bfd_arch_info_type arch_info_struct[] =
 {
@@ -186,7 +188,7 @@ bfd_arm_merge_machines (bfd *ibfd, bfd *obfd)
 	       || out == bfd_mach_arm_iWMMXt2))
     {
       _bfd_error_handler (_("\
-ERROR: %B is compiled for the EP9312, whereas %B is compiled for XScale"),
+error: %B is compiled for the EP9312, whereas %B is compiled for XScale"),
 			  ibfd, obfd);
       bfd_set_error (bfd_error_wrong_format);
       return FALSE;
@@ -197,7 +199,7 @@ ERROR: %B is compiled for the EP9312, whereas %B is compiled for XScale"),
 	       || in == bfd_mach_arm_iWMMXt2))
     {
       _bfd_error_handler (_("\
-ERROR: %B is compiled for the EP9312, whereas %B is compiled for XScale"),
+error: %B is compiled for the EP9312, whereas %B is compiled for XScale"),
 			  obfd, ibfd);
       bfd_set_error (bfd_error_wrong_format);
       return FALSE;
@@ -250,10 +252,10 @@ arm_check_note (bfd *abfd,
 	return FALSE;
     }
   else
-    { 
+    {
       if (namesz != ((strlen (expected_name) + 1 + 3) & ~3))
 	return FALSE;
-      
+
       if (strcmp (descr, expected_name) != 0)
 	return FALSE;
 
@@ -261,6 +263,7 @@ arm_check_note (bfd *abfd,
     }
 
   /* FIXME: We should probably check the type as well.  */
+  (void) type;
 
   if (description_return != NULL)
     * description_return = descr;

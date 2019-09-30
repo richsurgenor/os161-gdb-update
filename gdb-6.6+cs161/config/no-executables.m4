@@ -25,7 +25,7 @@ AC_BEFORE([$0], [_AC_COMPILER_EXEEXT])
 AC_BEFORE([$0], [AC_LINK_IFELSE])
 
 m4_define([_AC_COMPILER_EXEEXT],
-AC_LANG_CONFTEST([AC_LANG_PROGRAM()])
+[AC_LANG_CONFTEST([AC_LANG_PROGRAM()])
 # FIXME: Cleanup?
 AS_IF([AC_TRY_EVAL(ac_link)], [gcc_no_link=no], [gcc_no_link=yes])
 if test x$gcc_no_link = xyes; then
@@ -35,7 +35,7 @@ if test x$gcc_no_link = xyes; then
   cross_compiling=yes
   EXEEXT=
 else
-  m4_defn([_AC_COMPILER_EXEEXT])dnl
+  ]m4_defn([_AC_COMPILER_EXEEXT])dnl
 fi
 )
 
@@ -59,3 +59,11 @@ fi)
 
 m4_divert_pop()dnl
 ])# GCC_NO_EXECUTABLES
+
+# Use the strongest available test out of AC_TRY_COMPILE and AC_TRY_LINK.
+AC_DEFUN([GCC_TRY_COMPILE_OR_LINK],
+[if test x$gcc_no_link = xyes; then
+  AC_TRY_COMPILE([$1], [$2], [$3], [$4])
+else
+  AC_TRY_LINK([$1], [$2], [$3], [$4])
+fi])

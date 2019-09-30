@@ -1,24 +1,22 @@
 /* Machine independent support for SVR4 /proc (process file system) for GDB.
-   Copyright (C) 1999, 2000 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
    Written by Michael Snyder at Cygnus Solutions.
    Based on work by Fred Fish, Stu Grossman, Geoff Noer, and others.
 
-This file is part of GDB.
+   This file is part of GDB.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software Foundation, 
-Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*
  * Pretty-print the prstatus flags.
@@ -37,10 +35,12 @@ Boston, MA 02110-1301, USA.  */
 #include <sys/types.h>
 #include <sys/procfs.h>
 
+#include "proc-utils.h"
+
 /*  Much of the information used in the /proc interface, particularly for
     printing status information, is kept as tables of structures of the
     following form.  These tables can be used to map numeric values to
-    their symbolic names and to a string that describes their specific use. */
+    their symbolic names and to a string that describes their specific use.  */
 
 struct trans {
   int value;                    /* The numeric value */
@@ -49,7 +49,7 @@ struct trans {
 };
 
 /* Translate bits in the pr_flags member of the prstatus structure,
-   into the names and desc information. */
+   into the names and desc information.  */
 
 static struct trans pr_flag_table[] =
 {

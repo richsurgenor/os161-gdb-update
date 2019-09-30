@@ -1,23 +1,20 @@
 /* FLEX lexer for Ada expressions, for GDB.
-   Copyright (C) 1994, 1997, 1998, 2000, 2001, 2002, 2003
-   Free Software Foundation, Inc.
+   Copyright (C) 1994-2013 Free Software Foundation, Inc.
 
-This file is part of GDB.
+   This file is part of GDB.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*----------------------------------------------------------------------*/
 
@@ -56,9 +53,14 @@ static int processReal (const char *);
 static struct stoken processId (const char *, int);
 static int processAttribute (const char *);
 static int find_dot_all (const char *);
+static void rewind_to_char (int);
 
 #undef YY_DECL
 #define YY_DECL static int yylex ( void )
+
+/* Flex generates a static function "input" which is not used.
+   Defining YY_NO_INPUT comments it out.  */
+#define YY_NO_INPUT
 
 #undef YY_INPUT
 #define YY_INPUT(BUF, RESULT, MAX_SIZE) \
@@ -156,9 +158,19 @@ static int find_dot_all (const char *);
 
 
 if		{
-		  while (*lexptr != 'i' && *lexptr != 'I')
-		    lexptr -= 1;
-		  yyrestart(NULL);
+                  rewind_to_char ('i');
+		  return 0;
+		}
+
+task            {
+                  rewind_to_char ('t');
+		  return 0;
+		}
+
+thread{WHITE}+{DIG} {
+                  /* This keyword signals the end of the expression and
+                     will be processed separately.  */
+                  rewind_to_char ('t');
 		  return 0;
 		}
 
@@ -177,6 +189,16 @@ others          { return OTHERS; }
 rem		{ return REM; }
 then		{ return THEN; }
 xor		{ return XOR; }
+
+	/* BOOLEAN "KEYWORDS" */
+
+ /* True and False are not keywords in Ada, but rather enumeration constants.
+    However, the boolean type is no longer represented as an enum, so True
+    and False are no longer defined in symbol tables.  We compromise by
+    making them keywords (when bare). */
+
+true		{ return TRUEKEYWORD; }
+false		{ return FALSEKEYWORD; }
 
         /* ATTRIBUTES */
 
@@ -198,8 +220,7 @@ xor		{ return XOR; }
 
 ","		{ if (paren_depth == 0 && comma_terminates)
 		    {
-		      lexptr -= 1;
-		      yyrestart(NULL);
+		      rewind_to_char (',');
 		      return 0;
 		    }
 		  else
@@ -209,8 +230,7 @@ xor		{ return XOR; }
 "("		{ paren_depth += 1; return '('; }
 ")"		{ if (paren_depth == 0)
 		    {
-		      lexptr -= 1;
-		      yyrestart(NULL);
+		      rewind_to_char (')');
 		      return 0;
 		    }
 		  else
@@ -272,7 +292,7 @@ xor		{ return XOR; }
 
 /* Initialize the lexer for processing new expression. */
 
-void
+static void
 lexer_init (FILE *inp)
 {
   BEGIN INITIAL;
@@ -341,11 +361,11 @@ processInt (const char *base0, const char *num0, const char *exp0)
       exp -= 1;
     }
 
-  if ((result >> (TARGET_INT_BIT-1)) == 0)
+  if ((result >> (gdbarch_int_bit (parse_gdbarch)-1)) == 0)
     yylval.typed_val.type = type_int ();
-  else if ((result >> (TARGET_LONG_BIT-1)) == 0)
+  else if ((result >> (gdbarch_long_bit (parse_gdbarch)-1)) == 0)
     yylval.typed_val.type = type_long ();
-  else if (((result >> (TARGET_LONG_BIT-1)) >> 1) == 0)
+  else if (((result >> (gdbarch_long_bit (parse_gdbarch)-1)) >> 1) == 0)
     {
       /* We have a number representable as an unsigned integer quantity.
          For consistency with the C treatment, we will treat it as an
@@ -354,7 +374,8 @@ processInt (const char *base0, const char *num0, const char *exp0)
          for the mess, but C doesn't officially guarantee that a simple
          assignment does the trick (no, it doesn't; read the reference manual).
        */
-      yylval.typed_val.type = builtin_type_unsigned_long;
+      yylval.typed_val.type
+	= builtin_type (parse_gdbarch)->builtin_unsigned_long;
       if (result & LONGEST_SIGN)
 	yylval.typed_val.val =
 	  (LONGEST) (result & ~LONGEST_SIGN)
@@ -373,12 +394,14 @@ processInt (const char *base0, const char *num0, const char *exp0)
 static int
 processReal (const char *num0)
 {
-  sscanf (num0, DOUBLEST_SCAN_FORMAT, &yylval.typed_val_float.dval);
+  sscanf (num0, "%" DOUBLEST_SCAN_FORMAT, &yylval.typed_val_float.dval);
 
   yylval.typed_val_float.type = type_float ();
-  if (sizeof(DOUBLEST) >= TARGET_DOUBLE_BIT / TARGET_CHAR_BIT)
+  if (sizeof(DOUBLEST) >= gdbarch_double_bit (parse_gdbarch)
+			    / TARGET_CHAR_BIT)
     yylval.typed_val_float.type = type_double ();
-  if (sizeof(DOUBLEST) >= TARGET_LONG_DOUBLE_BIT / TARGET_CHAR_BIT)
+  if (sizeof(DOUBLEST) >= gdbarch_long_double_bit (parse_gdbarch)
+			    / TARGET_CHAR_BIT)
     yylval.typed_val_float.type = type_long_double ();
 
   return FLOAT;
@@ -386,7 +409,9 @@ processReal (const char *num0)
 
 
 /* Store a canonicalized version of NAME0[0..LEN-1] in yylval.ssym.  The
-   resulting string is valid until the next call to ada_parse.  It differs
+   resulting string is valid until the next call to ada_parse.  If
+   NAME0 contains the substring "___", it is assumed to be already
+   encoded and the resulting name is equal to it.  Otherwise, it differs
    from NAME0 in that:
     + Characters between '...' or <...> are transfered verbatim to 
       yylval.ssym.
@@ -406,8 +431,18 @@ processId (const char *name0, int len)
   int i0, i;
   struct stoken result;
 
+  result.ptr = name;
   while (len > 0 && isspace (name0[len-1]))
     len -= 1;
+
+  if (strstr (name0, "___") != NULL)
+    {
+      strncpy (name, name0, len);
+      name[len] = '\000';
+      result.length = len;
+      return result;
+    }
+
   i = i0 = 0;
   while (i0 < len)
     {
@@ -447,7 +482,6 @@ processId (const char *name0, int len)
     }
   name[i] = '\000';
 
-  result.ptr = name;
   result.length = i;
   return result;
 }
@@ -580,6 +614,23 @@ processAttribute (const char *str)
     error (_("unrecognized attribute: `%s'"), str);
 
   return attributes[k].code;
+}
+
+/* Back up lexptr by yyleng and then to the rightmost occurrence of
+   character CH, case-folded (there must be one).  WARNING: since
+   lexptr points to the next input character that Flex has not yet
+   transferred to its internal buffer, the use of this function
+   depends on the assumption that Flex calls YY_INPUT only when it is
+   logically necessary to do so (thus, there is no reading ahead
+   farther than needed to identify the next token.)  */
+
+static void
+rewind_to_char (int ch)
+{
+  lexptr -= yyleng;
+  while (toupper (*lexptr) != toupper (ch))
+    lexptr -= 1;
+  yyrestart (NULL);
 }
 
 int

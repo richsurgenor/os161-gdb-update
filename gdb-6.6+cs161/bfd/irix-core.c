@@ -1,6 +1,6 @@
 /* BFD back-end for Irix core files.
-   Copyright 1993, 1994, 1996, 1999, 2001, 2002, 2004, 2006
-   Free Software Foundation, Inc.
+   Copyright 1993, 1994, 1996, 1999, 2001, 2002, 2004, 2005, 2006, 2007,
+   2010, 2011, 2012  Free Software Foundation, Inc.
    Written by Stu Grossman, Cygnus Support.
    Converted to back-end form by Ian Lance Taylor, Cygnus Support
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,13 +18,15 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* This file can only be compiled on systems which use Irix style core
    files (namely, Irix 4 and Irix 5, so far).  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 
 #ifdef IRIX_CORE
@@ -42,6 +44,7 @@ struct sgi_core_struct
 #define core_command(bfd) (core_hdr(bfd)->cmd)
 
 #define irix_core_core_file_matches_executable_p generic_core_file_matches_executable_p
+#define irix_core_core_file_pid _bfd_nocore_core_file_pid
 
 static asection *make_bfd_asection
   (bfd *, const char *, flagword, bfd_size_type, bfd_vma, file_ptr);
@@ -59,7 +62,7 @@ do_sections64 (bfd *abfd, struct coreout *coreout)
 
   for (i = 0; i < coreout->c_nvmap; i++)
     {
-      val = bfd_bread ((PTR) &vmap, (bfd_size_type) sizeof vmap, abfd);
+      val = bfd_bread (&vmap, (bfd_size_type) sizeof vmap, abfd);
       if (val != sizeof vmap)
 	break;
 
@@ -107,7 +110,7 @@ do_sections (bfd *abfd, struct coreout *coreout)
 
   for (i = 0; i < coreout->c_nvmap; i++)
     {
-      val = bfd_bread ((PTR) &vmap, (bfd_size_type) sizeof vmap, abfd);
+      val = bfd_bread (&vmap, (bfd_size_type) sizeof vmap, abfd);
       if (val != sizeof vmap)
 	break;
 
@@ -172,7 +175,7 @@ irix_core_core_file_p (bfd *abfd)
   struct idesc *idg, *idf, *ids;
   bfd_size_type amt;
 
-  val = bfd_bread ((PTR) &coreout, (bfd_size_type) sizeof coreout, abfd);
+  val = bfd_bread (&coreout, (bfd_size_type) sizeof coreout, abfd);
   if (val != sizeof coreout)
     {
       if (bfd_get_error () != bfd_error_system_call)
@@ -290,6 +293,7 @@ const bfd_target irix_core_vec =
     0,			                                   /* symbol prefix */
     ' ',						   /* ar_pad_char */
     16,							   /* ar_max_namelen */
+    0,							   /* match_priority */
     NO_GET64, NO_GETS64, NO_PUT64,	/* 64 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 32 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 16 bit data */
@@ -324,7 +328,7 @@ const bfd_target irix_core_vec =
 
     NULL,
 
-    (PTR) 0			/* backend_data */
+    NULL			/* backend_data */
   };
 
 #endif /* IRIX_CORE */

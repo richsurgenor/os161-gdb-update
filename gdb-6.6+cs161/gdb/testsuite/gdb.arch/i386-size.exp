@@ -1,8 +1,8 @@
-# Copyright 2006 Free Software Foundation, Inc.
+# Copyright 2006-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -11,21 +11,16 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Please email any bugs, comments, and/or additions to this file to:
 # bug-gdb@gnu.org
 
 # This file is part of the gdb testsuite.
 
-if $tracelevel {
-    strace $tracelevel
-}
-
 # Test that GDB can see the sizes of symbols.
 
-if ![istarget "i?86-*-*"] then {
+if { ![is_x86_like_target] } then {
     verbose "Skipping i386 unwinder tests."
     return
 }
@@ -35,11 +30,7 @@ set srcfile ${testfile}.c
 set binfile ${objdir}/${subdir}/${testfile}
 
 # some targets have leading underscores on assembly symbols.
-# TODO: detect this automatically
-set additional_flags ""
-if [istarget "i?86-*-cygwin*"] then {
-  set additional_flags "additional_flags=-DSYMBOL_PREFIX=\"_\""
-}
+set additional_flags [gdb_target_symbol_prefix_flags]
 
 if { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" \
 	  executable [list debug $additional_flags]] != "" } {
@@ -83,7 +74,7 @@ gdb_test_multiple "disassemble main" $message {
     -re "call.*<trap>.*$gdb_prompt $" {
 	fail $message
     }
-    -re "<main\\+8>:\[ \t\]+ret\[ \t\r\n\]+End of.*$gdb_prompt $" {
+    -re "<\\+8>:\[ \t\]+ret\[ \t\r\n\]+End of.*$gdb_prompt $" {
 	pass $message
     }
 }

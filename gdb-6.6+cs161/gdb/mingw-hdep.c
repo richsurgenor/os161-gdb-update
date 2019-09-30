@@ -1,13 +1,12 @@
 /* Host support routines for MinGW, for GDB, the GNU debugger.
 
-   Copyright (C) 2006
-   Free Software Foundation, Inc.
+   Copyright (C) 2006-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,18 +15,27 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "main.h"
 #include "serial.h"
+#include "event-loop.h"
 
 #include "gdb_assert.h"
 #include "gdb_select.h"
 #include "gdb_string.h"
+#include "readline/readline.h"
 
 #include <windows.h>
+
+/* This event is signalled whenever an asynchronous SIGINT handler
+   needs to perform an action in the main thread.  */
+static HANDLE sigint_event;
+
+/* When SIGINT_EVENT is signalled, gdb_select will call this
+   function.  */
+struct async_signal_handler *sigint_handler;
 
 /* The strerror() function can return NULL for errno values that are
    out of range.  Provide a "safe" version that always returns a
@@ -73,6 +81,19 @@ safe_strerror (int errnum)
   return buffer;
 }
 
+/* Return an absolute file name of the running GDB, if possible, or
+   ARGV0 if not.  The return value is in malloc'ed storage.  */
+
+char *
+windows_get_absolute_argv0 (const char *argv0)
+{
+  char full_name[PATH_MAX];
+
+  if (GetModuleFileName (NULL, full_name, PATH_MAX))
+    return xstrdup (full_name);
+  return xstrdup (argv0);
+}
+
 /* Wrapper for select.  On Windows systems, where the select interface
    only works for sockets, this uses the GDB serial abstraction to
    handle sockets, consoles, pipes, and serial ports.
@@ -89,12 +110,18 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
   HANDLE h;
   DWORD event;
   DWORD num_handles;
+  /* SCBS contains serial control objects corresponding to file
+     descriptors in READFDS and WRITEFDS.  */
+  struct serial *scbs[MAXIMUM_WAIT_OBJECTS];
+  /* The number of valid entries in SCBS.  */
+  size_t num_scbs;
   int fd;
   int num_ready;
-  int indx;
+  size_t indx;
 
   num_ready = 0;
   num_handles = 0;
+  num_scbs = 0;
   for (fd = 0; fd < n; ++fd)
     {
       HANDLE read = NULL, except = NULL;
@@ -108,14 +135,16 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
       if ((!readfds || !FD_ISSET (fd, readfds))
 	  && (!exceptfds || !FD_ISSET (fd, exceptfds)))
 	continue;
-      h = (HANDLE) _get_osfhandle (fd);
 
       scb = serial_for_fd (fd);
       if (scb)
-	serial_wait_handle (scb, &read, &except);
+	{
+	  serial_wait_handle (scb, &read, &except);
+	  scbs[num_scbs++] = scb;
+	}
 
       if (read == NULL)
-	read = h;
+	read = (HANDLE) _get_osfhandle (fd);
       if (except == NULL)
 	{
 	  if (!never_handle)
@@ -136,14 +165,9 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	  handles[num_handles++] = except;
 	}
     }
-  /* If we don't need to wait for any handles, we are done.  */
-  if (!num_handles)
-    {
-      if (timeout)
-	Sleep (timeout->tv_sec * 1000 + timeout->tv_usec / 1000);
 
-      return 0;
-    }
+  gdb_assert (num_handles < MAXIMUM_WAIT_OBJECTS);
+  handles[num_handles++] = sigint_event;
 
   event = WaitForMultipleObjects (num_handles,
 				  handles,
@@ -157,6 +181,9 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
      mutexes, that should never occur.  */
   gdb_assert (!(WAIT_ABANDONED_0 <= event
 		&& event < WAIT_ABANDONED_0 + num_handles));
+  /* We no longer need the helper threads to check for activity.  */
+  for (indx = 0; indx < num_scbs; ++indx)
+    serial_done_wait_handle (scbs[indx]);
   if (event == WAIT_FAILED)
     return -1;
   if (event == WAIT_TIMEOUT)
@@ -167,7 +194,6 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
   for (fd = 0, indx = 0; fd < n; ++fd)
     {
       HANDLE fd_h;
-      struct serial *scb;
 
       if ((!readfds || !FD_ISSET (fd, readfds))
 	  && (!exceptfds || !FD_ISSET (fd, exceptfds)))
@@ -194,13 +220,56 @@ gdb_select (int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	  else
 	    num_ready++;
 	}
+    }
 
-      /* We created at least one event handle for this fd.  Let the
-	 device know we are finished with it.  */
-      scb = serial_for_fd (fd);
-      if (scb)
-	serial_done_wait_handle (scb);
+  /* With multi-threaded SIGINT handling, there is a race between the
+     readline signal handler and GDB.  It may still be in
+     rl_prep_terminal in another thread.  Do not return until it is
+     done; we can check the state here because we never longjmp from
+     signal handlers on Windows.  */
+  while (RL_ISSTATE (RL_STATE_SIGHANDLER))
+    Sleep (1);
+
+  if (h == sigint_event
+      || WaitForSingleObject (sigint_event, 0) == WAIT_OBJECT_0)
+    {
+      if (sigint_handler != NULL)
+	call_async_signal_handler (sigint_handler);
+
+      if (num_ready == 0)
+	{
+	  errno = EINTR;
+	  return -1;
+	}
     }
 
   return num_ready;
+}
+
+/* Wrapper for the body of signal handlers.  On Windows systems, a
+   SIGINT handler runs in its own thread.  We can't longjmp from
+   there, and we shouldn't even prompt the user.  Delay HANDLER
+   until the main thread is next in gdb_select.  */
+
+void
+gdb_call_async_signal_handler (struct async_signal_handler *handler,
+			       int immediate_p)
+{
+  if (immediate_p)
+    sigint_handler = handler;
+  else
+    {
+      mark_async_signal_handler (handler);
+      sigint_handler = NULL;
+    }
+  SetEvent (sigint_event);
+}
+
+/* -Wmissing-prototypes */
+extern initialize_file_ftype _initialize_mingw_hdep;
+
+void
+_initialize_mingw_hdep (void)
+{
+  sigint_event = CreateEvent (0, FALSE, FALSE, 0);
 }

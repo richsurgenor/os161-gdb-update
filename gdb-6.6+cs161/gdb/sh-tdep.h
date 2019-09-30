@@ -1,12 +1,11 @@
 /* Target-specific definition for a Renesas Super-H.
-   Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003
-   Free Software Foundation, Inc.
+   Copyright (C) 1993-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,16 +14,14 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef SH_TDEP_H
 #define SH_TDEP_H
 
-/* Contributed by Steve Chamberlain sac@cygnus.com */
+/* Contributed by Steve Chamberlain sac@cygnus.com.  */
 
-/* Registers for all SH variants.  Used also by sh3-rom.c. */
+/* Registers for all SH variants.  Used also by sh3-rom.c.  */
 enum
   {
     R0_REGNUM = 0,
@@ -32,6 +29,7 @@ enum
     ARG0_REGNUM = 4,
     ARGLAST_REGNUM = 7,
     FP_REGNUM = 14,
+    PC_REGNUM = 16,
     PR_REGNUM = 17,
     GBR_REGNUM = 18,
     VBR_REGNUM = 19,
@@ -84,7 +82,31 @@ enum
     FV_LAST_REGNUM = 79
   };
 
-extern gdbarch_init_ftype sh64_gdbarch_init;
-extern void sh64_show_regs (void);
+/* This structure describes a register in a core-file.  */
+struct sh_corefile_regmap
+{
+  int regnum;
+  unsigned int offset;
+};
 
+struct gdbarch_tdep
+{
+  /* Non-NULL when debugging from a core file.  Provides the offset
+     where each general-purpose register is stored inside the associated
+     core file section.  */
+  struct sh_corefile_regmap *core_gregmap;
+  /* Non-NULL when debugging from a core file and when FP registers are
+     available.  Provides the offset where each FP register is stored
+     inside the associated core file section.  */
+  struct sh_corefile_regmap *core_fpregmap;
+};
+
+extern struct regset sh_corefile_gregset;
+
+void sh_corefile_supply_regset (const struct regset *regset,
+				struct regcache *regcache,
+				int regnum, const void *regs, size_t len);
+void sh_corefile_collect_regset (const struct regset *regset,
+				 const struct regcache *regcache,
+				 int regnum, void *regs, size_t len);
 #endif /* SH_TDEP_H */

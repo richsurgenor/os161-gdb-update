@@ -1,11 +1,11 @@
 /* Support for printing Java types for GDB, the GNU debugger.
-   Copyright (C) 1997, 1998, 1999, 2000 Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,9 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #include "defs.h"
@@ -24,22 +22,25 @@
 #include "gdbtypes.h"
 #include "value.h"
 #include "demangle.h"
+#include "gdb-demangle.h"
 #include "jv-lang.h"
 #include "gdb_string.h"
 #include "typeprint.h"
 #include "c-lang.h"
 #include "cp-abi.h"
+#include "gdb_assert.h"
 
 /* Local functions */
 
 static void java_type_print_base (struct type * type,
 				  struct ui_file *stream, int show,
-				  int level);
+				  int level,
+				  const struct type_print_options *flags);
 
 static void
 java_type_print_derivation_info (struct ui_file *stream, struct type *type)
 {
-  char *name;
+  const char *name;
   int i;
   int n_bases;
   int prev;
@@ -84,14 +85,14 @@ java_type_print_derivation_info (struct ui_file *stream, struct type *type)
 
 static void
 java_type_print_base (struct type *type, struct ui_file *stream, int show,
-		      int level)
+		      int level, const struct type_print_options *flags)
 {
   int i;
   int len;
   char *mangled_name;
   char *demangled_name;
-  QUIT;
 
+  QUIT;
   wrap_here ("    ");
 
   if (type == NULL)
@@ -115,13 +116,15 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
   switch (TYPE_CODE (type))
     {
     case TYPE_CODE_PTR:
-      java_type_print_base (TYPE_TARGET_TYPE (type), stream, show, level);
+      java_type_print_base (TYPE_TARGET_TYPE (type), stream, show, level,
+			    flags);
       break;
 
     case TYPE_CODE_STRUCT:
       if (TYPE_TAG_NAME (type) != NULL && TYPE_TAG_NAME (type)[0] == '[')
 	{			/* array type */
 	  char *name = java_demangle_type_signature (TYPE_TAG_NAME (type));
+
 	  fputs_filtered (name, stream);
 	  xfree (name);
 	  break;
@@ -170,7 +173,7 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
 		  && is_cplus_marker ((TYPE_FIELD_NAME (type, i))[5]))
 		continue;
 
-	      /* Don't print the dummy field "class". */
+	      /* Don't print the dummy field "class".  */
 	      if (strncmp (TYPE_FIELD_NAME (type, i), "class", 5) == 0)
 		continue;
 
@@ -186,29 +189,29 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
 		    fprintf_filtered (stream, "public ");
 		}
 
-	      if (TYPE_FIELD_STATIC (type, i))
+	      if (field_is_static (&TYPE_FIELD (type, i)))
 		fprintf_filtered (stream, "static ");
 
 	      java_print_type (TYPE_FIELD_TYPE (type, i),
 			       TYPE_FIELD_NAME (type, i),
-			       stream, show - 1, level + 4);
+			       stream, show - 1, level + 4, flags);
 
 	      fprintf_filtered (stream, ";\n");
 	    }
 
-	  /* If there are both fields and methods, put a space between. */
+	  /* If there are both fields and methods, put a space between.  */
 	  len = TYPE_NFN_FIELDS (type);
 	  if (len)
 	    fprintf_filtered (stream, "\n");
 
-	  /* Print out the methods */
+	  /* Print out the methods.  */
 
 	  for (i = 0; i < len; i++)
 	    {
 	      struct fn_field *f;
 	      int j;
-	      char *method_name;
-	      char *name;
+	      const char *method_name;
+	      const char *name;
 	      int is_constructor;
 	      int n_overloads;
 
@@ -220,13 +223,24 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
 
 	      for (j = 0; j < n_overloads; j++)
 		{
-		  char *physname;
+		  const char *real_physname;
+		  char *physname, *p;
 		  int is_full_physname_constructor;
 
-		  physname = TYPE_FN_FIELD_PHYSNAME (f, j);
+		  real_physname = TYPE_FN_FIELD_PHYSNAME (f, j);
+
+		  /* The physname will contain the return type
+		     after the final closing parenthesis.  Strip it off.  */
+		  p = strrchr (real_physname, ')');
+		  gdb_assert (p != NULL);
+		  ++p;   /* Keep the trailing ')'.  */
+		  physname = alloca (p - real_physname + 1);
+		  memcpy (physname, real_physname, p - real_physname);
+		  physname[p - real_physname] = '\0';
 
 		  is_full_physname_constructor
-                    = (is_constructor_name (physname)
+                    = (TYPE_FN_FIELD_CONSTRUCTOR (f, j)
+		       || is_constructor_name (physname)
                        || is_destructor_name (physname));
 
 		  QUIT;
@@ -269,7 +283,7 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
 		    /* Build something we can demangle.  */
 		    mangled_name = gdb_mangle_name (type, i, j);
 		  else
-		    mangled_name = TYPE_FN_FIELD_PHYSNAME (f, j);
+		    mangled_name = physname;
 
 		  demangled_name =
 		    cplus_demangle (mangled_name,
@@ -312,22 +326,20 @@ java_type_print_base (struct type *type, struct ui_file *stream, int show,
       break;
 
     default:
-      c_type_print_base (type, stream, show, level);
+      c_type_print_base (type, stream, show, level, flags);
     }
 }
 
 /* LEVEL is the depth to indent lines by.  */
 
-extern void c_type_print_varspec_suffix (struct type *, struct ui_file *,
-					 int, int, int);
-
 void
-java_print_type (struct type *type, char *varstring, struct ui_file *stream,
-		 int show, int level)
+java_print_type (struct type *type, const char *varstring,
+		 struct ui_file *stream, int show, int level,
+		 const struct type_print_options *flags)
 {
   int demangled_args;
 
-  java_type_print_base (type, stream, show, level);
+  java_type_print_base (type, stream, show, level, flags);
 
   if (varstring != NULL && *varstring != '\0')
     {
@@ -336,8 +348,8 @@ java_print_type (struct type *type, char *varstring, struct ui_file *stream,
     }
 
   /* For demangled function names, we have the arglist as part of the name,
-     so don't print an additional pair of ()'s */
+     so don't print an additional pair of ()'s.  */
 
-  demangled_args = strchr (varstring, '(') != NULL;
-  c_type_print_varspec_suffix (type, stream, show, 0, demangled_args);
+  demangled_args = varstring != NULL && strchr (varstring, '(') != NULL;
+  c_type_print_varspec_suffix (type, stream, show, 0, demangled_args, flags);
 }

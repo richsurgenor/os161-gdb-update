@@ -1,12 +1,13 @@
 /* SPARC-specific support for 32-bit ELF
    Copyright 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-   2003, 2004, 2005 Free Software Foundation, Inc.
+   2003, 2004, 2005, 2006, 2007, 2010, 2011
+   Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,10 +17,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "bfdlink.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
@@ -39,16 +41,16 @@ elf32_sparc_grok_psinfo (bfd *abfd, Elf_Internal_Note *note)
       return FALSE;
 
     case 260:			/* Solaris prpsinfo_t.  */
-      elf_tdata (abfd)->core_program
+      elf_tdata (abfd)->core->program
 	= _bfd_elfcore_strndup (abfd, note->descdata + 84, 16);
-      elf_tdata (abfd)->core_command
+      elf_tdata (abfd)->core->command
 	= _bfd_elfcore_strndup (abfd, note->descdata + 100, 80);
       break;
 
     case 336:			/* Solaris psinfo_t.  */
-      elf_tdata (abfd)->core_program
+      elf_tdata (abfd)->core->program
 	= _bfd_elfcore_strndup (abfd, note->descdata + 88, 16);
-      elf_tdata (abfd)->core_command
+      elf_tdata (abfd)->core->command
 	= _bfd_elfcore_strndup (abfd, note->descdata + 104, 80);
       break;
     }
@@ -109,7 +111,7 @@ elf32_sparc_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
       return FALSE;
     }
 
-  return TRUE;
+  return _bfd_sparc_elf_merge_private_bfd_data (ibfd, obfd);
 }
 
 /* The final processing done just before writing out the object file.
@@ -166,9 +168,29 @@ elf32_sparc_reloc_type_class (const Elf_Internal_Rela *rela)
     }
 }
 
+/* Hook called by the linker routine which adds symbols from an object
+   file.  */
+
+static bfd_boolean
+elf32_sparc_add_symbol_hook (bfd * abfd,
+			     struct bfd_link_info * info ATTRIBUTE_UNUSED,
+			     Elf_Internal_Sym * sym,
+			     const char ** namep ATTRIBUTE_UNUSED,
+			     flagword * flagsp ATTRIBUTE_UNUSED,
+			     asection ** secp ATTRIBUTE_UNUSED,
+			     bfd_vma * valp ATTRIBUTE_UNUSED)
+{
+  if ((abfd->flags & DYNAMIC) == 0
+      && (ELF_ST_TYPE (sym->st_info) == STT_GNU_IFUNC
+	  || ELF_ST_BIND (sym->st_info) == STB_GNU_UNIQUE))
+    elf_tdata (info->output_bfd)->has_gnu_symbols = TRUE;
+  return TRUE;
+}
+
 #define TARGET_BIG_SYM	bfd_elf32_sparc_vec
 #define TARGET_BIG_NAME	"elf32-sparc"
 #define ELF_ARCH	bfd_arch_sparc
+#define ELF_TARGET_ID	SPARC_ELF_DATA
 #define ELF_MACHINE_CODE EM_SPARC
 #define ELF_MACHINE_ALT1 EM_SPARC32PLUS
 #define ELF_MAXPAGESIZE 0x10000
@@ -183,8 +205,12 @@ elf32_sparc_reloc_type_class (const Elf_Internal_Rela *rela)
 
 #define elf_info_to_howto		_bfd_sparc_elf_info_to_howto
 #define bfd_elf32_bfd_reloc_type_lookup	_bfd_sparc_elf_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup \
+  _bfd_sparc_elf_reloc_name_lookup
 #define bfd_elf32_bfd_link_hash_table_create \
 					_bfd_sparc_elf_link_hash_table_create
+#define bfd_elf32_bfd_link_hash_table_free \
+					_bfd_sparc_elf_link_hash_table_free
 #define bfd_elf32_bfd_relax_section	_bfd_sparc_elf_relax_section
 #define bfd_elf32_new_section_hook	_bfd_sparc_elf_new_section_hook
 #define elf_backend_copy_indirect_symbol \
@@ -216,6 +242,26 @@ elf32_sparc_reloc_type_class (const Elf_Internal_Rela *rela)
 #define elf_backend_want_plt_sym 1
 #define elf_backend_got_header_size 4
 #define elf_backend_rela_normal 1
+
+#define elf_backend_post_process_headers	_bfd_elf_set_osabi
+#define elf_backend_add_symbol_hook		elf32_sparc_add_symbol_hook
+
+#include "elf32-target.h"
+
+/* Solaris 2.  */
+
+#undef	TARGET_BIG_SYM
+#define	TARGET_BIG_SYM				bfd_elf32_sparc_sol2_vec
+#undef	TARGET_BIG_NAME
+#define	TARGET_BIG_NAME				"elf32-sparc-sol2"
+
+#undef elf32_bed
+#define elf32_bed				elf32_sparc_sol2_bed
+
+/* The 32-bit static TLS arena size is rounded to the nearest 8-byte
+   boundary.  */
+#undef elf_backend_static_tls_alignment
+#define elf_backend_static_tls_alignment	8
 
 #include "elf32-target.h"
 
@@ -278,6 +324,7 @@ elf32_sparc_vxworks_final_write_processing (bfd *abfd, bfd_boolean linker)
 #undef elf_backend_final_write_processing
 #define elf_backend_final_write_processing \
   elf32_sparc_vxworks_final_write_processing
+#undef elf_backend_static_tls_alignment
 
 #undef elf32_bed
 #define elf32_bed				sparc_elf_vxworks_bed

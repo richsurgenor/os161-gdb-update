@@ -1,24 +1,24 @@
 /* ia64-opc-i.c -- IA-64 `I' opcode table.
-   Copyright 1998, 1999, 2000, 2002, 2005, 2006
+   Copyright 1998, 1999, 2000, 2002, 2005, 2006, 2007, 2009
    Free Software Foundation, Inc.
    Contributed by David Mosberger-Tang <davidm@hpl.hp.com>
 
-   This file is part of GDB, GAS, and the GNU binutils.
+   This file is part of the GNU opcodes library.
 
-   GDB, GAS, and the GNU binutils are free software; you can redistribute
-   them and/or modify them under the terms of the GNU General Public
-   License as published by the Free Software Foundation; either version
-   2, or (at your option) any later version.
+   This library is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   GDB, GAS, and the GNU binutils are distributed in the hope that they
-   will be useful, but WITHOUT ANY WARRANTY; without even the implied
-   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
-   the GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this file; see the file COPYING.  If not, write to the
-   Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+   Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #include "ia64-opc.h"
 
@@ -261,8 +261,8 @@ struct ia64_opcode ia64_opcodes_i[] =
     {"pmin2",	   I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 2, 3, 0), {R1, R2, R3}, EMPTY},
     {"pmax2",	   I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 2, 3, 1), {R1, R2, R3}, EMPTY},
     {"psad1",	   I, OpZaZbVeX2aX2bX2c (7, 0, 0, 0, 2, 3, 2), {R1, R2, R3}, EMPTY},
-    {"mux1", I, OpZaZbVeX2aX2bX2c (7, 0, 0, 0, 3, 2, 2), {R1, R2, MBTYPE4}, EMPTY},
-    {"mux2", I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 3, 2, 2), {R1, R2, MHTYPE8}, EMPTY},
+    {"mux1",    I, OpZaZbVeX2aX2bX2c (7, 0, 0, 0, 3, 2, 2), {R1, R2, MBTYPE4}, EMPTY},
+    {"mux2",    I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 3, 2, 2), {R1, R2, MHTYPE8}, EMPTY},
     {"pshr2",	I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 0, 2, 0), {R1, R3, R2}, EMPTY},
     {"pshr4",	I, OpZaZbVeX2aX2bX2c (7, 1, 0, 0, 0, 2, 0), {R1, R3, R2}, EMPTY},
     {"shr",	I, OpZaZbVeX2aX2bX2c (7, 1, 1, 0, 0, 2, 0), {R1, R3, R2}, EMPTY},
@@ -276,9 +276,12 @@ struct ia64_opcode ia64_opcodes_i[] =
     {"pshl2",	I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 0, 0, 1), {R1, R2, R3}, EMPTY},
     {"pshl4",	I, OpZaZbVeX2aX2bX2c (7, 1, 0, 0, 0, 0, 1), {R1, R2, R3}, EMPTY},
     {"shl",	I, OpZaZbVeX2aX2bX2c (7, 1, 1, 0, 0, 0, 1), {R1, R2, R3}, EMPTY},
+    {"mpy4",    I, OpZaZbVeX2aX2bX2c (7, 1, 0, 0, 0, 1, 3), {R1, R2, R3}, EMPTY},
+    {"mpyshl4", I, OpZaZbVeX2aX2bX2c (7, 1, 0, 0, 0, 3, 3), {R1, R2, R3}, EMPTY},
     {"pshl2",	I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 3, 1, 1), {R1, R2, CCNT5}, EMPTY},
     {"pshl4",	I, OpZaZbVeX2aX2bX2c (7, 1, 0, 0, 3, 1, 1), {R1, R2, CCNT5}, EMPTY},
     {"popcnt",	I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 1, 1, 2), {R1, R3}, EMPTY},
+    {"clz",     I, OpZaZbVeX2aX2bX2c (7, 0, 1, 0, 1, 1, 3), {R1, R3}, EMPTY},
 
     {NULL, 0, 0, 0, 0, {0}, 0, 0, NULL}
   };

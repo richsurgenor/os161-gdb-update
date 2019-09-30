@@ -1,21 +1,36 @@
 /* New version of run front end support for simulators.
-   Copyright (C) 1997, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+
+/* Need to be before general includes, to pick up e.g. _GNU_SOURCE.  */
+#ifdef HAVE_CONFIG_H
+#include "cconfig.h"
+#include "tconfig.h"
+#endif
 
 #include <signal.h>
+
+/* For strsignal.  */
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+#endif
+
 #include "sim-main.h"
 
 #include "bfd.h"
@@ -102,11 +117,11 @@ main (int argc, char **argv)
       prog_bfd = bfd_openr (name, 0);
       if (prog_bfd == NULL)
 	{
-	  fprintf (stderr, "%s: can't open \"%s\": %s\n", 
+	  fprintf (stderr, "%s: can't open \"%s\": %s\n",
 		   myname, name, bfd_errmsg (bfd_get_error ()));
 	  exit (1);
 	}
-      if (!bfd_check_format (prog_bfd, bfd_object)) 
+      if (!bfd_check_format (prog_bfd, bfd_object))
 	{
 	  fprintf (stderr, "%s: \"%s\" is not an object file: %s\n",
 		   myname, name, bfd_errmsg (bfd_get_error ()));
@@ -155,10 +170,10 @@ main (int argc, char **argv)
       /* remain on breakpoint or signals in oe mode*/
       while (((reason == sim_signalled) &&
 	      (sigrc == sim_signal_to_host (sd, SIM_SIGTRAP))) ||
-	     ((reason == sim_stopped) && 
+	     ((reason == sim_stopped) &&
 	      (STATE_ENVIRONMENT (sd) == OPERATING_ENVIRONMENT)));
     }
-  else 
+  else
     {
       do
 	{
@@ -175,35 +190,36 @@ main (int argc, char **argv)
 	  sim_resume (sd, 0, sigrc);
 	  signal (SIGINT, prev_sigint);
 	  sim_stop_reason (sd, &reason, &sigrc);
-	  
+
 	  if ((reason == sim_stopped) &&
 	      (sigrc == sim_signal_to_host (sd, SIM_SIGINT)))
 	    break; /* exit on control-C */
-	  
+
 	  /* remain on signals in oe mode */
 	} while ((reason == sim_stopped) &&
 		 (STATE_ENVIRONMENT (sd) == OPERATING_ENVIRONMENT));
-      
+
     }
   /* Print any stats the simulator collected.  */
   if (STATE_VERBOSE_P (sd))
     sim_info (sd, 0);
-  
+
   /* Shutdown the simulator.  */
   sim_close (sd, 0);
-  
+
   /* If reason is sim_exited, then sigrc holds the exit code which we want
      to return.  If reason is sim_stopped or sim_signalled, then sigrc holds
      the signal that the simulator received; we want to return that to
      indicate failure.  */
-  
+
   /* Why did we stop? */
   switch (reason)
     {
     case sim_signalled:
     case sim_stopped:
       if (sigrc != 0)
-        fprintf (stderr, "program stopped with signal %d.\n", sigrc);
+	fprintf (stderr, "program stopped with signal %d (%s).\n", sigrc,
+		 strsignal (sigrc));
       break;
 
     case sim_exited:
@@ -219,7 +235,7 @@ main (int argc, char **argv)
 }
 
 static void
-usage ()
+usage (void)
 {
   fprintf (stderr, "Usage: %s [options] program [program args]\n", myname);
   fprintf (stderr, "Run `%s --help' for full list of options.\n", myname);

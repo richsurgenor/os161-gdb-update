@@ -1,26 +1,24 @@
 /* Machine independent support for SVR4 /proc (process file system) for GDB.
 
-   Copyright (C) 1999, 2000, 2001, 2003, 2005 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
    Written by Michael Snyder at Cygnus Solutions.
    Based on work by Fred Fish, Stu Grossman, Geoff Noer, and others.
 
-This file is part of GDB.
+   This file is part of GDB.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software Foundation, 
-Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /*
  * Pretty-print trace of api calls to the /proc api
@@ -45,7 +43,7 @@ Boston, MA 02110-1301, USA.  */
 #ifdef HAVE_SYS_USER_H
 #include <sys/user.h>	/* for struct user */
 #endif
-#include <fcntl.h>	/* for O_RDWR etc. */
+#include <fcntl.h>	/* for O_RDWR etc.  */
 #include "gdb_wait.h"
 
 #include "proc-utils.h"
@@ -53,7 +51,7 @@ Boston, MA 02110-1301, USA.  */
 /*  Much of the information used in the /proc interface, particularly for
     printing status information, is kept as tables of structures of the
     following form.  These tables can be used to map numeric values to
-    their symbolic names and to a string that describes their specific use. */
+    their symbolic names and to a string that describes their specific use.  */
 
 struct trans {
   long value;                   /* The numeric value */
@@ -162,7 +160,7 @@ static struct trans ioctl_table[] = {
   { PIOCLDT,       "PIOCLDT",      "get LDT" },
   { PIOCNLDT,      "PIOCNLDT",     "get number of LDT entries" },
 #endif
-#ifdef PIOCLSTATUS			/* solaris and unixware */
+#ifdef PIOCLSTATUS			/* solaris */
   { PIOCLSTATUS,   "PIOCLSTATUS",  "get status of all lwps" },
   { PIOCLUSAGE,    "PIOCLUSAGE",   "get resource usage of all lwps" },
   { PIOCOPENLWP,   "PIOCOPENLWP",  "get lwp file descriptor" },
@@ -410,9 +408,6 @@ static struct trans rw_table[] = {
 #ifdef PCREAD			/* solaris */
   { PCREAD,   "PCREAD",   "read from the address space" },
   { PCWRITE,  "PCWRITE",  "write to the address space" },
-#endif
-#ifdef PCRESET			/* unixware */
-  { PCRESET,  "PCRESET",  "unset modes" },
 #endif
   { PCRUN,    "PCRUN",    "make process/lwp runnable" },
 #ifdef PCSASRS			/* solaris 2.7 only */
@@ -775,6 +770,9 @@ proc_prettyfprint_status (long flags, int why, int what, int thread)
     }
 }
 
+
+/* Provide a prototype to silence -Wmissing-prototypes.  */
+extern void _initialize_proc_api (void);
 
 void
 _initialize_proc_api (void)

@@ -1,12 +1,12 @@
 /* MI Command Set - MI Option Parser.
-   Copyright (C) 2000, 2001 Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions (a Red Hat company).
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "mi-getopt.h"
@@ -26,49 +24,50 @@
 int
 mi_getopt (const char *prefix,
 	   int argc, char **argv,
-	   struct mi_opt *opts,
-	   int *optind, char **optarg)
+	   const struct mi_opt *opts,
+	   int *oind, char **oarg)
 {
   char *arg;
-  struct mi_opt *opt;
-  /* We assume that argv/argc are ok. */
-  if (*optind > argc || *optind < 0)
+  const struct mi_opt *opt;
+
+  /* We assume that argv/argc are ok.  */
+  if (*oind > argc || *oind < 0)
     internal_error (__FILE__, __LINE__,
-		    _("mi_getopt_long: optind out of bounds"));
-  if (*optind == argc)
+		    _("mi_getopt_long: oind out of bounds"));
+  if (*oind == argc)
     return -1;
-  arg = argv[*optind];
+  arg = argv[*oind];
   /* ``--''? */
   if (strcmp (arg, "--") == 0)
     {
-      *optind += 1;
-      *optarg = NULL;
+      *oind += 1;
+      *oarg = NULL;
       return -1;
     }
-  /* End of option list. */
+  /* End of option list.  */
   if (arg[0] != '-')
     {
-      *optarg = NULL;
+      *oarg = NULL;
       return -1;
     }
-  /* Look the option up. */
+  /* Look the option up.  */
   for (opt = opts; opt->name != NULL; opt++)
     {
       if (strcmp (opt->name, arg + 1) != 0)
 	continue;
       if (opt->arg_p)
 	{
-	  /* A non-simple optarg option. */
-	  if (argc < *optind + 2)
+	  /* A non-simple oarg option.  */
+	  if (argc < *oind + 2)
 	    error (_("%s: Option %s requires an argument"), prefix, arg);
-	  *optarg = argv[(*optind) + 1];
-	  *optind = (*optind) + 2;
+	  *oarg = argv[(*oind) + 1];
+	  *oind = (*oind) + 2;
 	  return opt->index;
 	}
       else
 	{
-	  *optarg = NULL;
-	  *optind = (*optind) + 1;
+	  *oarg = NULL;
+	  *oind = (*oind) + 1;
 	  return opt->index;
 	}
     }
@@ -78,14 +77,14 @@ mi_getopt (const char *prefix,
 int 
 mi_valid_noargs (const char *prefix, int argc, char **argv) 
 {
-  int optind = 0;
-  char *optarg;
-  static struct mi_opt opts[] =
-  {
-    0
-  };
+  int oind = 0;
+  char *oarg;
+  static const struct mi_opt opts[] =
+    {
+      { 0, 0, 0 }
+    };
 
-  if (mi_getopt (prefix, argc, argv, opts, &optind, &optarg) == -1)
+  if (mi_getopt (prefix, argc, argv, opts, &oind, &oarg) == -1)
     return 1;
   else
     return 0;

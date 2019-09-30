@@ -1,26 +1,29 @@
 /* Disassemble MSP430 instructions.
-   Copyright (C) 2002, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2004, 2005, 2007, 2009, 2010, 2012
+   Free Software Foundation, Inc.
    
    Contributed by Dmitry Diky <diwil@mail.ru>
         
-   This program is free software; you can redistribute it and/or modify
+   This file is part of the GNU opcodes library.
+
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
-   
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-   
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
+
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
+
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
+#include "sysdep.h"
 #include <stdio.h>
 #include <ctype.h>
-#include <string.h>
 #include <sys/types.h>
 
 #include "dis-asm.h"
@@ -544,14 +547,13 @@ msp430_branchinstr (disassemble_info *info,
 		    int *cycles)
 {
   int regs = 0, regd = 0;
-  int ad = 0, as = 0;
+  int as = 0;
   int cmd_len = 2;
   short dst = 0;
 
   regd = insn & 0x0f;
   regs = (insn & 0x0f00) >> 8;
   as = (insn & 0x0030) >> 4;
-  ad = (insn & 0x0080) >> 7;
 
   if (regd != 0)	/* Destination register is not a PC.  */
     return 0;

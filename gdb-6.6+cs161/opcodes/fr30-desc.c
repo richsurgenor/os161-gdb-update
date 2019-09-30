@@ -2,23 +2,23 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996-2005 Free Software Foundation, Inc.
+Copyright 1996-2010 Free Software Foundation, Inc.
 
 This file is part of the GNU Binutils and/or GDB, the GNU debugger.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
 
 */
 
@@ -251,11 +251,7 @@ CGEN_KEYWORD fr30_cgen_opval_h_r15 =
 
 /* The hardware table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_HW_##a)
-#else
-#define A(a) (1 << CGEN_HW_/**/a)
-#endif
 
 const CGEN_HW_ENTRY fr30_cgen_hw_table[] =
 {
@@ -292,11 +288,7 @@ const CGEN_HW_ENTRY fr30_cgen_hw_table[] =
 
 /* The instruction field table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_IFLD_##a)
-#else
-#define A(a) (1 << CGEN_IFLD_/**/a)
-#endif
 
 const CGEN_IFLD fr30_cgen_ifld_table[] =
 {
@@ -365,16 +357,8 @@ const CGEN_MAYBE_MULTI_IFLD FR30_F_I20_MULTI_IFIELD [] =
 
 /* The operand table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_OPERAND_##a)
-#else
-#define A(a) (1 << CGEN_OPERAND_/**/a)
-#endif
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define OPERAND(op) FR30_OPERAND_##op
-#else
-#define OPERAND(op) FR30_OPERAND_/**/op
-#endif
 
 const CGEN_OPERAND fr30_cgen_operand_table[] =
 {
@@ -586,11 +570,7 @@ const CGEN_OPERAND fr30_cgen_operand_table[] =
 /* The instruction table.  */
 
 #define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_INSN_##a)
-#else
-#define A(a) (1 << CGEN_INSN_/**/a)
-#endif
 
 static const CGEN_IBASE fr30_cgen_insn_table[MAX_INSNS] =
 {
@@ -1630,11 +1610,7 @@ fr30_cgen_rebuild_tables (CGEN_CPU_TABLE *cd)
    CGEN_CPU_OPEN_END:     terminates arguments
 
    ??? Simultaneous multiple isas might not make sense, but it's not (yet)
-   precluded.
-
-   ??? We only support ISO C stdargs here, not K&R.
-   Laziness, plus experiment to see if anything requires K&R - eventually
-   K&R will no longer be supported - e.g. GDB is currently trying this.  */
+   precluded.  */
 
 CGEN_CPU_DESC
 fr30_cgen_cpu_open (enum cgen_cpu_open_arg arg_type, ...)

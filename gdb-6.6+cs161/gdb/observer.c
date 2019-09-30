@@ -1,12 +1,12 @@
 /* GDB Notifications to Observers.
 
-   Copyright (C) 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,14 +15,12 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* An observer is an entity who is interested in being notified when GDB
-   reaches certain states, or certain events occur in GDB. The entity being
-   observed is called the Subject. To receive notifications, the observer
-   attaches a callback to the subject. One subject can have several
+   reaches certain states, or certain events occur in GDB.  The entity being
+   observed is called the Subject.  To receive notifications, the observer
+   attaches a callback to the subject.  One subject can have several
    observers.
 
    This file implements an internal generic low-level event notification
@@ -32,15 +30,15 @@
    for all possible notifications.
 
    The current implementation of the generic observer provides support
-   for contextual data. This contextual data is given to the subject
-   when attaching the callback. In return, the subject will provide
+   for contextual data.  This contextual data is given to the subject
+   when attaching the callback.  In return, the subject will provide
    this contextual data back to the observer as a parameter of the
    callback.
 
    FIXME: The current support for the contextual data is only partial,
    as it lacks a mechanism that would deallocate this data when the
-   callback is detached. This is not a problem so far, as this contextual
-   data is only used internally to hold a function pointer. Later on,
+   callback is detached.  This is not a problem so far, as this contextual
+   data is only used internally to hold a function pointer.  Later on,
    if a certain observer needs to provide support for user-level
    contextual data, then the generic notification mechanism will need
    need to be enhanced to allow the observer to provide a routine to
@@ -56,7 +54,7 @@
 #include "command.h"
 #include "gdbcmd.h"
 
-static int observer_debug;
+static unsigned int observer_debug;
 static void
 show_observer_debug (struct ui_file *file, int from_tty,
 		     struct cmd_list_element *c, const char *value)
@@ -92,6 +90,7 @@ static struct observer_list *
 xalloc_observer_list_node (void)
 {
   struct observer_list *node = XMALLOC (struct observer_list);
+
   node->observer = XMALLOC (struct observer);
   return node;
 }
@@ -182,20 +181,25 @@ int observer_test_first_observer = 0;
 int observer_test_second_observer = 0;
 int observer_test_third_observer = 0;
 
+/* Provide prototypes to silence -Wmissing-prototypes.  */
+extern void observer_test_first_notification_function (int arg);
+extern void observer_test_second_notification_function (int arg);
+extern void observer_test_third_notification_function (int arg);
+
 void
-observer_test_first_notification_function (struct bpstats *bs)
+observer_test_first_notification_function (int arg)
 {
   observer_test_first_observer++;
 }
 
 void
-observer_test_second_notification_function (struct bpstats *bs)
+observer_test_second_notification_function (int arg)
 {
   observer_test_second_observer++;
 }
 
 void
-observer_test_third_notification_function (struct bpstats *bs)
+observer_test_third_notification_function (int arg)
 {
   observer_test_third_observer++;
 }
@@ -205,14 +209,14 @@ extern initialize_file_ftype _initialize_observer; /* -Wmissing-prototypes */
 void
 _initialize_observer (void)
 {
-  add_setshow_zinteger_cmd ("observer", class_maintenance,
-			    &observer_debug, _("\
+  add_setshow_zuinteger_cmd ("observer", class_maintenance,
+			     &observer_debug, _("\
 Set observer debugging."), _("\
 Show observer debugging."), _("\
 When non-zero, observer debugging is enabled."),
-			    NULL,
-			    show_observer_debug,
-			    &setdebuglist, &showdebuglist);
+			     NULL,
+			     show_observer_debug,
+			     &setdebuglist, &showdebuglist);
 }
 
 #include "observer.inc"

@@ -1,12 +1,12 @@
 /* Definitions for a frame base, for GDB, the GNU debugger.
 
-   Copyright (C) 2003 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #if !defined (FRAME_BASE_H)
 #define FRAME_BASE_H 1
@@ -30,9 +28,9 @@ struct gdbarch;
 struct regcache;
 
 /* Assuming the frame chain: (outer) prev <-> this <-> next (inner);
-   and that this is a `normal frame'; use the NEXT frame, and its
-   register unwind method, to determine the address of THIS frame's
-   `base'.
+   and that this is a `normal frame'; use THIS frame, and implicitly
+   the NEXT frame's register unwind method, to determine the address
+   of THIS frame's `base'.
 
    The exact meaning of `base' is highly dependant on the type of the
    debug info.  It is assumed that dwarf2, stabs, ... will each
@@ -44,17 +42,17 @@ struct regcache;
 
 /* A generic base address.  */
 
-typedef CORE_ADDR (frame_this_base_ftype) (struct frame_info *next_frame,
+typedef CORE_ADDR (frame_this_base_ftype) (struct frame_info *this_frame,
 					   void **this_base_cache);
 
 /* The base address of the frame's local variables.  */
 
-typedef CORE_ADDR (frame_this_locals_ftype) (struct frame_info *next_frame,
+typedef CORE_ADDR (frame_this_locals_ftype) (struct frame_info *this_frame,
 					     void **this_base_cache);
 
 /* The base address of the frame's arguments / parameters.  */
 
-typedef CORE_ADDR (frame_this_args_ftype) (struct frame_info *next_frame,
+typedef CORE_ADDR (frame_this_args_ftype) (struct frame_info *this_frame,
 					   void **this_base_cache);
 
 struct frame_base
@@ -67,10 +65,10 @@ struct frame_base
   frame_this_args_ftype *this_args;
 };
 
-/* Given the NEXT frame, return the frame base methods for THIS frame,
+/* Given THIS frame, return the frame base methods for THIS frame,
    or NULL if it can't handle THIS frame.  */
 
-typedef const struct frame_base *(frame_base_sniffer_ftype) (struct frame_info *next_frame);
+typedef const struct frame_base *(frame_base_sniffer_ftype) (struct frame_info *this_frame);
 
 /* Append a frame base sniffer to the list.  The sniffers are polled
    in the order that they are appended.  */
@@ -88,6 +86,6 @@ extern void frame_base_set_default (struct gdbarch *gdbarch,
 /* Iterate through the list of frame base handlers until one returns
    an implementation.  */
 
-extern const struct frame_base *frame_base_find_by_frame (struct frame_info *next_frame);
+extern const struct frame_base *frame_base_find_by_frame (struct frame_info *this_frame);
 
 #endif

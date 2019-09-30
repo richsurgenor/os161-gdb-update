@@ -1,12 +1,12 @@
 /* BFD back-end for Zilog Z80 COFF binaries.
-   Copyright 2005 Free Software Foundation, Inc.
+   Copyright 2005, 2006, 2007, 2008  Free Software Foundation, Inc.
    Contributed by Arnold Metselaar <arnold_m@operamail.com>
 
    This file is part of BFD, the Binary File Descriptor library.
 
-   This program is free software; you can redistribute it and/or modify 
+   This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -19,8 +19,8 @@
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "bfdlink.h"
 #include "coff/z80.h"
@@ -30,7 +30,7 @@
 #define COFF_DEFAULT_SECTION_ALIGNMENT_POWER 0
 
 static reloc_howto_type r_imm32 =
-HOWTO (R_IMM32, 0, 1, 32, FALSE, 0,
+HOWTO (R_IMM32, 0, 2, 32, FALSE, 0,
        complain_overflow_dont, 0, "r_imm32", TRUE, 0xffffffff, 0xffffffff,
        FALSE);
 
@@ -50,12 +50,12 @@ HOWTO (R_IMM8, 0, 0, 8, FALSE, 0,
        FALSE);
 
 static reloc_howto_type r_jr =
-HOWTO (R_JR, 0, 0, 8, TRUE, 0, 
+HOWTO (R_JR, 0, 0, 8, TRUE, 0,
        complain_overflow_signed, 0, "r_jr", FALSE, 0, 0xFF,
        FALSE);
 
 static reloc_howto_type r_off8 =
-HOWTO (R_OFF8, 0, 0, 8, FALSE, 0, 
+HOWTO (R_OFF8, 0, 0, 8, FALSE, 0,
        complain_overflow_signed, 0,"r_off8", FALSE, 0, 0xff,
        FALSE);
 
@@ -121,6 +121,26 @@ coff_z80_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
     default:			BFD_FAIL ();
       return NULL;
     }
+}
+
+static reloc_howto_type *
+coff_z80_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			    const char *r_name)
+{
+  if (strcasecmp (r_imm8.name, r_name) == 0)
+    return &r_imm8;
+  if (strcasecmp (r_imm16.name, r_name) == 0)
+    return &r_imm16;
+  if (strcasecmp (r_imm24.name, r_name) == 0)
+    return &r_imm24;
+  if (strcasecmp (r_imm32.name, r_name) == 0)
+    return &r_imm32;
+  if (strcasecmp (r_jr.name, r_name) == 0)
+    return &r_jr;
+  if (strcasecmp (r_off8.name, r_name) == 0)
+    return &r_off8;
+
+  return NULL;
 }
 
 /* Perform any necessary magic to the addend in a reloc entry.  */
@@ -248,6 +268,11 @@ extra_case (bfd *in_abfd,
 
 #define coff_reloc16_extra_cases    extra_case
 #define coff_bfd_reloc_type_lookup  coff_z80_reloc_type_lookup
+#define coff_bfd_reloc_name_lookup coff_z80_reloc_name_lookup
+
+#ifndef bfd_pe_print_pdata
+#define bfd_pe_print_pdata	NULL
+#endif
 
 #include "coffcode.h"
 
@@ -258,6 +283,7 @@ extra_case (bfd *in_abfd,
 #undef  coff_bfd_relax_section
 #define coff_bfd_relax_section bfd_coff_reloc16_relax_section
 
-CREATE_LITTLE_COFF_TARGET_VEC (z80coff_vec, "coff-z80", 0, 0, '\0', NULL, 
+CREATE_LITTLE_COFF_TARGET_VEC (z80coff_vec, "coff-z80", 0,
+			       SEC_CODE | SEC_DATA, '\0', NULL,
 			       COFF_SWAP_TABLE)
 

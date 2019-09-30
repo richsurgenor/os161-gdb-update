@@ -1,10 +1,10 @@
 /* Utility to load a file into the simulator.
-   Copyright (C) 1997, 1998, 2001, 2002, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -12,8 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* This is a standalone loader, independent of the sim-basic.h machinery,
    as it is used by simulators that don't use it [though that doesn't mean
@@ -82,13 +81,13 @@ sim_load_file (sd, myname, callback, prog, prog_bfd, verbose_p, lma_p, do_write)
       result_bfd = bfd_openr (prog, 0);
       if (result_bfd == NULL)
 	{
-	  eprintf (callback, "%s: can't open \"%s\": %s\n", 
+	  eprintf (callback, "%s: can't open \"%s\": %s\n",
 		   myname, prog, bfd_errmsg (bfd_get_error ()));
 	  return NULL;
 	}
     }
 
-  if (!bfd_check_format (result_bfd, bfd_object)) 
+  if (!bfd_check_format (result_bfd, bfd_object))
     {
       eprintf (callback, "%s: \"%s\" is not an object file: %s\n",
 	       myname, prog, bfd_errmsg (bfd_get_error ()));
@@ -102,16 +101,16 @@ sim_load_file (sd, myname, callback, prog, prog_bfd, verbose_p, lma_p, do_write)
     start_time = time (NULL);
 
   found_loadable_section = 0;
-  for (s = result_bfd->sections; s; s = s->next) 
+  for (s = result_bfd->sections; s; s = s->next)
     {
-      if (s->flags & SEC_LOAD) 
+      if (s->flags & SEC_LOAD)
 	{
 	  bfd_size_type size;
 
 	  size = bfd_get_section_size (s);
 	  if (size > 0)
 	    {
-	      char *buffer;
+	      unsigned char *buffer;
 	      bfd_vma lma;
 
 	      buffer = malloc (size);

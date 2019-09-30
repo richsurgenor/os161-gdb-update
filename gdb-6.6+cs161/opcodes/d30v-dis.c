@@ -1,23 +1,26 @@
 /* Disassemble D30V instructions.
-   Copyright 1997, 1998, 2000, 2001, 2005 Free Software Foundation, Inc.
+   Copyright 1997, 1998, 2000, 2001, 2005, 2007, 2012
+   Free Software Foundation, Inc.
 
-   This program is free software; you can redistribute it and/or modify
+   This file is part of the GNU opcodes library.
+
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-#include <stdio.h>
 #include "sysdep.h"
+#include <stdio.h>
 #include "opcode/d30v.h"
 #include "dis-asm.h"
 #include "opintl.h"
@@ -31,7 +34,7 @@
 static int
 lookup_opcode (struct d30v_insn *insn, long num, int is_long)
 {
-  int i = 0, index;
+  int i = 0, op_index;
   struct d30v_format *f;
   struct d30v_opcode *op = (struct d30v_opcode *) d30v_opcode_table;
   int op1 = (num >> 25) & 0x7;
@@ -53,11 +56,11 @@ lookup_opcode (struct d30v_insn *insn, long num, int is_long)
   while (op->op1 == op1 && op->op2 == op2)
     {
       /* Scan through all the formats for the opcode.  */
-      index = op->format[i++];
+      op_index = op->format[i++];
       do
 	{
-	  f = (struct d30v_format *) &d30v_format_table[index];
-	  while (f->form == index)
+	  f = (struct d30v_format *) &d30v_format_table[op_index];
+	  while (f->form == op_index)
 	    {
 	      if ((!is_long || f->form >= LONG) && (f->modifier == mod))
 		{
@@ -69,7 +72,7 @@ lookup_opcode (struct d30v_insn *insn, long num, int is_long)
 	  if (insn->form)
 	    break;
 	}
-      while ((index = op->format[i++]) != 0);
+      while ((op_index = op->format[i++]) != 0);
       if (insn->form)
 	break;
       op++;

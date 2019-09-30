@@ -1,24 +1,25 @@
 /* ia64-gen.c -- Generate a shrunk set of opcode tables
-   Copyright 1999, 2000, 2001, 2002, 2004, 2005, 2006
+   Copyright 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2007, 2008, 2009, 2012
    Free Software Foundation, Inc.
    Written by Bob Manson, Cygnus Solutions, <manson@cygnus.com>
 
-   This file is part of GDB, GAS, and the GNU binutils.
+   This file is part of the GNU opcodes library.
 
-   GDB, GAS, and the GNU binutils are free software; you can redistribute
-   them and/or modify them under the terms of the GNU General Public
-   License as published by the Free Software Foundation; either version
-   2, or (at your option) any later version.
+   This library is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   GDB, GAS, and the GNU binutils are distributed in the hope that they
-   will be useful, but WITHOUT ANY WARRANTY; without even the implied
-   warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
-   the GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this file; see the file COPYING.  If not, write to the
    Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
    02110-1301, USA.  */
+
 
 /* While the ia64-opc-* set of opcode tables are easy to maintain,
    they waste a tremendous amount of space.  ia64-gen rearranges the
@@ -33,14 +34,13 @@
    The resource table is constructed based on some text dependency tables, 
    which are also easier to maintain than the final representation.  */
 
+#include "sysdep.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
 
-#include "ansidecl.h"
 #include "libiberty.h"
 #include "safe-ctype.h"
-#include "sysdep.h"
 #include "getopt.h"
 #include "ia64-opc.h"
 #include "ia64-opc-a.c"
@@ -69,6 +69,7 @@ int debug = 0;
 #define NELEMS(a) (sizeof (a) / sizeof ((a)[0]))
 #define tmalloc(X) (X *) xmalloc (sizeof (X))
 
+typedef unsigned long long  ci_t;
 /* The main opcode table entry.  Each entry is a unique combination of
    name and flags (no two entries in the table compare as being equal
    via opcodes_eq).  */
@@ -146,7 +147,7 @@ struct disent
   int priority;
 
   /* The completer_index value for this entry.  */
-  int completer_index;
+  ci_t completer_index;
 
   /* How many other entries share this decode.  */
   int nextcnt;
@@ -290,11 +291,11 @@ static void shrink (struct ia64_opcode *);
 static void print_version (void);
 static void usage (FILE *, int);
 static void finish_distable (void);
-static void insert_bit_table_ent (struct bittree *, int, ia64_insn, ia64_insn, int, int, int);
-static void add_dis_entry (struct bittree *, ia64_insn, ia64_insn, int, struct completer_entry *, int);
+static void insert_bit_table_ent (struct bittree *, int, ia64_insn, ia64_insn, int, int, ci_t);
+static void add_dis_entry (struct bittree *, ia64_insn, ia64_insn, int, struct completer_entry *, ci_t);
 static void compact_distree (struct bittree *);
 static struct bittree * make_bittree_entry (void);
-static struct disent * add_dis_table_ent (struct disent *, int, int, int);
+static struct disent * add_dis_table_ent (struct disent *, int, int, ci_t);
 
 
 static void
@@ -569,7 +570,7 @@ fetch_insn_class (const char *full_name, int create)
 
       ics[ind]->nsubs = 1;
       ics[ind]->subs = tmalloc(int);
-      ics[ind]->subs[0] = fetch_insn_class (subname, 1);;
+      ics[ind]->subs[0] = fetch_insn_class (subname, 1);
     }
 
   while (xsect)
@@ -693,11 +694,8 @@ load_insn_classes (void)
 
 /* Extract the insn classes from the given line.  */
 static void
-parse_resource_users (ref, usersp, nusersp, notesp)
-  const char *ref;
-  int **usersp;
-  int *nusersp;
-  int **notesp;
+parse_resource_users (const char *ref, int **usersp, int *nusersp,
+                      int **notesp)
 {
   int c;
   char *line = xstrdup (ref);
@@ -905,12 +903,13 @@ irf_operand (int op, const char *field)
               || (op == IA64_OPND_PMC_R3 && strstr (field, "pmc"))
               || (op == IA64_OPND_PMD_R3 && strstr (field, "pmd"))
               || (op == IA64_OPND_MSR_R3 && strstr (field, "msr"))
-              || (op == IA64_OPND_CPUID_R3 && strstr (field, "cpuid")));
+              || (op == IA64_OPND_CPUID_R3 && strstr (field, "cpuid"))
+              || (op == IA64_OPND_DAHR_R3  && strstr (field, "dahr")));
     }
 }
 
-/* Handle mov_ar, mov_br, mov_cr, mov_indirect, mov_ip, mov_pr, mov_psr, and
-   mov_um insn classes.  */
+/* Handle mov_ar, mov_br, mov_cr, move_dahr, mov_indirect, mov_ip, mov_pr,
+ * mov_psr, and  mov_um insn classes.  */
 static int
 in_iclass_mov_x (struct ia64_opcode *idesc, struct iclass *ic, 
                  const char *format, const char *field)
@@ -966,6 +965,13 @@ in_iclass_mov_x (struct ia64_opcode *idesc, struct iclass *ic,
           return strstr (format, "M32") != NULL;
         if (m33)
           return strstr (format, "M33") != NULL;
+      }
+      break;
+    case 'd':
+      {
+        int m50 = plain_mov && idesc->operands[0] == IA64_OPND_DAHR3;
+        if (m50)
+          return strstr (format, "M50") != NULL;
       }
       break;
     case 'i':
@@ -1295,6 +1301,8 @@ lookup_regindex (const char *name, int specifier)
         return 32;
       else if (strstr (name, "[ITC]"))
         return 44;
+      else if (strstr (name, "[RUC]"))
+        return 45;
       else if (strstr (name, "[PFS]"))
         return 64;
       else if (strstr (name, "[LC]"))
@@ -1434,12 +1442,16 @@ lookup_specifier (const char *name)
         return IA64_RS_ARb;
       if (strstr (name, "BR%") != NULL)
         return IA64_RS_BR;
+      if (strstr (name, "CR[IIB%]") != NULL)
+        return IA64_RS_CR_IIB;
       if (strstr (name, "CR[IRR%]") != NULL)
         return IA64_RS_CR_IRR;
       if (strstr (name, "CR[LRR%]") != NULL)
         return IA64_RS_CR_LRR;
       if (strstr (name, "CR%") != NULL)
         return IA64_RS_CR;
+      if (strstr (name, "DAHR%, % in 0") != NULL)
+        return IA64_RS_DAHR;
       if (strstr (name, "FR%, % in 0") != NULL)
         return IA64_RS_FR;
       if (strstr (name, "FR%, % in 2") != NULL)
@@ -1499,7 +1511,7 @@ lookup_specifier (const char *name)
 }
 
 static void
-print_dependency_table ()
+print_dependency_table (void)
 {
   int i, j;
 
@@ -1549,9 +1561,14 @@ print_dependency_table ()
 	    static const char *mode_str[] = { "RAW", "WAW", "WAR" };
 
 	    if (rdeps[i]->total_chks == 0)
-	      warn (_("Warning: rsrc %s (%s) has no chks%s\n"), 
-		    rdeps[i]->name, mode_str[rdeps[i]->mode],
-		    rdeps[i]->total_regs ? "" : " or regs");
+	      {
+		if (rdeps[i]->total_regs)
+		  warn (_("Warning: rsrc %s (%s) has no chks\n"), 
+			rdeps[i]->name, mode_str[rdeps[i]->mode]);
+		else
+		  warn (_("Warning: rsrc %s (%s) has no chks or regs\n"), 
+			rdeps[i]->name, mode_str[rdeps[i]->mode]);
+	      }
 	    else if (rdeps[i]->total_regs == 0)
 	      warn (_("rsrc %s (%s) has no regs\n"),
 		    rdeps[i]->name, mode_str[rdeps[i]->mode]);
@@ -1716,11 +1733,8 @@ make_bittree_entry (void)
  
 
 static struct disent *
-add_dis_table_ent (which, insn, order, completer_index)
-     struct disent *which;
-     int insn;
-     int order;
-     int completer_index;
+add_dis_table_ent (struct disent *which, int insn, int order,
+                   ci_t completer_index)
 {
   int ci = 0;
   struct disent *ent;
@@ -1757,7 +1771,7 @@ add_dis_table_ent (which, insn, order, completer_index)
 }
 
 static void
-finish_distable ()
+finish_distable (void)
 {
   struct disent *ent = disinsntable;
   struct disent *prev = ent;
@@ -1771,15 +1785,9 @@ finish_distable ()
 }
 
 static void
-insert_bit_table_ent (curr_ent, bit, opcode, mask, 
-                      opcodenum, order, completer_index)
-     struct bittree *curr_ent;
-     int bit;
-     ia64_insn opcode; 
-     ia64_insn mask;
-     int opcodenum;
-     int order;
-     int completer_index;
+insert_bit_table_ent (struct bittree *curr_ent, int bit, ia64_insn opcode,
+                      ia64_insn mask, int opcodenum, int order,
+                      ci_t completer_index)
 {
   ia64_insn m;
   int b;
@@ -1812,15 +1820,10 @@ insert_bit_table_ent (curr_ent, bit, opcode, mask,
 }
 
 static void
-add_dis_entry (first, opcode, mask, opcodenum, ent, completer_index)
-     struct bittree *first;
-     ia64_insn opcode;
-     ia64_insn mask;
-     int opcodenum;
-     struct completer_entry *ent;
-     int completer_index;
+add_dis_entry (struct bittree *first, ia64_insn opcode, ia64_insn mask,
+               int opcodenum, struct completer_entry *ent, ci_t completer_index)
 {
-  if (completer_index & (1 << 20))
+  if (completer_index & ((ci_t)1 << 32) )
     abort ();
 
   while (ent != NULL)
@@ -1842,8 +1845,7 @@ add_dis_entry (first, opcode, mask, opcodenum, ent, completer_index)
 
 /* This optimization pass combines multiple "don't care" nodes.  */
 static void
-compact_distree (ent)
-     struct bittree *ent;
+compact_distree (struct bittree *ent)
 {
 #define IS_SKIP(ent) \
     ((ent->bits[2] !=NULL) \
@@ -1894,8 +1896,7 @@ static int tot_insn_list_len = 0;
 /* Generate the disassembler state machine corresponding to the tree
    in ENT.  */
 static void
-gen_dis_table (ent)
-     struct bittree *ent;
+gen_dis_table (struct bittree *ent)
 {
   int x;
   int our_offset = insn_list_len;
@@ -2141,7 +2142,7 @@ print_dis_table (void)
 
       while (ent != NULL)
 	{
-	  printf ("{ 0x%x, %d, %d, %d },\n", ent->completer_index,
+	  printf ("{ 0x%lx, %d, %d, %d },\n", ( long ) ent->completer_index,
 		  ent->insn, (ent->nexte != NULL ? 1 : 0),
                   ent->priority);
 	  ent = ent->nexte;
@@ -2219,8 +2220,8 @@ static int glisttotlen = 0;
 /* If the completer trees ENT1 and ENT2 are equal, return 1.  */
 
 static int
-completer_entries_eq (ent1, ent2)
-     struct completer_entry *ent1, *ent2;
+completer_entries_eq (struct completer_entry *ent1,
+                      struct completer_entry *ent2)
 {
   while (ent1 != NULL && ent2 != NULL)
     {
@@ -2337,8 +2338,7 @@ insert_gclist (struct completer_entry *ent)
 }
 
 static int
-get_prefix_len (name)
-     const char *name;
+get_prefix_len (const char *name)
 {
   char *c;
 
@@ -2353,9 +2353,7 @@ get_prefix_len (name)
 }
 
 static void
-compute_completer_bits (ment, ent)
-     struct main_entry *ment;
-     struct completer_entry *ent;
+compute_completer_bits (struct main_entry *ment, struct completer_entry *ent)
 {
   while (ent != NULL)
     {
@@ -2428,9 +2426,8 @@ collapse_redundant_completers (void)
    2) all resources which must be marked in use when this opcode is used
    (regs).  */
 static int
-insert_opcode_dependencies (opc, cmp)
-     struct ia64_opcode *opc;
-     struct completer_entry *cmp ATTRIBUTE_UNUSED;
+insert_opcode_dependencies (struct ia64_opcode *opc,
+                            struct completer_entry *cmp ATTRIBUTE_UNUSED)
 {
   /* Note all resources which point to this opcode.  rfi has the most chks
      (79) and cmpxchng has the most regs (54) so 100 here should be enough.  */
@@ -2515,10 +2512,8 @@ insert_opcode_dependencies (opc, cmp)
 }
 
 static void
-insert_completer_entry (opc, tabent, order)
-     struct ia64_opcode *opc;
-     struct main_entry *tabent;
-     int order;
+insert_completer_entry (struct ia64_opcode *opc, struct main_entry *tabent,
+                        int order)
 {
   struct completer_entry **ptr = &tabent->completers;
   struct completer_entry *parent = NULL;
@@ -2589,8 +2584,7 @@ insert_completer_entry (opc, tabent, order)
 }
 
 static void
-print_completer_entry (ent)
-     struct completer_entry *ent;
+print_completer_entry (struct completer_entry *ent)
 {
   int moffset = 0;
   ia64_insn mask = ent->mask, bits = ent->bits;
@@ -2620,7 +2614,7 @@ print_completer_entry (ent)
 }
 
 static void
-print_completer_table ()
+print_completer_table (void)
 {
   int x;
 
@@ -2631,9 +2625,7 @@ print_completer_table ()
 }
 
 static int
-opcodes_eq (opc1, opc2)
-     struct ia64_opcode *opc1;
-     struct ia64_opcode *opc2;
+opcodes_eq (struct ia64_opcode *opc1, struct ia64_opcode *opc2)
 {
   int x;
   int plen1, plen2;
@@ -2657,8 +2649,7 @@ opcodes_eq (opc1, opc2)
 }
 
 static void
-add_opcode_entry (opc)
-     struct ia64_opcode *opc;
+add_opcode_entry (struct ia64_opcode *opc)
 {
   struct main_entry **place;
   struct string_entry *name;
@@ -2716,7 +2707,7 @@ static void
 print_main_table (void)
 {
   struct main_entry *ptr = maintable;
-  int index = 0;
+  int tindex = 0;
 
   printf ("static const struct ia64_main_table\nmain_table[] = {\n");
   while (ptr != NULL)
@@ -2737,7 +2728,7 @@ print_main_table (void)
 	      ptr->opcode->flags,
 	      ptr->completers->num);
 
-      ptr->main_index = index++;
+      ptr->main_index = tindex++;
 
       ptr = ptr->next;
     }
@@ -2745,8 +2736,7 @@ print_main_table (void)
 }
 
 static void
-shrink (table)
-     struct ia64_opcode *table;
+shrink (struct ia64_opcode *table)
 {
   int curr_opcode;
 
@@ -2854,6 +2844,25 @@ main (int argc, char **argv)
   collapse_redundant_completers ();
 
   printf ("/* This file is automatically generated by ia64-gen.  Do not edit!  */\n");
+  printf ("/* Copyright 2007  Free Software Foundation, Inc.\n\
+\n\
+   This file is part of the GNU opcodes library.\n\
+\n\
+   This library is free software; you can redistribute it and/or modify\n\
+   it under the terms of the GNU General Public License as published by\n\
+   the Free Software Foundation; either version 3, or (at your option)\n\
+   any later version.\n\
+\n\
+   It is distributed in the hope that it will be useful, but WITHOUT\n\
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY\n\
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public\n\
+   License for more details.\n\
+\n\
+   You should have received a copy of the GNU General Public License\n\
+   along with this program; see the file COPYING.  If not, write to the\n\
+   Free Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA\n\
+   02110-1301, USA.  */\n");
+
   print_string_table ();
   print_dependency_table ();
   print_completer_table ();

@@ -1,12 +1,12 @@
 /* Target-dependent code for Solaris x86.
 
-   Copyright (C) 2002, 2003, 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "value.h"
@@ -50,14 +48,14 @@ static int i386_sol2_gregset_reg_offset[] =
   0 * 4				/* %gs */
 };
 
-/* Return whether the frame preceding NEXT_FRAME corresponds to a
-   Solaris sigtramp routine.  */
+/* Return whether THIS_FRAME corresponds to a Solaris sigtramp
+   routine.  */
 
 static int
-i386_sol2_sigtramp_p (struct frame_info *next_frame)
+i386_sol2_sigtramp_p (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
-  char *name;
+  CORE_ADDR pc = get_frame_pc (this_frame);
+  const char *name;
 
   find_pc_partial_function (pc, &name, NULL, NULL);
   return (name && (strcmp ("sigacthandler", name) == 0
@@ -68,14 +66,37 @@ i386_sol2_sigtramp_p (struct frame_info *next_frame)
    `mcontext_t' that contains the saved set of machine registers.  */
 
 static CORE_ADDR
-i386_sol2_mcontext_addr (struct frame_info *next_frame)
+i386_sol2_mcontext_addr (struct frame_info *this_frame)
 {
   CORE_ADDR sp, ucontext_addr;
 
-  sp = frame_unwind_register_unsigned (next_frame, I386_ESP_REGNUM);
-  ucontext_addr = get_frame_memory_unsigned (next_frame, sp + 8, 4);
+  sp = get_frame_register_unsigned (this_frame, I386_ESP_REGNUM);
+  ucontext_addr = get_frame_memory_unsigned (this_frame, sp + 8, 4);
 
   return ucontext_addr + 36;
+}
+
+/* SunPRO encodes the static variables.  This is not related to C++
+   mangling, it is done for C too.  */
+
+static const char *
+i386_sol2_static_transform_name (const char *name)
+{
+  char *p;
+  if (name[0] == '.')
+    {
+      /* For file-local statics there will be a period, a bunch of
+         junk (the contents of which match a string given in the
+         N_OPT), a period and the name.  For function-local statics
+         there will be a bunch of junk (which seems to change the
+         second character from 'A' to 'B'), a period, the name of the
+         function, and the name.  So just skip everything before the
+         last period.  */
+      p = strrchr (name, '.');
+      if (p != NULL)
+        name = p + 1;
+    }
+  return name;
 }
 
 /* Solaris 2.  */
@@ -87,6 +108,13 @@ i386_sol2_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 
   /* Solaris is SVR4-based.  */
   i386_svr4_init_abi (info, gdbarch);
+
+  /* The SunPRO compiler puts out 0 instead of the address in N_SO symbols,
+     and for SunPRO 3.0, N_FUN symbols too.  */
+  set_gdbarch_sofun_address_maybe_missing (gdbarch, 1);
+
+  /* Handle SunPRO encoding of static symbols.  */
+  set_gdbarch_static_transform_name (gdbarch, i386_sol2_static_transform_name);
 
   /* Solaris reserves space for its FPU emulator in `fpregset_t'.
      There is also some space reserved for the registers of a Weitek
@@ -106,6 +134,9 @@ i386_sol2_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   set_gdbarch_skip_solib_resolver (gdbarch, sol2_skip_solib_resolver);
   set_solib_svr4_fetch_link_map_offsets
     (gdbarch, svr4_ilp32_fetch_link_map_offsets);
+
+  /* How to print LWP PTIDs from core files.  */
+  set_gdbarch_core_pid_to_str (gdbarch, sol2_core_pid_to_str);
 }
 
 

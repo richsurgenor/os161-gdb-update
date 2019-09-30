@@ -1,6 +1,6 @@
 /* Simulator pseudo baseclass.
 
-   Copyright 1997, 1998, 2003 Free Software Foundation, Inc.
+   Copyright 1997-2013 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support.
 
@@ -8,17 +8,16 @@ This file is part of GDB, the GNU debugger.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 /* Simulator state pseudo baseclass.
@@ -34,7 +33,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
          CIA_ADDR to return the integral value.  *-/
      /-* #define CIA_ADDR(cia) (...) *-/
      #include "sim-base.h"
-   
+
    finally, two data types `struct _sim_cpu' and `struct sim_state'
    are defined:
 
@@ -44,11 +43,11 @@ with this program; if not, write to the Free Software Foundation, Inc.,
      };
 
      struct sim_state {
-       sim_cpu cpu[MAX_NR_PROCESSORS];
+       sim_cpu *cpu[MAX_NR_PROCESSORS];
      #if (WITH_SMP)
-     #define STATE_CPU(sd,n) (&(sd)->cpu[n])
+     #define STATE_CPU(sd,n) ((sd)->cpu[n])
      #else
-     #define STATE_CPU(sd,n) (&(sd)->cpu[0])
+     #define STATE_CPU(sd,n) ((sd)->cpu[0])
      #endif
        ... simulator specific members ...
        sim_state_base base;

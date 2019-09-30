@@ -1,23 +1,24 @@
 /* Core file generic interface routines for BFD.
-   Copyright 1990, 1991, 1992, 1993, 1994, 2000, 2001, 2002, 2003, 2005
-   Free Software Foundation, Inc.
+   Copyright 1990, 1991, 1992, 1993, 1994, 2000, 2001, 2002, 2003, 2005,
+   2007 Free Software Foundation, Inc.
    Written by Cygnus Support.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 /*
 SECTION
@@ -30,8 +31,8 @@ DESCRIPTION
 	These are functions pertaining to core files.
 */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 
 /*
@@ -80,6 +81,31 @@ bfd_core_file_failing_signal (bfd *abfd)
     }
   return BFD_SEND (abfd, _core_file_failing_signal, (abfd));
 }
+
+/*
+FUNCTION
+	bfd_core_file_pid
+
+SYNOPSIS
+	int bfd_core_file_pid (bfd *abfd);
+
+DESCRIPTION
+
+	Returns the PID of the process the core dump the BFD
+	@var{abfd} is attached to was generated from.
+*/
+
+int
+bfd_core_file_pid (bfd *abfd)
+{
+  if (abfd->format != bfd_core)
+    {
+      bfd_set_error (bfd_error_invalid_operation);
+      return 0;
+    }
+  return BFD_SEND (abfd, _core_file_pid, (abfd));
+}
+
 
 /*
 FUNCTION
@@ -143,7 +169,7 @@ generic_core_file_matches_executable_p (bfd *core_bfd, bfd *exec_bfd)
      of the const char * returned by bfd_core_file_failing_command to a
      non-const char *.  In this case, the assignement does not lead to
      breaking the const, as we're only reading the string.  */
-     
+
   core = (char *) bfd_core_file_failing_command (core_bfd);
   if (core == NULL)
     return TRUE;
@@ -159,7 +185,7 @@ generic_core_file_matches_executable_p (bfd *core_bfd, bfd *exec_bfd)
   last_slash = strrchr (exec, '/');
   if (last_slash != NULL)
     exec = last_slash + 1;
-  
-  return strcmp (exec, core) == 0;
+
+  return filename_cmp (exec, core) == 0;
 }
 

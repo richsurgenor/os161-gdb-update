@@ -2,13 +2,13 @@
    Written by Fred Fish <fnf@cygnus.com>
    Rewritten by Jim Blandy <jimb@cygnus.com>
 
-   Copyright (C) 1999, 2000, 2002, 2003 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,9 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef BCACHE_H
 #define BCACHE_H 1
@@ -146,16 +144,22 @@ struct bcache;
    either case, return a pointer to BCACHE's copy of that string.
    Since the cached value is ment to be read-only, return a const
    buffer.  */
-extern void *deprecated_bcache (const void *addr, int length,
-				struct bcache *bcache);
 extern const void *bcache (const void *addr, int length,
 			   struct bcache *bcache);
+
+/* Like bcache, but if ADDED is not NULL, set *ADDED to true if the
+   bytes were newly added to the cache, or to false if the bytes were
+   found in the cache.  */
+extern const void *bcache_full (const void *addr, int length,
+				struct bcache *bcache, int *added);
 
 /* Free all the storage used by BCACHE.  */
 extern void bcache_xfree (struct bcache *bcache);
 
 /* Create a new bcache object.  */
-extern struct bcache *bcache_xmalloc (void);
+extern struct bcache *bcache_xmalloc (
+    unsigned long (*hash_function)(const void *, int length),
+    int (*compare_function)(const void *, const void *, int length));
 
 /* Print statistics on BCACHE's memory usage and efficacity at
    eliminating duplication.  TYPE should be a string describing the
@@ -164,7 +168,9 @@ extern struct bcache *bcache_xmalloc (void);
 extern void print_bcache_statistics (struct bcache *bcache, char *type);
 extern int bcache_memory_used (struct bcache *bcache);
 
-/* The hash function */
+/* The hash functions */
 extern unsigned long hash(const void *addr, int length);
+extern unsigned long hash_continue (const void *addr, int length,
+                                    unsigned long h);
 
 #endif /* BCACHE_H */

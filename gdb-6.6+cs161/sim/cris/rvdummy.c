@@ -1,13 +1,13 @@
 /* Test-driver for the remote-virtual-component simulator framework
    for GDB, the GNU Debugger.
 
-   Copyright 2006 Free Software Foundation, Inc.
+   Copyright 2006-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* Avoid any problems whatsoever building this program if we're not
    also building hardware support.  */
@@ -120,7 +118,7 @@ int setupsocket (void)
   memset (&sa_in, 0, sizeof (sa_in));
 
   s = socket (AF_INET, SOCK_STREAM, 0);
-  if (s < 0)
+  if (s == -1)
     return -1;
 
   if (setsockopt (s, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof reuse) != 0)
@@ -519,7 +517,7 @@ main (int argc, char *argv[])
       }
 
   fd = setupsocket ();
-  if (fd < 0)
+  if (fd == -1)
     {
       fprintf (stderr, "%s: problem setting up the connection: %s\n",
 	       progname, strerror (errno));

@@ -2,23 +2,23 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996-2005 Free Software Foundation, Inc.
+Copyright 1996-2010 Free Software Foundation, Inc.
 
 This file is part of the GNU Binutils and/or GDB, the GNU debugger.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, write to the Free Software Foundation, Inc.,
+   51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
 
 */
 
@@ -1537,20 +1537,47 @@ static CGEN_KEYWORD_ENTRY frv_cgen_opval_spr_names_entries[] =
   { "dbmr31", 2089, {0, {{{0, 0}}}}, 0, 0 },
   { "dbmr32", 2090, {0, {{{0, 0}}}}, 0, 0 },
   { "dbmr33", 2091, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpcfr", 2092, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpcr", 2093, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpsr", 2094, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpesr0", 2096, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpesr1", 2097, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpemr0", 2098, {0, {{{0, 0}}}}, 0, 0 },
-  { "cpemr1", 2099, {0, {{{0, 0}}}}, 0, 0 },
-  { "ihsr8", 3848, {0, {{{0, 0}}}}, 0, 0 }
+  { "cpcfr", 2304, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpcr", 2305, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpsr", 2306, {0, {{{0, 0}}}}, 0, 0 },
+  { "cptr", 2307, {0, {{{0, 0}}}}, 0, 0 },
+  { "cphsr0", 2308, {0, {{{0, 0}}}}, 0, 0 },
+  { "cphsr1", 2309, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpesr0", 2320, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpesr1", 2321, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpemr0", 2322, {0, {{{0, 0}}}}, 0, 0 },
+  { "cpemr1", 2323, {0, {{{0, 0}}}}, 0, 0 },
+  { "iperr0", 2324, {0, {{{0, 0}}}}, 0, 0 },
+  { "iperr1", 2325, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipjsr", 2326, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipjrr", 2327, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipcsr0", 2336, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipcsr1", 2337, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipcwer0", 2338, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipcwer1", 2339, {0, {{{0, 0}}}}, 0, 0 },
+  { "ipcwr", 2340, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbhsr", 2352, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbssr", 2353, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbrsr", 2354, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbsdr", 2355, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbrdr", 2356, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbsmr", 2357, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbstr0", 2359, {0, {{{0, 0}}}}, 0, 0 },
+  { "mbstr1", 2360, {0, {{{0, 0}}}}, 0, 0 },
+  { "slpr", 2368, {0, {{{0, 0}}}}, 0, 0 },
+  { "sldr", 2369, {0, {{{0, 0}}}}, 0, 0 },
+  { "slhsr", 2370, {0, {{{0, 0}}}}, 0, 0 },
+  { "sltr", 2371, {0, {{{0, 0}}}}, 0, 0 },
+  { "slwr", 2372, {0, {{{0, 0}}}}, 0, 0 },
+  { "ihsr8", 3848, {0, {{{0, 0}}}}, 0, 0 },
+  { "ihsr9", 3849, {0, {{{0, 0}}}}, 0, 0 },
+  { "ihsr10", 3850, {0, {{{0, 0}}}}, 0, 0 }
 };
 
 CGEN_KEYWORD frv_cgen_opval_spr_names =
 {
   & frv_cgen_opval_spr_names_entries[0],
-  1022,
+  1049,
   0, 0, 0, 0, ""
 };
 
@@ -1812,11 +1839,7 @@ CGEN_KEYWORD frv_cgen_opval_h_hint_not_taken =
 
 /* The hardware table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_HW_##a)
-#else
-#define A(a) (1 << CGEN_HW_/**/a)
-#endif
 
 const CGEN_HW_ENTRY frv_cgen_hw_table[] =
 {
@@ -1878,11 +1901,7 @@ const CGEN_HW_ENTRY frv_cgen_hw_table[] =
 
 /* The instruction field table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_IFLD_##a)
-#else
-#define A(a) (1 << CGEN_IFLD_/**/a)
-#endif
 
 const CGEN_IFLD frv_cgen_ifld_table[] =
 {
@@ -2028,16 +2047,8 @@ const CGEN_MAYBE_MULTI_IFLD FRV_F_LABEL24_MULTI_IFIELD [] =
 
 /* The operand table.  */
 
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_OPERAND_##a)
-#else
-#define A(a) (1 << CGEN_OPERAND_/**/a)
-#endif
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define OPERAND(op) FRV_OPERAND_##op
-#else
-#define OPERAND(op) FRV_OPERAND_/**/op
-#endif
 
 const CGEN_OPERAND frv_cgen_operand_table[] =
 {
@@ -2409,11 +2420,7 @@ const CGEN_OPERAND frv_cgen_operand_table[] =
 /* The instruction table.  */
 
 #define OP(field) CGEN_SYNTAX_MAKE_FIELD (OPERAND (field))
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define A(a) (1 << CGEN_INSN_##a)
-#else
-#define A(a) (1 << CGEN_INSN_/**/a)
-#endif
 
 static const CGEN_IBASE frv_cgen_insn_table[MAX_INSNS] =
 {
@@ -6343,11 +6350,7 @@ frv_cgen_rebuild_tables (CGEN_CPU_TABLE *cd)
    CGEN_CPU_OPEN_END:     terminates arguments
 
    ??? Simultaneous multiple isas might not make sense, but it's not (yet)
-   precluded.
-
-   ??? We only support ISO C stdargs here, not K&R.
-   Laziness, plus experiment to see if anything requires K&R - eventually
-   K&R will no longer be supported - e.g. GDB is currently trying this.  */
+   precluded.  */
 
 CGEN_CPU_DESC
 frv_cgen_cpu_open (enum cgen_cpu_open_arg arg_type, ...)

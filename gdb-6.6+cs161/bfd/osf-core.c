@@ -1,28 +1,30 @@
 /* BFD back-end for OSF/1 core files.
-   Copyright 1993, 1994, 1995, 1998, 1999, 2001, 2002, 2003, 2004, 2006
-   Free Software Foundation, Inc.
+   Copyright 1993, 1994, 1995, 1998, 1999, 2001, 2002, 2003, 2004, 2005, 2006,
+   2007, 2010, 2011, 2012 Free Software Foundation, Inc.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* This file can only be compiled on systems which use OSF/1 style
    core files.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 
 #include <sys/user.h>
@@ -32,17 +34,8 @@ Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA. 
 
 /* forward declarations */
 
-static asection *make_bfd_asection
-  PARAMS ((bfd *, const char *, flagword, bfd_size_type, bfd_vma, file_ptr));
-static const bfd_target *osf_core_core_file_p
-  PARAMS ((bfd *));
-static char *osf_core_core_file_failing_command
-  PARAMS ((bfd *));
-static int osf_core_core_file_failing_signal
-  PARAMS ((bfd *));
 #define osf_core_core_file_matches_executable_p generic_core_file_matches_executable_p
-static void swap_abort
-  PARAMS ((void));
+#define osf_core_core_file_pid _bfd_nocore_core_file_pid
 
 /* These are stored in the bfd's tdata */
 
@@ -53,17 +46,16 @@ struct osf_core_struct
 };
 
 #define core_hdr(bfd) ((bfd)->tdata.osf_core_data)
-#define core_signal(bfd) (core_hdr(bfd)->sig)
+#define core_signal(bfd)  (core_hdr(bfd)->sig)
 #define core_command(bfd) (core_hdr(bfd)->cmd)
 
 static asection *
-make_bfd_asection (abfd, name, flags, size, vma, filepos)
-     bfd *abfd;
-     const char *name;
-     flagword flags;
-     bfd_size_type size;
-     bfd_vma vma;
-     file_ptr filepos;
+make_bfd_asection (bfd *abfd,
+		   const char *name,
+		   flagword flags,
+		   bfd_size_type size,
+		   bfd_vma vma,
+		   file_ptr filepos)
 {
   asection *asect;
 
@@ -80,8 +72,7 @@ make_bfd_asection (abfd, name, flags, size, vma, filepos)
 }
 
 static const bfd_target *
-osf_core_core_file_p (abfd)
-     bfd *abfd;
+osf_core_core_file_p (bfd *abfd)
 {
   int val;
   int i;
@@ -90,7 +81,7 @@ osf_core_core_file_p (abfd)
   bfd_size_type amt;
 
   amt = sizeof core_header;
-  val = bfd_bread ((PTR) &core_header, amt, abfd);
+  val = bfd_bread (& core_header, amt, abfd);
   if (val != sizeof core_header)
     return NULL;
 
@@ -111,7 +102,7 @@ osf_core_core_file_p (abfd)
       flagword flags;
 
       amt = sizeof core_scnhdr;
-      val = bfd_bread ((PTR) &core_scnhdr, amt, abfd);
+      val = bfd_bread (& core_scnhdr, amt, abfd);
       if (val != sizeof core_scnhdr)
 	break;
 
@@ -158,24 +149,22 @@ osf_core_core_file_p (abfd)
 }
 
 static char *
-osf_core_core_file_failing_command (abfd)
-     bfd *abfd;
+osf_core_core_file_failing_command (bfd *abfd)
 {
   return core_command (abfd);
 }
 
 static int
-osf_core_core_file_failing_signal (abfd)
-     bfd *abfd;
+osf_core_core_file_failing_signal (bfd *abfd)
 {
   return core_signal (abfd);
 }
 
 /* If somebody calls any byte-swapping routines, shoot them.  */
 static void
-swap_abort()
+swap_abort (void)
 {
-  abort(); /* This way doesn't require any declaration for ANSI to fuck up */
+  abort (); /* This way doesn't require any declaration for ANSI to fuck up */
 }
 
 #define	NO_GET ((bfd_vma (*) (const void *)) swap_abort)
@@ -195,9 +184,10 @@ const bfd_target osf_core_vec =
      HAS_LINENO | HAS_DEBUG |
      HAS_SYMS | HAS_LOCALS | WP_TEXT | D_PAGED),
     (SEC_HAS_CONTENTS | SEC_ALLOC | SEC_LOAD | SEC_RELOC), /* section flags */
-    0,			                                   /* symbol prefix */
-    ' ',						   /* ar_pad_char */
-    16,							   /* ar_max_namelen */
+    0,				/* symbol prefix */
+    ' ',			/* ar_pad_char */
+    16,				/* ar_max_namelen */
+    0,				/* match priority.  */
     NO_GET64, NO_GETS64, NO_PUT64,	/* 64 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 32 bit data */
     NO_GET, NO_GETS, NO_PUT,		/* 16 bit data */
@@ -232,5 +222,5 @@ const bfd_target osf_core_vec =
 
     NULL,
 
-    (PTR) 0			/* backend_data */
+    NULL			/* backend_data */
   };

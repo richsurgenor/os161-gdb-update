@@ -1,13 +1,12 @@
 /* Support for complaint handling during symbol reading in GDB.
 
-   Copyright (C) 1990, 1991, 1992, 1993, 1995, 1998, 1999, 2000, 2002,
-   2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 1990-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "complaints.h"
@@ -28,8 +25,8 @@
 
 extern void _initialize_complaints (void);
 
-/* Should each complaint message be self explanatory, or should we assume that
-   a series of complaints is being produced?  */
+/* Should each complaint message be self explanatory, or should we
+   assume that a series of complaints is being produced?  */
 
 /* case 1: First message of a series that must
    start off with explanation.  case 2: Subsequent message of a series
@@ -122,7 +119,7 @@ get_complaints (struct complaints **c)
   return (*c);
 }
 
-static struct complain *
+static struct complain * ATTRIBUTE_PRINTF (4, 0)
 find_complaint (struct complaints *complaints, const char *file,
 		int line, const char *fmt)
 {
@@ -166,13 +163,16 @@ static int stop_whining = 0;
 /* Print a complaint, and link the complaint block into a chain for
    later handling.  */
 
-static void ATTR_FORMAT (printf, 4, 0)
-vcomplaint (struct complaints **c, const char *file, int line, const char *fmt,
+static void ATTRIBUTE_PRINTF (4, 0)
+vcomplaint (struct complaints **c, const char *file, 
+	    int line, const char *fmt,
 	    va_list args)
 {
   struct complaints *complaints = get_complaints (c);
-  struct complain *complaint = find_complaint (complaints, file, line, fmt);
+  struct complain *complaint = find_complaint (complaints, file, 
+					       line, fmt);
   enum complaint_series series;
+
   gdb_assert (complaints != NULL);
 
   complaint->counter++;
@@ -185,7 +185,8 @@ vcomplaint (struct complaints **c, const char *file, int line, const char *fmt,
     series = complaints->series;
 
   if (complaint->file != NULL)
-    internal_vwarning (complaint->file, complaint->line, complaint->fmt, args);
+    internal_vwarning (complaint->file, complaint->line, 
+		       complaint->fmt, args);
   else if (deprecated_warning_hook)
     (*deprecated_warning_hook) (complaint->fmt, args);
   else
@@ -245,6 +246,7 @@ void
 complaint (struct complaints **complaints, const char *fmt, ...)
 {
   va_list args;
+
   va_start (args, fmt);
   vcomplaint (complaints, NULL/*file*/, 0/*line*/, fmt, args);
   va_end (args);
@@ -294,7 +296,8 @@ clear_complaints (struct complaints **c, int less_verbose, int noisy)
     case SUBSEQUENT_MESSAGE:
       /* It would be really nice to use begin_line() here.
          Unfortunately that function doesn't track GDB_STDERR and
-         consequently will sometimes supress a line when it shouldn't.  */
+         consequently will sometimes supress a line when it
+         shouldn't.  */
       fputs_unfiltered ("\n", gdb_stderr);
       break;
     default:
@@ -321,7 +324,8 @@ complaints_show_value (struct ui_file *file, int from_tty,
 void
 _initialize_complaints (void)
 {
-  add_setshow_zinteger_cmd ("complaints", class_support, &stop_whining, _("\
+  add_setshow_zinteger_cmd ("complaints", class_support, 
+			    &stop_whining, _("\
 Set max number of complaints about incorrect symbols."), _("\
 Show max number of complaints about incorrect symbols."), NULL,
 			    NULL, complaints_show_value,

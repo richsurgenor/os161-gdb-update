@@ -1,12 +1,12 @@
 /* Portable <sys/ptrace.h>
 
-   Copyright (C) 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
    
 #ifndef GDB_PTRACE_H
 #define GDB_PTRACE_H
@@ -105,6 +103,21 @@
 #ifndef PT_DETACH
 # ifdef PTRACE_DETACH
 #  define PT_DETACH PTRACE_DETACH
+# endif
+#endif
+
+/* For systems such as HP/UX that do not provide PT_SYSCALL, define it
+   here as an alias for PT_CONTINUE.  This is what the PT_SYSCALL
+   request is expected to do, in addition to stopping when entering/
+   exiting a system call.  Chances are, if the system supports system
+   call tracing, enabling this feature is probably done separately;
+   and there is probably no special request that we would be required
+   to use when resuming the execution of our program.  */
+#ifndef PT_SYSCALL
+# ifdef PTRACE_SYSCALL
+#  define PT_SYSCALL PTRACE_SYSCALL
+#else
+#  define PT_SYSCALL PT_CONTINUE
 # endif
 #endif
 

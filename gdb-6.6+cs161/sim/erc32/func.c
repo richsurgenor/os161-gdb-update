@@ -6,7 +6,7 @@
  * 
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
+ * Software Foundation; either version 3 of the License, or (at your option)
  * any later version.
  * 
  * This program is distributed in the hope that it will be useful, but WITHOUT
@@ -15,11 +15,11 @@
  * more details.
  * 
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 675
- * Mass Ave, Cambridge, MA 02139, USA.
+ * this program; if not, see <http://www.gnu.org/licenses/>.
  * 
  */
 
+#include "config.h"
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
@@ -421,7 +421,7 @@ exec_cmd(sregs, cmd)
 	    }
 	} else if (strncmp(cmd1, "cont", clen) == 0) {
 	    if ((cmd1 = strtok(NULL, " \t\n\r")) == NULL) {
-		stat = run_sim(sregs, -1, 0);
+		stat = run_sim(sregs, UINT64_MAX, 0);
 	    } else {
 		stat = run_sim(sregs, VAL(cmd1), 0);
 	    }
@@ -472,7 +472,7 @@ exec_cmd(sregs, cmd)
 	    if ((cmd2 = strtok(NULL, " \t\n\r")) != NULL) {
 		stat = run_sim(sregs, VAL(cmd2), 0);
 	    } else {
-		stat = run_sim(sregs, -1, 0);
+		stat = run_sim(sregs, UINT64_MAX, 0);
 	    }
 	    daddr = sregs->pc;
 	    sim_halt();
@@ -544,7 +544,7 @@ exec_cmd(sregs, cmd)
 	    reset_all();
 	    reset_stat(sregs);
 	    if ((cmd1 = strtok(NULL, " \t\n\r")) == NULL) {
-		stat = run_sim(sregs, -1, 0);
+		stat = run_sim(sregs, UINT64_MAX, 0);
 	    } else {
 		stat = run_sim(sregs, VAL(cmd1), 0);
 	    }
@@ -560,7 +560,7 @@ exec_cmd(sregs, cmd)
 	    sim_halt();
 	} else if (strncmp(cmd1, "tcont", clen) == 0) {
 	    sregs->tlimit = limcalc(sregs->freq);
-	    stat = run_sim(sregs, -1, 0);
+	    stat = run_sim(sregs, UINT64_MAX, 0);
 	    daddr = sregs->pc;
 	    sim_halt();
 	} else if (strncmp(cmd1, "tgo", clen) == 0) {
@@ -573,7 +573,7 @@ exec_cmd(sregs, cmd)
 	    sregs->pc = len & ~3;
 	    sregs->npc = sregs->pc + 4;
 	    printf("resuming at 0x%08x\n",sregs->pc);
-	    stat = run_sim(sregs, -1, 0);
+	    stat = run_sim(sregs, UINT64_MAX, 0);
 	    daddr = sregs->pc;
 	    sim_halt();
 	} else if (strncmp(cmd1, "tlimit", clen) == 0) {
@@ -583,7 +583,7 @@ exec_cmd(sregs, cmd)
 		sregs->tlimit / sregs->freq / 1000);
 	} else if (strncmp(cmd1, "tra", clen) == 0) {
 	    if ((cmd1 = strtok(NULL, " \t\n\r")) == NULL) {
-		stat = run_sim(sregs, -1, 1);
+		stat = run_sim(sregs, UINT64_MAX, 1);
 	    } else {
 		stat = run_sim(sregs, VAL(cmd1), 1);
 	    }
@@ -595,7 +595,7 @@ exec_cmd(sregs, cmd)
 	    reset_all();
 	    reset_stat(sregs);
 	    sregs->tlimit = limcalc(sregs->freq);
-	    stat = run_sim(sregs, -1, 0);
+	    stat = run_sim(sregs, UINT64_MAX, 0);
 	    daddr = sregs->pc;
 	    sim_halt();
 	} else
@@ -833,7 +833,7 @@ void
 event(cfunc, arg, delta)
     void            (*cfunc) ();
     int32           arg;
-    uint32          delta;
+    uint64          delta;
 {
     struct evcell  *ev1, *evins;
 
@@ -900,7 +900,8 @@ advance_time(sregs)
 
     struct evcell  *evrem;
     void            (*cfunc) ();
-    uint32          arg, endtime;
+    uint32          arg;
+    uint64          endtime;
 
 #ifdef STAT
     sregs->fholdt += sregs->fhold;
@@ -938,7 +939,8 @@ wait_for_irq()
 {
     struct evcell  *evrem;
     void            (*cfunc) ();
-    int32           arg, endtime;
+    int32           arg;
+    uint64          endtime;
 
     if (ebase.eq.nxt == NULL)
 	printf("Warning: event queue empty - power-down mode not entered\n");

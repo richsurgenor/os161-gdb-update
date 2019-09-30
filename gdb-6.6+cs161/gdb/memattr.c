@@ -1,13 +1,12 @@
 /* Memory attributes support, for GDB.
 
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "command.h"
@@ -29,6 +26,8 @@
 #include "language.h"
 #include "vec.h"
 #include "gdb_string.h"
+#include "breakpoint.h"
+#include "cli/cli-utils.h"
 
 const struct mem_attrib default_mem_attrib =
 {
@@ -39,6 +38,17 @@ const struct mem_attrib default_mem_attrib =
   0,				/* verify */
   -1 /* Flash blocksize not specified.  */
 };
+
+const struct mem_attrib unknown_mem_attrib =
+{
+  MEM_NONE,			/* mode */
+  MEM_WIDTH_UNSPECIFIED,
+  0,				/* hwbreak */
+  0,				/* cache */
+  0,				/* verify */
+  -1 /* Flash blocksize not specified.  */
+};
+
 
 VEC(mem_region_s) *mem_region_list, *target_mem_region_list;
 static int mem_number = 0;
@@ -52,6 +62,25 @@ static int mem_use_target = 1;
    since the last time it was invalidated.  If that list is still
    empty, then the target can't supply memory regions.  */
 static int target_mem_regions_valid;
+
+/* If this flag is set, gdb will assume that memory ranges not
+   specified by the memory map have type MEM_NONE, and will
+   emit errors on all accesses to that memory.  */
+static int inaccessible_by_default = 1;
+
+static void
+show_inaccessible_by_default (struct ui_file *file, int from_tty,
+			      struct cmd_list_element *c,
+			      const char *value)
+{
+  if (inaccessible_by_default)
+    fprintf_filtered (file, _("Unknown memory addresses will "
+			      "be treated as inaccessible.\n"));
+  else
+    fprintf_filtered (file, _("Unknown memory addresses "
+			      "will be treated as RAM.\n"));          
+}
+
 
 /* Predicate function which returns true if LHS should sort before RHS
    in a list of memory regions, useful for VEC_lower_bound.  */
@@ -148,7 +177,7 @@ create_mem_region (CORE_ADDR lo, CORE_ADDR hi,
   struct mem_region new;
   int i, ix;
 
-  /* lo == hi is a useless empty region */
+  /* lo == hi is a useless empty region.  */
   if (lo >= hi && hi != 0)
     {
       printf_unfiltered (_("invalid memory region: low >= high\n"));
@@ -178,7 +207,7 @@ create_mem_region (CORE_ADDR lo, CORE_ADDR hi,
 
       if ((lo >= n->lo && (lo < n->hi || n->hi == 0)) 
 	  || (hi > n->lo && (hi <= n->hi || n->hi == 0))
-	  || (lo <= n->lo && (hi >= n->hi || hi == 0)))
+	  || (lo <= n->lo && ((hi >= n->hi && n->hi != 0) || hi == 0)))
 	{
 	  printf_unfiltered (_("overlapping memory region\n"));
 	  return;
@@ -215,13 +244,18 @@ lookup_mem_region (CORE_ADDR addr)
   lo = 0;
   hi = 0;
 
-  /* If we ever want to support a huge list of memory regions, this
+  /* Either find memory range containing ADDRESS, or set LO and HI
+     to the nearest boundaries of an existing memory range.
+     
+     If we ever want to support a huge list of memory regions, this
      check should be replaced with a binary search (probably using
      VEC_lower_bound).  */
   for (ix = 0; VEC_iterate (mem_region_s, mem_region_list, ix, m); ix++)
     {
       if (m->enabled_p == 1)
 	{
+	  /* If the address is in the memory region, return that
+	     memory range.  */
 	  if (addr >= m->lo && (addr < m->hi || m->hi == 0))
 	    return m;
 
@@ -243,7 +277,15 @@ lookup_mem_region (CORE_ADDR addr)
      was learned above.  */
   region.lo = lo;
   region.hi = hi;
-  region.attrib = default_mem_attrib;
+
+  /* When no memory map is defined at all, we always return 
+     'default_mem_attrib', so that we do not make all memory 
+     inaccessible for targets that don't provide a memory map.  */
+  if (inaccessible_by_default && !VEC_empty (mem_region_s, mem_region_list))
+    region.attrib = unknown_mem_attrib;
+  else
+    region.attrib = default_mem_attrib;
+
   return &region;
 }
 
@@ -252,9 +294,6 @@ lookup_mem_region (CORE_ADDR addr)
 void
 invalidate_target_mem_regions (void)
 {
-  struct mem_region *m;
-  int ix;
-
   if (!target_mem_regions_valid)
     return;
 
@@ -264,7 +303,7 @@ invalidate_target_mem_regions (void)
     mem_region_list = NULL;
 }
 
-/* Clear memory region list */
+/* Clear memory region list.  */
 
 static void
 mem_clear (void)
@@ -392,10 +431,10 @@ mem_info_command (char *args, int from_tty)
   printf_filtered ("Num ");
   printf_filtered ("Enb ");
   printf_filtered ("Low Addr   ");
-  if (TARGET_ADDR_BIT > 32)
+  if (gdbarch_addr_bit (target_gdbarch ()) > 32)
     printf_filtered ("        ");
   printf_filtered ("High Addr  ");
-  if (TARGET_ADDR_BIT > 32)
+  if (gdbarch_addr_bit (target_gdbarch ()) > 32)
     printf_filtered ("        ");
   printf_filtered ("Attrs ");
   printf_filtered ("\n");
@@ -403,29 +442,30 @@ mem_info_command (char *args, int from_tty)
   for (ix = 0; VEC_iterate (mem_region_s, mem_region_list, ix, m); ix++)
     {
       char *tmp;
+
       printf_filtered ("%-3d %-3c\t",
 		       m->number,
 		       m->enabled_p ? 'y' : 'n');
-      if (TARGET_ADDR_BIT <= 32)
+      if (gdbarch_addr_bit (target_gdbarch ()) <= 32)
 	tmp = hex_string_custom ((unsigned long) m->lo, 8);
       else
 	tmp = hex_string_custom ((unsigned long) m->lo, 16);
       
       printf_filtered ("%s ", tmp);
 
-      if (TARGET_ADDR_BIT <= 32)
+      if (gdbarch_addr_bit (target_gdbarch ()) <= 32)
 	{
-	if (m->hi == 0)
-	  tmp = "0x100000000";
-	else
-	  tmp = hex_string_custom ((unsigned long) m->hi, 8);
+	  if (m->hi == 0)
+	    tmp = "0x100000000";
+	  else
+	    tmp = hex_string_custom ((unsigned long) m->hi, 8);
 	}
       else
 	{
-	if (m->hi == 0)
-	  tmp = "0x10000000000000000";
-	else
-	  tmp = hex_string_custom ((unsigned long) m->hi, 16);
+	  if (m->hi == 0)
+	    tmp = "0x10000000000000000";
+	  else
+	    tmp = hex_string_custom ((unsigned long) m->hi, 16);
 	}
 
       printf_filtered ("%s ", tmp);
@@ -503,7 +543,7 @@ mem_info_command (char *args, int from_tty)
 }
 
 
-/* Enable the memory region number NUM. */
+/* Enable the memory region number NUM.  */
 
 static void
 mem_enable (int num)
@@ -523,41 +563,34 @@ mem_enable (int num)
 static void
 mem_enable_command (char *args, int from_tty)
 {
-  char *p = args;
-  char *p1;
   int num;
   struct mem_region *m;
   int ix;
 
   require_user_regions (from_tty);
 
-  dcache_invalidate (target_dcache);
+  target_dcache_invalidate ();
 
-  if (p == 0)
-    {
+  if (args == NULL || *args == '\0')
+    { /* Enable all mem regions.  */
       for (ix = 0; VEC_iterate (mem_region_s, mem_region_list, ix, m); ix++)
 	m->enabled_p = 1;
     }
   else
-    while (*p)
-      {
-	p1 = p;
-	while (*p1 >= '0' && *p1 <= '9')
-	  p1++;
-	if (*p1 && *p1 != ' ' && *p1 != '\t')
-	  error (_("Arguments must be memory region numbers."));
+    {
+      struct get_number_or_range_state state;
 
-	num = atoi (p);
-	mem_enable (num);
-
-	p = p1;
-	while (*p == ' ' || *p == '\t')
-	  p++;
-      }
+      init_number_or_range (&state, args);
+      while (!state.finished)
+	{
+	  num = get_number_or_range (&state);
+	  mem_enable (num);
+	}
+    }
 }
 
 
-/* Disable the memory region number NUM. */
+/* Disable the memory region number NUM.  */
 
 static void
 mem_disable (int num)
@@ -577,45 +610,38 @@ mem_disable (int num)
 static void
 mem_disable_command (char *args, int from_tty)
 {
-  char *p = args;
-  char *p1;
   int num;
   struct mem_region *m;
   int ix;
 
   require_user_regions (from_tty);
 
-  dcache_invalidate (target_dcache);
+  target_dcache_invalidate ();
 
-  if (p == 0)
+  if (args == NULL || *args == '\0')
     {
       for (ix = 0; VEC_iterate (mem_region_s, mem_region_list, ix, m); ix++)
 	m->enabled_p = 0;
     }
   else
-    while (*p)
-      {
-	p1 = p;
-	while (*p1 >= '0' && *p1 <= '9')
-	  p1++;
-	if (*p1 && *p1 != ' ' && *p1 != '\t')
-	  error (_("Arguments must be memory region numbers."));
+    {
+      struct get_number_or_range_state state;
 
-	num = atoi (p);
-	mem_disable (num);
-
-	p = p1;
-	while (*p == ' ' || *p == '\t')
-	  p++;
-      }
+      init_number_or_range (&state, args);
+      while (!state.finished)
+	{
+	  num = get_number_or_range (&state);
+	  mem_disable (num);
+	}
+    }
 }
 
-/* Delete the memory region number NUM. */
+/* Delete the memory region number NUM.  */
 
 static void
 mem_delete (int num)
 {
-  struct mem_region *m1, *m;
+  struct mem_region *m;
   int ix;
 
   if (!mem_region_list)
@@ -640,42 +666,40 @@ mem_delete (int num)
 static void
 mem_delete_command (char *args, int from_tty)
 {
-  char *p = args;
-  char *p1;
   int num;
+  struct get_number_or_range_state state;
 
   require_user_regions (from_tty);
 
-  dcache_invalidate (target_dcache);
+  target_dcache_invalidate ();
 
-  if (p == 0)
+  if (args == NULL || *args == '\0')
     {
-      if (query ("Delete all memory regions? "))
+      if (query (_("Delete all memory regions? ")))
 	mem_clear ();
       dont_repeat ();
       return;
     }
 
-  while (*p)
+  init_number_or_range (&state, args);
+  while (!state.finished)
     {
-      p1 = p;
-      while (*p1 >= '0' && *p1 <= '9')
-	p1++;
-      if (*p1 && *p1 != ' ' && *p1 != '\t')
-	error (_("Arguments must be memory region numbers."));
-
-      num = atoi (p);
+      num = get_number_or_range (&state);
       mem_delete (num);
-
-      p = p1;
-      while (*p == ' ' || *p == '\t')
-	p++;
     }
 
   dont_repeat ();
 }
+
+static void
+dummy_cmd (char *args, int from_tty)
+{
+}
 
 extern initialize_file_ftype _initialize_mem; /* -Wmissing-prototype */
+
+static struct cmd_list_element *mem_set_cmdlist;
+static struct cmd_list_element *mem_show_cmdlist;
 
 void
 _initialize_mem (void)
@@ -684,29 +708,50 @@ _initialize_mem (void)
 Define attributes for memory region or reset memory region handling to\n\
 target-based.\n\
 Usage: mem auto\n\
-       mem <lo addr> <hi addr> [<mode> <width> <cache>], \n\
-where <mode>  may be rw (read/write), ro (read-only) or wo (write-only), \n\
-      <width> may be 8, 16, 32, or 64, and \n\
+       mem <lo addr> <hi addr> [<mode> <width> <cache>],\n\
+where <mode>  may be rw (read/write), ro (read-only) or wo (write-only),\n\
+      <width> may be 8, 16, 32, or 64, and\n\
       <cache> may be cache or nocache"));
 
   add_cmd ("mem", class_vars, mem_enable_command, _("\
 Enable memory region.\n\
 Arguments are the code numbers of the memory regions to enable.\n\
-Usage: enable mem <code number>\n\
+Usage: enable mem <code number>...\n\
 Do \"info mem\" to see current list of code numbers."), &enablelist);
 
   add_cmd ("mem", class_vars, mem_disable_command, _("\
 Disable memory region.\n\
 Arguments are the code numbers of the memory regions to disable.\n\
-Usage: disable mem <code number>\n\
+Usage: disable mem <code number>...\n\
 Do \"info mem\" to see current list of code numbers."), &disablelist);
 
   add_cmd ("mem", class_vars, mem_delete_command, _("\
 Delete memory region.\n\
 Arguments are the code numbers of the memory regions to delete.\n\
-Usage: delete mem <code number>\n\
+Usage: delete mem <code number>...\n\
 Do \"info mem\" to see current list of code numbers."), &deletelist);
 
   add_info ("mem", mem_info_command,
 	    _("Memory region attributes"));
+
+  add_prefix_cmd ("mem", class_vars, dummy_cmd, _("\
+Memory regions settings"),
+		  &mem_set_cmdlist, "set mem ",
+		  0/* allow-unknown */, &setlist);
+  add_prefix_cmd ("mem", class_vars, dummy_cmd, _("\
+Memory regions settings"),
+		  &mem_show_cmdlist, "show mem  ",
+		  0/* allow-unknown */, &showlist);
+
+  add_setshow_boolean_cmd ("inaccessible-by-default", no_class,
+				  &inaccessible_by_default, _("\
+Set handling of unknown memory regions."), _("\
+Show handling of unknown memory regions."), _("\
+If on, and some memory map is defined, debugger will emit errors on\n\
+accesses to memory not defined in the memory map. If off, accesses to all\n\
+memory addresses will be allowed."),
+				NULL,
+				show_inaccessible_by_default,
+				&mem_set_cmdlist,
+				&mem_show_cmdlist);
 }

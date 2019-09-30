@@ -99,6 +99,7 @@ IGEN_INCLUDE=\
 	$(srcdir)/tx.igen \
 	$(srcdir)/vr.igen \
 	$(srcdir)/dsp.igen \
+	$(srcdir)/dsp2.igen \
 	$(srcdir)/mips3264r2.igen \
 
 # NB:	Since these can be built by a number of generators, care
@@ -185,6 +186,7 @@ engine.o: sim-main.h engine.c $(SIM_EXTRA_DEPS)
 support.o: sim-main.h support.c $(SIM_EXTRA_DEPS)
 idecode.o: sim-main.h idecode.c $(SIM_EXTRA_DEPS)
 itable.o: sim-main.h itable.c $(SIM_EXTRA_DEPS)
+m16run.o: sim-main.h m16_idecode.h m32_idecode.h $(SIM_EXTRA_DEPS)
 
 m16_semantics.o: sim-main.h m16_semantics.c $(SIM_EXTRA_DEPS)
 m16_support.o: sim-main.h m16_support.c $(SIM_EXTRA_DEPS)
@@ -195,6 +197,8 @@ m32_semantics.o: sim-main.h m32_semantics.c $(SIM_EXTRA_DEPS)
 m32_support.o: sim-main.h m32_support.c $(SIM_EXTRA_DEPS)
 m32_idecode.o: sim-main.h m32_idecode.c $(SIM_EXTRA_DEPS)
 m32_icache.o: sim-main.h m32_icache.c $(SIM_EXTRA_DEPS)
+
+$(SIM_MULTI_OBJ): sim-main.h $(SIM_EXTRA_DEPS)
 
 BUILT_SRC_FROM_M16 = \
 	m16_icache.h \
@@ -350,7 +354,7 @@ tmp-mach-multi: $(IGEN_INSN) $(IGEN_DC) ../igen/igen $(IGEN_INCLUDE)
 		-n $${p}_support.c   -f  tmp-support.c \
 		-n $${p}_engine.h    -he tmp-engine.h \
 		-n $${p}_engine.c    -e  tmp-engine.c \
-		; \
+	  || exit; \
 	  $(SHELL) $(srcdir)/../../move-if-change tmp-icache.h $${p}_icache.h ; \
 	  $(SHELL) $(srcdir)/../../move-if-change tmp-icache.c $${p}_icache.c ; \
 	  $(SHELL) $(srcdir)/../../move-if-change tmp-idecode.h $${p}_idecode.h ; \

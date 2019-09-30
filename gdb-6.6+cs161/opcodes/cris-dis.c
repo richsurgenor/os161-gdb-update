@@ -1,27 +1,28 @@
 /* Disassembler code for CRIS.
-   Copyright 2000, 2001, 2002, 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright 2000, 2001, 2002, 2004, 2005, 2006, 2007, 2008, 2009, 2012
+   Free Software Foundation, Inc.
    Contributed by Axis Communications AB, Lund, Sweden.
    Written by Hans-Peter Nilsson.
 
-   This file is part of the GNU binutils and GDB, the GNU debugger.
+   This file is part of the GNU opcodes library.
 
-   This program is free software; you can redistribute it and/or modify it
-   under the terms of the GNU General Public License as published by the
-   Free Software Foundation; either version 2, or (at your option) any later
-   version.
+   This library is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   This program is distributed in the hope that it will be useful, but WITHOUT
-   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-   more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-#include "dis-asm.h"
 #include "sysdep.h"
+#include "dis-asm.h"
 #include "opcode/cris.h"
 #include "libiberty.h"
 
@@ -580,7 +581,10 @@ static char *
 format_dec (long number, char *outbuffer, int signedp)
 {
   last_immediate = number;
-  sprintf (outbuffer, signedp ? "%ld" : "%lu", number);
+  if (signedp)
+    sprintf (outbuffer, "%ld", number);
+  else
+    sprintf (outbuffer, "%lu", (unsigned long) number);
 
   return outbuffer + strlen (outbuffer);
 }
@@ -656,17 +660,17 @@ bytes_to_skip (unsigned int insn,
 {
   /* Each insn is a word plus "immediate" operands.  */
   unsigned to_skip = 2;
-  const char *template = matchedp->args;
+  const char *template_name = (const char *) matchedp->args;
   const char *s;
 
-  for (s = template; *s; s++)
+  for (s = template_name; *s; s++)
     if ((*s == 's' || *s == 'N' || *s == 'Y')
 	&& (insn & 0x400) && (insn & 15) == 15
 	&& prefix_matchedp == NULL)
       {
 	/* Immediate via [pc+], so we have to check the size of the
 	   operand.  */
-	int mode_size = 1 << ((insn >> 4) & (*template == 'z' ? 1 : 3));
+	int mode_size = 1 << ((insn >> 4) & (*template_name == 'z' ? 1 : 3));
 
 	if (matchedp->imm_oprnd_size == SIZE_FIX_32)
 	  to_skip += 4;

@@ -1,13 +1,14 @@
 /* BFD ECOFF object file private structure.
    Copyright 1993, 1994, 1995, 1996, 1999, 2001, 2002, 2003, 2004,
-   2005, 2006 Free Software Foundation, Inc.
+   2005, 2006, 2007, 2008, 2009, 2010
+   Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Cygnus Support.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,7 +18,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #include "bfdlink.h"
 
@@ -74,6 +76,11 @@ struct ecoff_backend_data
      is needed because OSF/1 3.2 uses a weird archive format.  */
   bfd *(*get_elt_at_filepos) (bfd *, file_ptr);
 };
+
+/* ECOFF targets don't support COFF long section names, so this
+  macro is provided to use as an initialiser for the related
+  members of the embedded bfd_coff_backend_data struct.  */
+#define ECOFF_NO_LONG_SECTION_NAMES (FALSE), _bfd_ecoff_no_long_sections
 
 /* This is the target specific information kept for ECOFF files.  */
 
@@ -228,7 +235,6 @@ extern bfd_boolean _bfd_ecoff_slurp_symbolic_info
 /* Generic ECOFF BFD backend vectors.  */
 
 extern bfd_boolean _bfd_ecoff_write_object_contents (bfd *);
-extern const bfd_target *_bfd_ecoff_archive_p (bfd *);
 
 #define	_bfd_ecoff_close_and_cleanup _bfd_generic_close_and_cleanup
 #define _bfd_ecoff_bfd_free_cached_info _bfd_generic_bfd_free_cached_info
@@ -265,6 +271,7 @@ extern bfd_boolean _bfd_ecoff_slurp_armap (bfd *);
 extern bfd_boolean _bfd_ecoff_write_armap
   (bfd *, unsigned int, struct orl *, unsigned int, int);
 #define _bfd_ecoff_read_ar_hdr _bfd_generic_read_ar_hdr
+#define _bfd_ecoff_write_ar_hdr _bfd_generic_write_ar_hdr
 #define _bfd_ecoff_openr_next_archived_file \
   bfd_generic_openr_next_archived_file
 #define _bfd_ecoff_get_elt_at_index _bfd_generic_get_elt_at_index
@@ -310,6 +317,8 @@ extern struct bfd_link_hash_table *_bfd_ecoff_bfd_link_hash_table_create
 extern bfd_boolean _bfd_ecoff_bfd_link_add_symbols
   (bfd *, struct bfd_link_info *);
 #define _bfd_ecoff_bfd_link_just_syms _bfd_generic_link_just_syms
+#define _bfd_ecoff_bfd_copy_link_hash_symbol_type \
+  _bfd_generic_copy_link_hash_symbol_type
 extern bfd_boolean _bfd_ecoff_bfd_final_link
   (bfd *, struct bfd_link_info *);
 
@@ -320,6 +329,8 @@ extern void * _bfd_ecoff_mkobject_hook (bfd *, void *, void *);
   ((void (*) (bfd *, asection *, void *)) bfd_void)
 extern bfd_boolean _bfd_ecoff_set_arch_mach_hook
   (bfd *, void *);
+extern bfd_boolean _bfd_ecoff_no_long_sections
+  (bfd *abfd, int enable);
 extern bfd_boolean _bfd_ecoff_styp_to_sec_flags
   (bfd *, void *, const char *, asection *, flagword *);
 extern bfd_boolean _bfd_ecoff_slurp_symbol_table (bfd *);

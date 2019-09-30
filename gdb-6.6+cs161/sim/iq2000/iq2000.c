@@ -1,22 +1,21 @@
 /* IQ2000 simulator support code
-   Copyright (C) 2000, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Cygnus Support.
 
    This file is part of the GNU simulators.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
-   any later version.
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with this program; if not, write to the Free Software Foundation, Inc.,
-   59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #define WANT_CPU
 #define WANT_CPU_IQ2000BF
@@ -107,7 +106,7 @@ do_syscall (SIM_CPU *current_cpu, PCADDR pc)
       SET_H_GR (ret_reg,
 		sim_io_write (CPU_STATE (current_cpu),
 			      PARM1, buf, PARM3));
-      zfree (buf);
+      free (buf);
       break;
 
     case SYS_lseek:
@@ -127,7 +126,7 @@ do_syscall (SIM_CPU *current_cpu, PCADDR pc)
 		sim_io_read (CPU_STATE (current_cpu),
 			     PARM1, buf, PARM3));
       sim_write (CPU_STATE (current_cpu), CPU2DATA(PARM2), buf, PARM3);
-      zfree (buf);
+      free (buf);
       break;
 	    
     case SYS_open:
@@ -135,7 +134,7 @@ do_syscall (SIM_CPU *current_cpu, PCADDR pc)
       SET_H_GR (ret_reg,
 		sim_io_open (CPU_STATE (current_cpu),
 			     buf, PARM2));
-      zfree (buf);
+      free (buf);
       break;
 
     case SYS_close:

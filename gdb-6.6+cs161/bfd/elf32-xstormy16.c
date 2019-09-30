@@ -1,12 +1,12 @@
 /* Xstormy16-specific support for 32-bit ELF.
-   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,11 +16,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301,
-   USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
 #include "elf/xstormy16.h"
@@ -349,6 +349,31 @@ xstormy16_reloc_type_lookup (bfd * abfd ATTRIBUTE_UNUSED,
   return NULL;
 }
 
+static reloc_howto_type *
+xstormy16_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			     const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < (sizeof (xstormy16_elf_howto_table)
+	    / sizeof (xstormy16_elf_howto_table[0]));
+       i++)
+    if (xstormy16_elf_howto_table[i].name != NULL
+	&& strcasecmp (xstormy16_elf_howto_table[i].name, r_name) == 0)
+      return &xstormy16_elf_howto_table[i];
+
+  for (i = 0;
+       i < (sizeof (xstormy16_elf_howto_table2)
+	    / sizeof (xstormy16_elf_howto_table2[0]));
+       i++)
+    if (xstormy16_elf_howto_table2[i].name != NULL
+	&& strcasecmp (xstormy16_elf_howto_table2[i].name, r_name) == 0)
+      return &xstormy16_elf_howto_table2[i];
+
+  return NULL;
+}
+
 /* Set the howto pointer for an XSTORMY16 ELF reloc.  */
 
 static void
@@ -431,18 +456,15 @@ xstormy16_elf_check_relocs (bfd *abfd,
 	    elf_hash_table (info)->dynobj = dynobj = abfd;
 	  if (splt == NULL)
 	    {
-	      splt = bfd_get_section_by_name (dynobj, ".plt");
+	      splt = bfd_get_linker_section (dynobj, ".plt");
 	      if (splt == NULL)
 		{
-		  splt = bfd_make_section_with_flags (dynobj, ".plt",
-						      (SEC_ALLOC
-						       | SEC_LOAD
-						       | SEC_HAS_CONTENTS
-						       | SEC_IN_MEMORY
-						       | SEC_LINKER_CREATED
-						       | SEC_READONLY
-						       | SEC_CODE));
+		  flagword flags = (SEC_ALLOC | SEC_LOAD | SEC_HAS_CONTENTS
+				    | SEC_IN_MEMORY | SEC_LINKER_CREATED
+				    | SEC_READONLY | SEC_CODE);
 
+		  splt = bfd_make_section_anyway_with_flags (dynobj, ".plt",
+							     flags);
 		  if (splt == NULL
 		      || ! bfd_set_section_alignment (dynobj, splt, 1))
 		    return FALSE;
@@ -487,7 +509,9 @@ xstormy16_elf_check_relocs (bfd *abfd,
 	  /* This relocation describes which C++ vtable entries are actually
 	     used.  Record for later use during GC.  */
         case R_XSTORMY16_GNU_VTENTRY:
-          if (!bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
+          BFD_ASSERT (h != NULL);
+          if (h != NULL
+              && !bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
             return FALSE;
           break;
 	}
@@ -509,9 +533,6 @@ static bfd_boolean
 xstormy16_relax_plt_check (struct elf_link_hash_entry *h, void * xdata)
 {
   struct relax_plt_data *data = (struct relax_plt_data *) xdata;
-
-  if (h->root.type == bfd_link_hash_warning)
-    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -543,9 +564,6 @@ static bfd_boolean
 xstormy16_relax_plt_realloc (struct elf_link_hash_entry *h, void * xdata)
 {
   bfd_vma *entry = (bfd_vma *) xdata;
-
-  if (h->root.type == bfd_link_hash_warning)
-    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -698,7 +716,7 @@ xstormy16_elf_always_size_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
   if (dynobj == NULL)
     return TRUE;
 
-  splt = bfd_get_section_by_name (dynobj, ".plt");
+  splt = bfd_get_linker_section (dynobj, ".plt");
   BFD_ASSERT (splt != NULL);
 
   splt->contents = bfd_zalloc (dynobj, splt->size);
@@ -755,9 +773,6 @@ xstormy16_elf_relocate_section (bfd *                   output_bfd ATTRIBUTE_UNU
   bfd *dynobj;
   asection *splt;
 
-  if (info->relocatable)
-    return TRUE;
-
   symtab_hdr = & elf_tdata (input_bfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (input_bfd);
   relend     = relocs + input_section->reloc_count;
@@ -765,7 +780,7 @@ xstormy16_elf_relocate_section (bfd *                   output_bfd ATTRIBUTE_UNU
   dynobj = elf_hash_table (info)->dynobj;
   splt = NULL;
   if (dynobj != NULL)
-    splt = bfd_get_section_by_name (dynobj, ".plt");
+    splt = bfd_get_linker_section (dynobj, ".plt");
 
   for (rel = relocs; rel < relend; rel ++)
     {
@@ -806,6 +821,13 @@ xstormy16_elf_relocate_section (bfd *                   output_bfd ATTRIBUTE_UNU
 				   h, sec, relocation,
 				   unresolved_reloc, warned);
 	}
+
+      if (sec != NULL && discarded_section (sec))
+	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
+					 rel, 1, relend, howto, 0, contents);
+
+      if (info->relocatable)
+	continue;
 
       if (h != NULL)
 	name = h->root.root.string;
@@ -948,7 +970,7 @@ xstormy16_elf_finish_dynamic_sections (bfd *abfd ATTRIBUTE_UNUSED,
      been filled in.  */
 
   if ((dynobj = elf_hash_table (info)->dynobj) != NULL
-      && (splt = bfd_get_section_by_name (dynobj, ".plt")) != NULL)
+      && (splt = bfd_get_linker_section (dynobj, ".plt")) != NULL)
     {
       bfd_byte *contents = splt->contents;
       unsigned int i, size = splt->size;
@@ -1008,6 +1030,8 @@ xstormy16_elf_gc_mark_hook (asection *sec,
 #define elf_backend_rela_normal			1
 
 #define bfd_elf32_bfd_reloc_type_lookup		xstormy16_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup \
+  xstormy16_reloc_name_lookup
 #define bfd_elf32_bfd_relax_section		xstormy16_elf_relax_section
 
 #include "elf32-target.h"

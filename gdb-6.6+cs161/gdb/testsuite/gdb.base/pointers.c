@@ -71,6 +71,15 @@ float ** ptr_to_ptr_to_float;
 
 int y;
 
+
+typedef long k[5];
+
+typedef struct {
+  k array_variable;
+} S;
+
+S instance;
+
 /* Do nothing function used for forcing some of the above variables to
    be referenced by the program source.  If the variables are not
    referenced, some linkers will remove the symbol from the symbol
@@ -82,10 +91,6 @@ int main ()
   void dummy();
   int more_code();
   
-#ifdef usestubs
-  set_debug_traps();
-  breakpoint();
-#endif
   dummy();
 
   more_code ();

@@ -1,13 +1,12 @@
 /* Serial interface for local (hardwired) serial ports on Un*x like systems
 
-   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
-   2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 1992-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "serial.h"
@@ -33,6 +30,7 @@
 
 #include "gdb_select.h"
 #include "gdb_string.h"
+#include "gdbcmd.h"
 
 #ifdef HAVE_TERMIOS
 
@@ -40,6 +38,18 @@ struct hardwire_ttystate
   {
     struct termios termios;
   };
+
+#ifdef CRTSCTS
+/* Boolean to explicitly enable or disable h/w flow control.  */
+static int serial_hwflow;
+static void
+show_serial_hwflow (struct ui_file *file, int from_tty,
+		    struct cmd_list_element *c, const char *value)
+{
+  fprintf_filtered (file, _("Hardware flow control is %s.\n"), value);
+}
+#endif
+
 #endif /* termios */
 
 #ifdef HAVE_TERMIO
@@ -92,7 +102,7 @@ static int hardwire_setstopbits (struct serial *, int);
 
 void _initialize_ser_hardwire (void);
 
-/* Open up a real live device for serial I/O */
+/* Open up a real live device for serial I/O.  */
 
 static int
 hardwire_open (struct serial *scb, const char *name)
@@ -172,7 +182,21 @@ hardwire_get_tty_state (struct serial *scb)
   state = (struct hardwire_ttystate *) xmalloc (sizeof *state);
 
   if (get_tty_state (scb, state))
-    return NULL;
+    {
+      xfree (state);
+      return NULL;
+    }
+
+  return (serial_ttystate) state;
+}
+
+static serial_ttystate
+hardwire_copy_tty_state (struct serial *scb, serial_ttystate ttystate)
+{
+  struct hardwire_ttystate *state;
+
+  state = (struct hardwire_ttystate *) xmalloc (sizeof *state);
+  *state = *(struct hardwire_ttystate *) ttystate;
 
   return (serial_ttystate) state;
 }
@@ -276,7 +300,8 @@ hardwire_print_tty_state (struct serial *scb,
 #endif
 }
 
-/* Wait for the output to drain away, as opposed to flushing (discarding) it */
+/* Wait for the output to drain away, as opposed to flushing
+   (discarding) it.  */
 
 static int
 hardwire_drain_output (struct serial *scb)
@@ -292,9 +317,10 @@ hardwire_drain_output (struct serial *scb)
 #ifdef HAVE_SGTTY
   /* Get the current state and then restore it using TIOCSETP,
      which should cause the output to drain and pending input
-     to be discarded. */
+     to be discarded.  */
   {
     struct hardwire_ttystate state;
+
     if (get_tty_state (scb, &state))
       {
 	return (-1);
@@ -357,16 +383,13 @@ hardwire_send_break (struct serial *scb)
 #ifdef HAVE_SGTTY
   {
     int status;
-    struct timeval timeout;
 
     status = ioctl (scb->fd, TIOCSBRK, 0);
 
     /* Can't use usleep; it doesn't exist in BSD 4.2.  */
-    /* Note that if this select() is interrupted by a signal it will not wait
-       the full length of time.  I think that is OK.  */
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 250000;
-    gdb_select (0, 0, 0, 0, &timeout);
+    /* Note that if this gdb_select() is interrupted by a signal it will not
+       wait the full length of time.  I think that is OK.  */
+    gdb_usleep (250000);
     status = ioctl (scb->fd, TIOCCBRK, 0);
     return status;
   }
@@ -379,7 +402,8 @@ hardwire_raw (struct serial *scb)
   struct hardwire_ttystate state;
 
   if (get_tty_state (scb, &state))
-    fprintf_unfiltered (gdb_stderr, "get_tty_state failed: %s\n", safe_strerror (errno));
+    fprintf_unfiltered (gdb_stderr, "get_tty_state failed: %s\n",
+			safe_strerror (errno));
 
 #ifdef HAVE_TERMIOS
   state.termios.c_iflag = 0;
@@ -387,6 +411,19 @@ hardwire_raw (struct serial *scb)
   state.termios.c_lflag = 0;
   state.termios.c_cflag &= ~(CSIZE | PARENB);
   state.termios.c_cflag |= CLOCAL | CS8;
+#ifdef CRTSCTS
+  /* h/w flow control.  */
+  if (serial_hwflow)
+    state.termios.c_cflag |= CRTSCTS;
+  else
+    state.termios.c_cflag &= ~CRTSCTS;
+#ifdef CRTS_IFLOW
+  if (serial_hwflow)
+    state.termios.c_cflag |= CRTS_IFLOW;
+  else
+    state.termios.c_cflag &= ~CRTS_IFLOW;
+#endif
+#endif
   state.termios.c_cc[VMIN] = 0;
   state.termios.c_cc[VTIME] = 0;
 #endif
@@ -409,24 +446,24 @@ hardwire_raw (struct serial *scb)
   scb->current_timeout = 0;
 
   if (set_tty_state (scb, &state))
-    fprintf_unfiltered (gdb_stderr, "set_tty_state failed: %s\n", safe_strerror (errno));
+    fprintf_unfiltered (gdb_stderr, "set_tty_state failed: %s\n",
+			safe_strerror (errno));
 }
 
 /* Wait for input on scb, with timeout seconds.  Returns 0 on success,
    otherwise SERIAL_TIMEOUT or SERIAL_ERROR.
 
    For termio{s}, we actually just setup VTIME if necessary, and let the
-   timeout occur in the read() in hardwire_read().
- */
+   timeout occur in the read() in hardwire_read().  */
 
 /* FIXME: cagney/1999-09-16: Don't replace this with the equivalent
    ser_base*() until the old TERMIOS/SGTTY/... timer code has been
-   flushed. . */
+   flushed. .  */
 
 /* NOTE: cagney/1999-09-30: Much of the code below is dead.  The only
    possible values of the TIMEOUT parameter are ONE and ZERO.
    Consequently all the code that tries to handle the possability of
-   an overflowed timer is unnecessary. */
+   an overflowed timer is unnecessary.  */
 
 static int
 wait_for (struct serial *scb, int timeout)
@@ -440,7 +477,7 @@ wait_for (struct serial *scb, int timeout)
 
       /* NOTE: Some OS's can scramble the READFDS when the select()
          call fails (ex the kernel with Red Hat 5.2).  Initialize all
-         arguments before each call. */
+         arguments before each call.  */
 
       tv.tv_sec = timeout;
       tv.tv_usec = 0;
@@ -459,7 +496,7 @@ wait_for (struct serial *scb, int timeout)
 	else if (errno == EINTR)
 	  continue;
 	else
-	  return SERIAL_ERROR;	/* Got an error from select or poll */
+	  return SERIAL_ERROR;	/* Got an error from select or poll.  */
 
       return 0;
     }
@@ -475,7 +512,8 @@ wait_for (struct serial *scb, int timeout)
     struct hardwire_ttystate state;
 
     if (get_tty_state (scb, &state))
-      fprintf_unfiltered (gdb_stderr, "get_tty_state failed: %s\n", safe_strerror (errno));
+      fprintf_unfiltered (gdb_stderr, "get_tty_state failed: %s\n",
+			  safe_strerror (errno));
 
 #ifdef HAVE_TERMIOS
     if (timeout < 0)
@@ -527,27 +565,29 @@ wait_for (struct serial *scb, int timeout)
 #endif
 
     if (set_tty_state (scb, &state))
-      fprintf_unfiltered (gdb_stderr, "set_tty_state failed: %s\n", safe_strerror (errno));
+      fprintf_unfiltered (gdb_stderr, "set_tty_state failed: %s\n",
+			  safe_strerror (errno));
 
     return 0;
   }
 #endif /* HAVE_TERMIO || HAVE_TERMIOS */
 }
 
-/* Read a character with user-specified timeout.  TIMEOUT is number of seconds
-   to wait, or -1 to wait forever.  Use timeout of 0 to effect a poll.  Returns
-   char if successful.  Returns SERIAL_TIMEOUT if timeout expired, EOF if line
-   dropped dead, or SERIAL_ERROR for any other error (see errno in that case).  */
+/* Read a character with user-specified timeout.  TIMEOUT is number of
+   seconds to wait, or -1 to wait forever.  Use timeout of 0 to effect
+   a poll.  Returns char if successful.  Returns SERIAL_TIMEOUT if
+   timeout expired, EOF if line dropped dead, or SERIAL_ERROR for any
+   other error (see errno in that case).  */
 
 /* FIXME: cagney/1999-09-16: Don't replace this with the equivalent
    ser_base*() until the old TERMIOS/SGTTY/... timer code has been
-   flushed. */
+   flushed.  */
 
 /* NOTE: cagney/1999-09-16: This function is not identical to
    ser_base_readchar() as part of replacing it with ser_base*()
    merging will be required - this code handles the case where read()
    times out due to no data while ser_base_readchar() doesn't expect
-   that. */
+   that.  */
 
 static int
 do_hardwire_readchar (struct serial *scb, int timeout)
@@ -609,7 +649,7 @@ do_hardwire_readchar (struct serial *scb, int timeout)
 	  else if (errno == EINTR)
 	    continue;
 	  else
-	    return SERIAL_ERROR;	/* Got an error from read */
+	    return SERIAL_ERROR;	/* Got an error from read.  */
 	}
 
       scb->bufcnt = status;
@@ -741,30 +781,31 @@ rate_to_code (int rate)
 
   for (i = 0; baudtab[i].rate != -1; i++)
     {
-      /* test for perfect macth. */
+      /* test for perfect macth.  */
       if (rate == baudtab[i].rate)
         return baudtab[i].code;
       else
         {
-	  /* check if it is in between valid values. */
+	  /* check if it is in between valid values.  */
           if (rate < baudtab[i].rate)
 	    {
 	      if (i)
 	        {
-	          warning (_("Invalid baud rate %d.  Closest values are %d and %d."),
-	                    rate, baudtab[i - 1].rate, baudtab[i].rate);
+	          warning (_("Invalid baud rate %d.  "
+			     "Closest values are %d and %d."),
+			   rate, baudtab[i - 1].rate, baudtab[i].rate);
 		}
 	      else
 	        {
 	          warning (_("Invalid baud rate %d.  Minimum value is %d."),
-	                    rate, baudtab[0].rate);
+			   rate, baudtab[0].rate);
 		}
 	      return -1;
 	    }
         }
     }
  
-  /* The requested speed was too large. */
+  /* The requested speed was too large.  */
   warning (_("Invalid baud rate %d.  Maximum value is %d."),
             rate, baudtab[i - 1].rate);
   return -1;
@@ -779,7 +820,7 @@ hardwire_setbaudrate (struct serial *scb, int rate)
   if (baud_code < 0)
     {
       /* The baud rate was not valid.
-         A warning has already been issued. */
+         A warning has already been issued.  */
       errno = EINVAL;
       return -1;
     }
@@ -867,14 +908,15 @@ void
 _initialize_ser_hardwire (void)
 {
   struct serial_ops *ops = XMALLOC (struct serial_ops);
+
   memset (ops, 0, sizeof (struct serial_ops));
   ops->name = "hardwire";
   ops->next = 0;
   ops->open = hardwire_open;
   ops->close = hardwire_close;
   /* FIXME: Don't replace this with the equivalent ser_base*() until
-     the old TERMIOS/SGTTY/... timer code has been flushed. cagney
-     1999-09-16. */
+     the old TERMIOS/SGTTY/... timer code has been flushed.  cagney
+     1999-09-16.  */
   ops->readchar = hardwire_readchar;
   ops->write = ser_base_write;
   ops->flush_output = hardwire_flush_output;
@@ -882,6 +924,7 @@ _initialize_ser_hardwire (void)
   ops->send_break = hardwire_send_break;
   ops->go_raw = hardwire_raw;
   ops->get_tty_state = hardwire_get_tty_state;
+  ops->copy_tty_state = hardwire_copy_tty_state;
   ops->set_tty_state = hardwire_set_tty_state;
   ops->print_tty_state = hardwire_print_tty_state;
   ops->noflush_set_tty_state = hardwire_noflush_set_tty_state;
@@ -892,6 +935,20 @@ _initialize_ser_hardwire (void)
   ops->read_prim = ser_unix_read_prim;
   ops->write_prim = ser_unix_write_prim;
   serial_add_interface (ops);
+
+#ifdef HAVE_TERMIOS
+#ifdef CRTSCTS
+  add_setshow_boolean_cmd ("remoteflow", no_class,
+			   &serial_hwflow, _("\
+Set use of hardware flow control for remote serial I/O."), _("\
+Show use of hardware flow control for remote serial I/O."), _("\
+Enable or disable hardware flow control (RTS/CTS) on the serial port\n\
+when debugging using remote targets."),
+			   NULL,
+			   show_serial_hwflow,
+			   &setlist, &showlist);
+#endif
+#endif
 }
 
 int

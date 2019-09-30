@@ -1,11 +1,10 @@
 /* environ.c -- library for manipulating environments for GNU.
 
-   Copyright (C) 1986, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 2000, 2005
-   2003 Free Software Foundation, Inc.
+   Copyright (C) 1986-2013 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,9 +13,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -51,6 +48,7 @@ free_environ (struct gdb_environ *e)
   while (*vector)
     xfree (*vector++);
 
+  xfree (e->vector);
   xfree (e);
 }
 
@@ -82,6 +80,7 @@ init_environ (struct gdb_environ *e)
     {
       int len = strlen (e->vector[i]);
       char *new = (char *) xmalloc (len + 1);
+
       memcpy (new, e->vector[i], len + 1);
       e->vector[i] = new;
     }
@@ -175,7 +174,7 @@ unset_in_environ (struct gdb_environ *e, char *var)
 	  xfree (s);
 	  /* Walk through the vector, shuffling args down by one, including
 	     the NULL terminator.  Can't use memcpy() here since the regions
-	     overlap, and memmove() might not be available. */
+	     overlap, and memmove() might not be available.  */
 	  while ((vector[0] = vector[1]) != NULL)
 	    {
 	      vector++;

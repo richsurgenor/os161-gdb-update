@@ -1,5 +1,5 @@
 /* Renesas / SuperH specific support for Symbian 32-bit ELF files
-   Copyright 2004, 2005, 2006
+   Copyright 2004, 2005, 2006, 2007, 2008
    Free Software Foundation, Inc.
    Contributed by Red Hat
 
@@ -7,7 +7,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,12 +17,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* Stop elf32-sh.c from defining any target vectors.  */
 #define SH_TARGET_ALREADY_DEFINED
 #define sh_find_elf_flags           sh_symbian_find_elf_flags
-#define sh_elf_get_flags_from_mach  sh_symbian_elf_get_flags_from_mach 
+#define sh_elf_get_flags_from_mach  sh_symbian_elf_get_flags_from_mach
 #include "elf32-sh.c"
 
 
@@ -127,7 +129,7 @@ sh_symbian_import_as (struct bfd_link_info *info, bfd * abfd,
 	bfd_set_error (bfd_error_invalid_operation);
 	_bfd_error_handler (_("%B: IMPORT AS directive for %s conceals previous IMPORT AS"),
 			    abfd, current_name);
-	return FALSE;	    
+	return FALSE;
       }
 
   if ((node = bfd_malloc (sizeof * node)) == NULL)
@@ -146,7 +148,7 @@ sh_symbian_import_as (struct bfd_link_info *info, bfd * abfd,
     }
   else
     strcpy (node->current_name, current_name);
-  
+
   if ((node->new_name = bfd_malloc (strlen (new_name) + 1)) == NULL)
     {
       if (SYMBIAN_DEBUG)
@@ -376,7 +378,7 @@ sh_symbian_process_embedded_commands (struct bfd_link_info *info, bfd * abfd,
 	  if (SYMBIAN_DEBUG)
 	    fprintf (stderr, "offset into .directive section: %ld\n",
 		     (long) (directive - (char *) contents));
-	  
+
 	  bfd_set_error (bfd_error_invalid_operation);
 	  _bfd_error_handler (_("%B: Unrecognised .directive command: %s"),
 			      abfd, directive);
@@ -390,10 +392,9 @@ sh_symbian_process_embedded_commands (struct bfd_link_info *info, bfd * abfd,
 
 /* Scan a bfd for a .directive section, and if found process it.
    Returns TRUE upon success, FALSE otherwise.  */
-bfd_boolean bfd_elf32_sh_symbian_process_directives (struct bfd_link_info *info, bfd * abfd);
 
-bfd_boolean
-bfd_elf32_sh_symbian_process_directives (struct bfd_link_info *info, bfd * abfd)
+static bfd_boolean
+sh_symbian_process_directives (bfd *abfd, struct bfd_link_info *info)
 {
   bfd_boolean result = FALSE;
   bfd_byte *  contents;
@@ -408,7 +409,7 @@ bfd_elf32_sh_symbian_process_directives (struct bfd_link_info *info, bfd * abfd)
 
   if (!contents)
     bfd_set_error (bfd_error_no_memory);
-  else 
+  else
     {
       if (bfd_get_section_contents (abfd, sec, contents, 0, sz))
 	result = sh_symbian_process_embedded_commands (info, abfd, sec, contents);
@@ -443,9 +444,9 @@ sh_symbian_relocate_section (bfd *                  output_bfd,
       symbol_rename *                ptr;
       bfd_size_type                  num_global_syms;
       unsigned long		     num_local_syms;
-      
+
       BFD_ASSERT (! elf_bad_symtab (input_bfd));
- 
+
       symtab_hdr       = & elf_tdata (input_bfd)->symtab_hdr;
       hash_table       = elf_hash_table (info);
       num_local_syms   = symtab_hdr->sh_info;
@@ -468,7 +469,7 @@ sh_symbian_relocate_section (bfd *                  output_bfd,
 		fprintf (stderr, "IMPORT AS: current symbol '%s' does not exist\n", ptr->current_name);
 	      continue;
 	    }
-	  
+
 	  new_hash = elf_link_hash_lookup (hash_table, ptr->new_name, FALSE, FALSE, TRUE);
 
 	  /* If we could not find the symbol then it is a new, undefined symbol.
@@ -491,11 +492,12 @@ sh_symbian_relocate_section (bfd *                  output_bfd,
 	      new_sym.st_info  = ELF_ST_INFO (STB_GLOBAL, STT_FUNC);
 	      new_sym.st_other = ELF_ST_VISIBILITY (STV_DEFAULT);
 	      new_sym.st_shndx = SHN_UNDEF;
+	      new_sym.st_target_internal = 0;
 
 	      if (! _bfd_elf_merge_symbol (input_bfd, info,
 					   ptr->new_name, & new_sym,
 					   & psec, & new_value, NULL,
-					   & new_hash, & skip,
+					   NULL, & new_hash, & skip,
 					   & override, & type_change_ok,
 					   & size_change_ok))
 		{
@@ -566,7 +568,7 @@ sh_symbian_relocate_section (bfd *                  output_bfd,
 	  int                          r_type;
 	  unsigned long                r_symndx;
 	  struct elf_link_hash_entry * h;
-      
+
 	  r_symndx = ELF32_R_SYM (rel->r_info);
 	  r_type = ELF32_R_TYPE (rel->r_info);
 
@@ -603,21 +605,16 @@ sh_symbian_relocate_section (bfd *                  output_bfd,
 		BFD_ASSERT (ptr->new_symndx);
 		if (SYMBIAN_DEBUG)
 		  fprintf (stderr, "convert reloc %lx from using index %ld to using index %ld\n",
-			   (long) rel->r_info, (long) ELF32_R_SYM (rel->r_info), ptr->new_symndx);
+			   (unsigned long) rel->r_info,
+			   (long) ELF32_R_SYM (rel->r_info), ptr->new_symndx);
 		rel->r_info = ELF32_R_INFO (ptr->new_symndx, r_type);
 		break;
 	      }
 	}
     }
-  
+
   return sh_elf_relocate_section (output_bfd, info, input_bfd, input_section,
 				  contents, relocs, local_syms, local_sections);
-}
-
-static bfd_boolean
-sh_symbian_check_directives (bfd *abfd, struct bfd_link_info *info)
-{
-  return bfd_elf32_sh_symbian_process_directives (info, abfd);
 }
 
 #define TARGET_LITTLE_SYM	bfd_elf32_shl_symbian_vec
@@ -626,6 +623,6 @@ sh_symbian_check_directives (bfd *abfd, struct bfd_link_info *info)
 #undef  elf_backend_relocate_section
 #define elf_backend_relocate_section	sh_symbian_relocate_section
 #undef  elf_backend_check_directives
-#define elf_backend_check_directives    sh_symbian_check_directives
+#define elf_backend_check_directives    sh_symbian_process_directives
 
 #include "elf32-target.h"

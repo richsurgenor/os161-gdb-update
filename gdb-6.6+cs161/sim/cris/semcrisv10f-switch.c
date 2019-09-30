@@ -2,23 +2,22 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996-2005 Free Software Foundation, Inc.
+Copyright 1996-2013 Free Software Foundation, Inc.
 
 This file is part of the GNU simulators.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -271,11 +270,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #endif
 
 #undef GET_ATTR
-#if defined (__STDC__) || defined (ALMOST_STDC) || defined (HAVE_STRINGIZE)
 #define GET_ATTR(cpu, num, attr) CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_##attr)
-#else
-#define GET_ATTR(cpu, num, attr) CGEN_ATTR_VALUE (NULL, abuf->idesc->attrs, CGEN_INSN_/**/attr)
-#endif
 
 {
 
@@ -306,7 +301,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -331,7 +326,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -350,7 +345,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -369,7 +364,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -397,7 +392,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -419,7 +414,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 0);
@@ -448,7 +443,7 @@ SWITCH (sem, SEM_ARGBUF (vpc) -> semantic.sem_case)
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
@@ -727,10 +722,12 @@ SET_H_VBIT_MOVE (0);
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
 
 {
-  QI tmp_newval;
-  tmp_newval = GET_H_GR (FLD (f_operand1));
+  QI tmp_tmpops;
+  SI tmp_newval;
+  tmp_tmpops = GET_H_GR (FLD (f_operand1));
+  tmp_newval = EXTQISI (tmp_tmpops);
   {
-    SI opval = EXTQISI (tmp_newval);
+    SI opval = tmp_newval;
     SET_H_GR (FLD (f_operand2), opval);
     TRACE_RESULT (current_cpu, abuf, "gr", 'x', opval);
   }
@@ -776,10 +773,12 @@ SET_H_VBIT_MOVE (0);
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
 
 {
-  HI tmp_newval;
-  tmp_newval = GET_H_GR (FLD (f_operand1));
+  HI tmp_tmpops;
+  SI tmp_newval;
+  tmp_tmpops = GET_H_GR (FLD (f_operand1));
+  tmp_newval = EXTHISI (tmp_tmpops);
   {
-    SI opval = EXTHISI (tmp_newval);
+    SI opval = tmp_newval;
     SET_H_GR (FLD (f_operand2), opval);
     TRACE_RESULT (current_cpu, abuf, "gr", 'x', opval);
   }
@@ -825,10 +824,12 @@ SET_H_VBIT_MOVE (0);
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
 
 {
-  QI tmp_newval;
-  tmp_newval = GET_H_GR (FLD (f_operand1));
+  QI tmp_tmpops;
+  SI tmp_newval;
+  tmp_tmpops = GET_H_GR (FLD (f_operand1));
+  tmp_newval = ZEXTQISI (tmp_tmpops);
   {
-    SI opval = ZEXTQISI (tmp_newval);
+    SI opval = tmp_newval;
     SET_H_GR (FLD (f_operand2), opval);
     TRACE_RESULT (current_cpu, abuf, "gr", 'x', opval);
   }
@@ -874,10 +875,12 @@ SET_H_VBIT_MOVE (0);
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
 
 {
-  HI tmp_newval;
-  tmp_newval = GET_H_GR (FLD (f_operand1));
+  HI tmp_tmpops;
+  SI tmp_newval;
+  tmp_tmpops = GET_H_GR (FLD (f_operand1));
+  tmp_newval = ZEXTHISI (tmp_tmpops);
   {
-    SI opval = ZEXTHISI (tmp_newval);
+    SI opval = tmp_newval;
     SET_H_GR (FLD (f_operand2), opval);
     TRACE_RESULT (current_cpu, abuf, "gr", 'x', opval);
   }
@@ -4625,7 +4628,7 @@ cgen_rtx_error (current_cpu, "write from unimplemented special register");
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   vpc = SEM_NEXT_VPC (sem_arg, pc, 2);
@@ -6470,7 +6473,7 @@ if (EQBI (GET_H_INSN_PREFIXED_P (), 0)) {
 {
   SEM_ARG sem_arg = SEM_SEM_ARG (vpc, sc);
   ARGBUF *abuf = SEM_ARGBUF (sem_arg);
-#define FLD(f) abuf->fields.fmt_empty.f
+#define FLD(f) abuf->fields.sfmt_empty.f
   int UNUSED written = 0;
   IADDR UNUSED pc = abuf->addr;
   SEM_BRANCH_INIT

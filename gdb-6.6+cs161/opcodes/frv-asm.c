@@ -4,24 +4,25 @@
    THIS FILE IS MACHINE GENERATED WITH CGEN.
    - the resultant file is machine generated, cgen-asm.in isn't
 
-   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005
+   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005, 2007, 2008, 2010
    Free Software Foundation, Inc.
 
-   This file is part of the GNU Binutils and GDB, the GNU debugger.
+   This file is part of libopcodes.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+
 
 /* ??? Eventually more and more of this stuff can go to cpu-independent files.
    Keep that in mind.  */
@@ -464,11 +465,11 @@ parse_uhi16 (CGEN_CPU_DESC cd,
 	  if (errmsg == NULL
 	      && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
 	    {
-	      /* If bfd_vma is wider than 32 bits, but we have a sign-
-		 or zero-extension, truncate it.  */
-	      if (value >= - ((bfd_vma)1 << 31)
-		  || value <= ((bfd_vma)1 << 31) - (bfd_vma)1)
-		value &= (((bfd_vma)1 << 16) << 16) - 1;
+ 	      /* If value is wider than 32 bits then be
+ 		 careful about how we extract bits 16-31.  */
+ 	      if (sizeof (value) > 4)
+ 		value &= (((bfd_vma)1 << 16) << 16) - 1;
+
 	      value >>= 16;
 	    }
 	  *valuep = value;
@@ -1278,6 +1279,9 @@ frv_cgen_init_asm (CGEN_CPU_DESC cd)
   frv_cgen_init_ibld_table (cd);
   cd->parse_handlers = & frv_cgen_parse_handlers[0];
   cd->parse_operand = frv_cgen_parse_operand;
+#ifdef CGEN_ASM_INIT_HOOK
+CGEN_ASM_INIT_HOOK
+#endif
 }
 
 
@@ -1506,9 +1510,11 @@ parse_insn_normal (CGEN_CPU_DESC cd,
 	  continue;
 	}
 
+#ifdef CGEN_MNEMONIC_OPERANDS
+      (void) past_opcode_p;
+#endif
       /* We have an operand of some sort.  */
-      errmsg = cd->parse_operand (cd, CGEN_SYNTAX_FIELD (*syn),
-					  &str, fields);
+      errmsg = cd->parse_operand (cd, CGEN_SYNTAX_FIELD (*syn), &str, fields);
       if (errmsg)
 	return errmsg;
 
@@ -1625,31 +1631,39 @@ frv_cgen_assemble_insn (CGEN_CPU_DESC cd,
 
   {
     static char errbuf[150];
-#ifdef CGEN_VERBOSE_ASSEMBLER_ERRORS
     const char *tmp_errmsg;
-
-    /* If requesting verbose error messages, use insert_errmsg.
-       Failing that, use parse_errmsg.  */
-    tmp_errmsg = (insert_errmsg ? insert_errmsg :
-		  parse_errmsg ? parse_errmsg :
-		  recognized_mnemonic ?
-		  _("unrecognized form of instruction") :
-		  _("unrecognized instruction"));
-
-    if (strlen (start) > 50)
-      /* xgettext:c-format */
-      sprintf (errbuf, "%s `%.50s...'", tmp_errmsg, start);
-    else 
-      /* xgettext:c-format */
-      sprintf (errbuf, "%s `%.50s'", tmp_errmsg, start);
+#ifdef CGEN_VERBOSE_ASSEMBLER_ERRORS
+#define be_verbose 1
 #else
-    if (strlen (start) > 50)
-      /* xgettext:c-format */
-      sprintf (errbuf, _("bad instruction `%.50s...'"), start);
-    else 
-      /* xgettext:c-format */
-      sprintf (errbuf, _("bad instruction `%.50s'"), start);
+#define be_verbose 0
 #endif
+
+    if (be_verbose)
+      {
+	/* If requesting verbose error messages, use insert_errmsg.
+	   Failing that, use parse_errmsg.  */
+	tmp_errmsg = (insert_errmsg ? insert_errmsg :
+		      parse_errmsg ? parse_errmsg :
+		      recognized_mnemonic ?
+		      _("unrecognized form of instruction") :
+		      _("unrecognized instruction"));
+
+	if (strlen (start) > 50)
+	  /* xgettext:c-format */
+	  sprintf (errbuf, "%s `%.50s...'", tmp_errmsg, start);
+	else 
+	  /* xgettext:c-format */
+	  sprintf (errbuf, "%s `%.50s'", tmp_errmsg, start);
+      }
+    else
+      {
+	if (strlen (start) > 50)
+	  /* xgettext:c-format */
+	  sprintf (errbuf, _("bad instruction `%.50s...'"), start);
+	else 
+	  /* xgettext:c-format */
+	  sprintf (errbuf, _("bad instruction `%.50s'"), start);
+      }
       
     *errmsg = errbuf;
     return NULL;

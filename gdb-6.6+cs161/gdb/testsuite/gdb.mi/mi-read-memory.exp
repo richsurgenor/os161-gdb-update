@@ -1,33 +1,19 @@
-# Copyright 1999, 2000, 2001, 2002 Free Software Foundation, Inc.
+# Copyright 1999-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Please email any bugs, comments, and/or additions to this file to:
-# bug-gdb@prep.ai.mit.edu
-
-#
-# test basic Machine interface (MI) operations
-#
-# Verify that, using the MI, we can load a program and do
-# other basic things that are used by all test files through  mi_gdb_exit,
-# mi_gdb_start, mi_delete_breakpoints, mi_gdb_reinitialize_dir and
-# mi_gdb_load, so we can safely use those.
-#
-# The goal is not to test gdb functionality, which is done by other tests,
-# but the command syntax and correct output response to MI operations.
-#
+# Test -data-read-memory.
 
 load_lib mi-support.exp
 set MIFLAGS "-i=mi"
@@ -37,10 +23,9 @@ if [mi_gdb_start] {
     continue
 }
 
-set testfile "mi-read-memory"
-set srcfile ${testfile}.c
-set binfile ${objdir}/${subdir}/${testfile}
-if  { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable {debug additional_flags=-DFAKEARGV}] != "" } {
+standard_testfile
+
+if  { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable {debug}] != "" } {
      untested mi-read-memory.exp
      return -1
 }

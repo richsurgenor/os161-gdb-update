@@ -2,6 +2,9 @@
 
 enum region { oriental, egyptian, greek, etruscan, roman };
 
+void keepalive(bool *var) { }
+void keepalive_int (int *var) { }
+
 // Test one.
 class gnu_obj_1
 {
@@ -15,6 +18,17 @@ protected:
 
 public:
   gnu_obj_1(antiquities a, long l) {}
+  ~gnu_obj_1() {}
+
+  long method ()
+  {
+    static int sintvar = 4;
+    static bool svar = true;
+
+    keepalive (&svar);
+    keepalive_int (&sintvar);
+    return key2;
+  }
 };
 
 const bool gnu_obj_1::test;
@@ -68,6 +82,10 @@ int main()
   gnu_obj_3<long>	test3(greek);
   gnu_obj_4		test4;
 
+  test4.dummy = test4.elsewhere;
   test4.dummy = 0;
-  return test4.dummy;	// breakpoint: constructs-done
+
+  test1.method (); // breakpoint: constructs-done
+
+  return test4.dummy;
 }

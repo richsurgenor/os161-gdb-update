@@ -3,20 +3,20 @@
    THIS FILE IS MACHINE GENERATED WITH CGEN: Cpu tools GENerator.
    - the resultant file is machine generated, cgen-ibld.in isn't
 
-   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005, 2006, 2007,
+   2008, 2010  Free Software Foundation, Inc.
 
-   This file is part of the GNU Binutils and GDB, the GNU debugger.
+   This file is part of libopcodes.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation, Inc.,
@@ -33,6 +33,7 @@
 #include "symcat.h"
 #include "iq2000-desc.h"
 #include "iq2000-opc.h"
+#include "cgen/basic-modes.h"
 #include "opintl.h"
 #include "safe-ctype.h"
 
@@ -137,7 +138,7 @@ insert_normal (CGEN_CPU_DESC cd,
   if (length == 0)
     return NULL;
 
-  if (word_length > 32)
+  if (word_length > 8 * sizeof (CGEN_INSN_INT))
     abort ();
 
   /* For architectures with insns smaller than the base-insn-bitsize,
@@ -441,7 +442,7 @@ extract_normal (CGEN_CPU_DESC cd,
       return 1;
     }
 
-  if (word_length > 32)
+  if (word_length > 8 * sizeof (CGEN_INSN_INT))
     abort ();
 
   /* For architectures with insns smaller than the insn-base-bitsize,
@@ -468,7 +469,7 @@ extract_normal (CGEN_CPU_DESC cd,
     {
       unsigned char *bufp = ex_info->insn_bytes + word_offset / 8;
 
-      if (word_length > 32)
+      if (word_length > 8 * sizeof (CGEN_INSN_INT))
 	abort ();
 
       if (fill_cache (cd, ex_info, word_offset / 8, word_length / 8, pc) == 0)
@@ -613,14 +614,14 @@ iq2000_cgen_insert_operand (CGEN_CPU_DESC cd,
     case IQ2000_OPERAND_JMPTARG :
       {
         long value = fields->f_jtarg;
-        value = ((unsigned int) (((value) & (262143))) >> (2));
+        value = ((USI) (((value) & (262143))) >> (2));
         errmsg = insert_normal (cd, value, 0|(1<<CGEN_IFLD_ABS_ADDR), 0, 15, 16, 32, total_length, buffer);
       }
       break;
     case IQ2000_OPERAND_JMPTARGQ10 :
       {
         long value = fields->f_jtargq10;
-        value = ((unsigned int) (((value) & (8388607))) >> (2));
+        value = ((USI) (((value) & (8388607))) >> (2));
         errmsg = insert_normal (cd, value, 0|(1<<CGEN_IFLD_ABS_ADDR), 0, 20, 21, 32, total_length, buffer);
       }
       break;
@@ -645,7 +646,7 @@ iq2000_cgen_insert_operand (CGEN_CPU_DESC cd,
     case IQ2000_OPERAND_OFFSET :
       {
         long value = fields->f_offset;
-        value = ((int) (((value) - (pc))) >> (2));
+        value = ((SI) (((value) - (pc))) >> (2));
         errmsg = insert_normal (cd, value, 0|(1<<CGEN_IFLD_SIGNED)|(1<<CGEN_IFLD_PCREL_ADDR), 0, 15, 16, 32, total_length, buffer);
       }
       break;

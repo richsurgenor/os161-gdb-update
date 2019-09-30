@@ -1,33 +1,34 @@
 /* BFD back-end for linux flavored i386 a.out binaries.
    Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1999, 2001, 2002, 2003,
-   2004, 2006 Free Software Foundation, Inc.
+   2004, 2005, 2006, 2007, 2008, 2009, 2011, 2012
+   Free Software Foundation, Inc.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #define	TARGET_PAGE_SIZE	4096
 #define ZMAGIC_DISK_BLOCK_SIZE 1024
 #define	SEGMENT_SIZE TARGET_PAGE_SIZE
 #define TEXT_START_ADDR	0x0
-#define N_SHARED_LIB(x) 0
 
 #define MACHTYPE_OK(mtype) ((mtype) == M_386 || (mtype) == M_UNKNOWN)
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "aout/aout64.h"
 #include "aout/stab_gnu.h"
@@ -49,15 +50,13 @@ extern const bfd_target MY(vec);
    becomes important.  */
 
 static void MY_final_link_callback
-  PARAMS ((bfd *, file_ptr *, file_ptr *, file_ptr *));
+  (bfd *, file_ptr *, file_ptr *, file_ptr *);
 static bfd_boolean i386linux_bfd_final_link
-  PARAMS ((bfd *, struct bfd_link_info *));
-static bfd_boolean i386linux_write_object_contents PARAMS ((bfd *));
+  (bfd *, struct bfd_link_info *);
+static bfd_boolean i386linux_write_object_contents (bfd *);
 
 static bfd_boolean
-i386linux_bfd_final_link (abfd, info)
-     bfd *abfd;
-     struct bfd_link_info *info;
+i386linux_bfd_final_link (bfd *abfd, struct bfd_link_info *info)
 {
   obj_aout_subformat (abfd) = q_magic_format;
   return NAME(aout,final_link) (abfd, info, MY_final_link_callback);
@@ -68,8 +67,7 @@ i386linux_bfd_final_link (abfd, info)
 /* Set the machine type correctly.  */
 
 static bfd_boolean
-i386linux_write_object_contents (abfd)
-     bfd *abfd;
+i386linux_write_object_contents (bfd *abfd)
 {
   struct external_exec exec_bytes;
   struct internal_exec *execp = exec_hdr (abfd);
@@ -169,31 +167,12 @@ struct linux_link_hash_table
   struct fixup *fixup_list;
 };
 
-static struct bfd_hash_entry *linux_link_hash_newfunc
-  PARAMS ((struct bfd_hash_entry *, struct bfd_hash_table *, const char *));
-static struct bfd_link_hash_table *linux_link_hash_table_create
-  PARAMS ((bfd *));
-static struct fixup *new_fixup
-  PARAMS ((struct bfd_link_info *, struct linux_link_hash_entry *,
-	   bfd_vma, int));
-static bfd_boolean linux_link_create_dynamic_sections
-  PARAMS ((bfd *, struct bfd_link_info *));
-static bfd_boolean linux_add_one_symbol
-  PARAMS ((struct bfd_link_info *, bfd *, const char *, flagword, asection *,
-	   bfd_vma, const char *, bfd_boolean, bfd_boolean,
-	   struct bfd_link_hash_entry **));
-static bfd_boolean linux_tally_symbols
-  PARAMS ((struct linux_link_hash_entry *, PTR));
-static bfd_boolean linux_finish_dynamic_link
-  PARAMS ((bfd *, struct bfd_link_info *));
-
 /* Routine to create an entry in an Linux link hash table.  */
 
 static struct bfd_hash_entry *
-linux_link_hash_newfunc (entry, table, string)
-     struct bfd_hash_entry *entry;
-     struct bfd_hash_table *table;
-     const char *string;
+linux_link_hash_newfunc (struct bfd_hash_entry *entry,
+			 struct bfd_hash_table *table,
+			 const char *string)
 {
   struct linux_link_hash_entry *ret = (struct linux_link_hash_entry *) entry;
 
@@ -220,13 +199,12 @@ linux_link_hash_newfunc (entry, table, string)
 /* Create a Linux link hash table.  */
 
 static struct bfd_link_hash_table *
-linux_link_hash_table_create (abfd)
-     bfd *abfd;
+linux_link_hash_table_create (bfd *abfd)
 {
   struct linux_link_hash_table *ret;
   bfd_size_type amt = sizeof (struct linux_link_hash_table);
 
-  ret = (struct linux_link_hash_table *) bfd_alloc (abfd, amt);
+  ret = (struct linux_link_hash_table *) bfd_zmalloc (amt);
   if (ret == (struct linux_link_hash_table *) NULL)
     return (struct bfd_link_hash_table *) NULL;
   if (!NAME(aout,link_hash_table_init) (&ret->root, abfd,
@@ -236,11 +214,6 @@ linux_link_hash_table_create (abfd)
       free (ret);
       return (struct bfd_link_hash_table *) NULL;
     }
-
-  ret->dynobj = NULL;
-  ret->fixup_count = 0;
-  ret->local_builtins = 0;
-  ret->fixup_list = NULL;
 
   return &ret->root.root;
 }
@@ -257,7 +230,7 @@ linux_link_hash_table_create (abfd)
 #define linux_link_hash_traverse(table, func, info)			\
   (aout_link_hash_traverse						\
    (&(table)->root,							\
-    (bfd_boolean (*) PARAMS ((struct aout_link_hash_entry *, PTR))) (func), \
+    (bfd_boolean (*) (struct aout_link_hash_entry *, void *)) (func),   \
     (info)))
 
 /* Get the Linux link hash table from the info structure.  This is
@@ -268,11 +241,10 @@ linux_link_hash_table_create (abfd)
 /* Store the information for a new fixup.  */
 
 static struct fixup *
-new_fixup (info, h, value, builtin)
-     struct bfd_link_info *info;
-     struct linux_link_hash_entry *h;
-     bfd_vma value;
-     int builtin;
+new_fixup (struct bfd_link_info *info,
+	   struct linux_link_hash_entry *h,
+	   bfd_vma value,
+	   int builtin)
 {
   struct fixup *f;
 
@@ -298,12 +270,11 @@ new_fixup (info, h, value, builtin)
    create it for now.  */
 
 static bfd_boolean
-linux_link_create_dynamic_sections (abfd, info)
-     bfd *abfd;
-     struct bfd_link_info *info ATTRIBUTE_UNUSED;
+linux_link_create_dynamic_sections (bfd *abfd,
+				    struct bfd_link_info *info ATTRIBUTE_UNUSED)
 {
   flagword flags;
-  register asection *s;
+  asection *s;
 
   /* Note that we set the SEC_IN_MEMORY flag.  */
   flags = SEC_ALLOC | SEC_LOAD | SEC_HAS_CONTENTS | SEC_IN_MEMORY;
@@ -325,18 +296,16 @@ linux_link_create_dynamic_sections (abfd, info)
    tweaking needed for dynamic linking support.  */
 
 static bfd_boolean
-linux_add_one_symbol (info, abfd, name, flags, section, value, string,
-		      copy, collect, hashp)
-     struct bfd_link_info *info;
-     bfd *abfd;
-     const char *name;
-     flagword flags;
-     asection *section;
-     bfd_vma value;
-     const char *string;
-     bfd_boolean copy;
-     bfd_boolean collect;
-     struct bfd_link_hash_entry **hashp;
+linux_add_one_symbol (struct bfd_link_info *info,
+		      bfd *abfd,
+		      const char *name,
+		      flagword flags,
+		      asection *section,
+		      bfd_vma value,
+		      const char *string,
+		      bfd_boolean copy,
+		      bfd_boolean collect,
+		      struct bfd_link_hash_entry **hashp)
 {
   struct linux_link_hash_entry *h;
   bfd_boolean insert;
@@ -345,9 +314,9 @@ linux_add_one_symbol (info, abfd, name, flags, section, value, string,
      If we do, and the defining entry is from a shared library, we
      need to create the dynamic sections.
 
-     FIXME: What if abfd->xvec != info->hash->creator?  We may want to
-     be able to link Linux a.out and ELF objects together, but serious
-     confusion is possible.  */
+     FIXME: What if abfd->xvec != info->output_bfd->xvec?  We may
+     want to be able to link Linux a.out and ELF objects together,
+     but serious confusion is possible.  */
 
   insert = FALSE;
 
@@ -355,7 +324,7 @@ linux_add_one_symbol (info, abfd, name, flags, section, value, string,
       && linux_hash_table (info)->dynobj == NULL
       && strcmp (name, SHARABLE_CONFLICTS) == 0
       && (flags & BSF_CONSTRUCTOR) != 0
-      && abfd->xvec == info->hash->creator)
+      && abfd->xvec == info->output_bfd->xvec)
     {
       if (! linux_link_create_dynamic_sections (abfd, info))
 	return FALSE;
@@ -364,7 +333,7 @@ linux_add_one_symbol (info, abfd, name, flags, section, value, string,
     }
 
   if (bfd_is_abs_section (section)
-      && abfd->xvec == info->hash->creator)
+      && abfd->xvec == info->output_bfd->xvec)
     {
       h = linux_link_hash_lookup (linux_hash_table (info), name, FALSE,
 				  FALSE, FALSE);
@@ -425,18 +394,13 @@ linux_add_one_symbol (info, abfd, name, flags, section, value, string,
    This function is called via linux_link_hash_traverse.  */
 
 static bfd_boolean
-linux_tally_symbols (h, data)
-     struct linux_link_hash_entry *h;
-     PTR data;
+linux_tally_symbols (struct linux_link_hash_entry *h, void * data)
 {
   struct bfd_link_info *info = (struct bfd_link_info *) data;
   struct fixup *f, *f1;
   int is_plt;
   struct linux_link_hash_entry *h1, *h2;
   bfd_boolean exists;
-
-  if (h->root.root.type == bfd_link_hash_warning)
-    h = (struct linux_link_hash_entry *) h->root.root.u.i.link;
 
   if (h->root.root.type == bfd_link_hash_undefined
       && CONST_STRNEQ (h->root.root.root.string, NEEDS_SHRLIB))
@@ -551,9 +515,8 @@ linux_tally_symbols (h, data)
    are required.  */
 
 bfd_boolean
-bfd_i386linux_size_dynamic_sections (output_bfd, info)
-     bfd *output_bfd;
-     struct bfd_link_info *info;
+bfd_i386linux_size_dynamic_sections (bfd *output_bfd,
+				     struct bfd_link_info *info)
 {
   struct fixup *f;
   asection *s;
@@ -564,7 +527,7 @@ bfd_i386linux_size_dynamic_sections (output_bfd, info)
   /* First find the fixups... */
   linux_link_hash_traverse (linux_hash_table (info),
 			    linux_tally_symbols,
-			    (PTR) info);
+			    info);
 
   /* If there are builtin fixups, leave room for a marker.  This is
      used by the dynamic linker so that it knows that all that follow
@@ -606,9 +569,8 @@ bfd_i386linux_size_dynamic_sections (output_bfd, info)
    the stuff we need.  */
 
 static bfd_boolean
-linux_finish_dynamic_link (output_bfd, info)
-     bfd *output_bfd;
-     struct bfd_link_info *info;
+linux_finish_dynamic_link (bfd *output_bfd,
+			   struct bfd_link_info *info)
 {
   asection *s, *os, *is;
   bfd_byte *fixup_table;
@@ -758,7 +720,7 @@ linux_finish_dynamic_link (output_bfd, info)
 		SEEK_SET) != 0)
     return FALSE;
 
-  if (bfd_bwrite ((PTR) s->contents, s->size, output_bfd) != s->size)
+  if (bfd_bwrite (s->contents, s->size, output_bfd) != s->size)
     return FALSE;
 
   return TRUE;

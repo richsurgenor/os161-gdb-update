@@ -2,29 +2,30 @@
    This was based on trad-core.c, which was written by John Gilmore of
         Cygnus Support.
    Copyright 1988, 1989, 1991, 1992, 1993, 1994, 1996, 1998, 1999, 2000,
-   2001, 2002, 2004, 2006
+   2001, 2002, 2004, 2005, 2006, 2007, 2010, 2011, 2012
    Free Software Foundation, Inc.
    Written by Minh Tran-Le <TRANLE@INTELLICORP.COM>.
    Converted to back end form by Ian Lance Taylor <ian@cygnus.com>.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "coff/i386.h"
 #include "coff/internal.h"
@@ -58,32 +59,31 @@ Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA. 
     (((bfd)->tdata.trad_core_data)->reg2_section)
 
 /* These are stored in the bfd's tdata.  */
-struct trad_core_struct {
+struct trad_core_struct
+{
   struct corehdr *hdr;		/* core file header */
   asection *reg_section;
   asection *reg2_section;
   asection *sections[MAX_CORE_SEGS];
 };
 
-static void swap_abort PARAMS ((void));
-
 static const bfd_target *
-aix386_core_file_p (abfd)
-     bfd *abfd;
+aix386_core_file_p (bfd *abfd)
 {
   int i, n;
   unsigned char longbuf[4];	/* Raw bytes of various header fields */
   bfd_size_type core_size = sizeof (struct corehdr);
   bfd_size_type amt;
   struct corehdr *core;
-  struct mergem {
+  struct mergem
+  {
     struct trad_core_struct coredata;
     struct corehdr internal_core;
   } *mergem;
   flagword flags;
 
   amt = sizeof (longbuf);
-  if (bfd_bread ((PTR) longbuf, amt, abfd) != amt)
+  if (bfd_bread (longbuf, amt, abfd) != amt)
     {
       if (bfd_get_error () != bfd_error_system_call)
 	bfd_set_error (bfd_error_wrong_format);
@@ -103,7 +103,7 @@ aix386_core_file_p (abfd)
 
   core = &mergem->internal_core;
 
-  if ((bfd_bread ((PTR) core, core_size, abfd)) != core_size)
+  if ((bfd_bread (core, core_size, abfd)) != core_size)
     {
       if (bfd_get_error () != bfd_error_system_call)
 	bfd_set_error (bfd_error_wrong_format);
@@ -195,25 +195,25 @@ aix386_core_file_p (abfd)
 }
 
 static char *
-aix386_core_file_failing_command (abfd)
-     bfd *abfd;
+aix386_core_file_failing_command (bfd *abfd)
 {
   return core_hdr (abfd)->cd_comm;
 }
 
 static int
-aix386_core_file_failing_signal (abfd)
-     bfd *abfd;
+aix386_core_file_failing_signal (bfd *abfd)
 {
   return core_hdr (abfd)->cd_cursig;
 }
 
 #define aix386_core_file_matches_executable_p generic_core_file_matches_executable_p
 
+#define aix386_core_file_pid _bfd_nocore_core_file_pid
+
 /* If somebody calls any byte-swapping routines, shoot them.  */
 
 static void
-swap_abort ()
+swap_abort (void)
 {
   /* This way doesn't require any declaration for ANSI to fuck up.  */
   abort ();
@@ -226,7 +226,8 @@ swap_abort ()
 #define	NO_PUT64 ((void (*) (bfd_uint64_t, void *)) swap_abort)
 #define	NO_GETS64 ((bfd_int64_t (*) (const void *)) swap_abort)
 
-const bfd_target aix386_core_vec = {
+const bfd_target aix386_core_vec =
+{
   "aix386-core",
   bfd_target_unknown_flavour,
   BFD_ENDIAN_BIG,		/* target byte order */
@@ -239,6 +240,7 @@ const bfd_target aix386_core_vec = {
   0,				/* leading underscore */
   ' ',				/* ar_pad_char */
   16,				/* ar_max_namelen */
+  0,				/* match priority.  */
   NO_GET64, NO_GETS64, NO_PUT64,
   NO_GET, NO_GETS, NO_PUT,
   NO_GET, NO_GETS, NO_PUT,	/* data */
@@ -265,5 +267,5 @@ const bfd_target aix386_core_vec = {
 
   NULL,
 
-  (PTR) 0
+  NULL
 };

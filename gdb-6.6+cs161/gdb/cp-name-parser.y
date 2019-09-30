@@ -1,26 +1,23 @@
 /* YACC parser for C++ names, for GDB.
 
-   Copyright (C) 2003, 2004, 2005
-   Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    Parts of the lexer are based on c-exp.y from GDB.
 
-This file is part of GDB.
+   This file is part of GDB.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* Note that malloc's and realloc's in this file are transformed to
    xmalloc and xrealloc respectively by the same sed command in the
@@ -32,6 +29,8 @@ Boston, MA 02110-1301, USA.  */
 
 %{
 
+#include "defs.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -40,6 +39,8 @@ Boston, MA 02110-1301, USA.  */
 #include "safe-ctype.h"
 #include "libiberty.h"
 #include "demangle.h"
+#include "cp-support.h"
+#include "gdb_assert.h"
 
 /* Bison does not make it easy to create a parser without global
    state, unfortunately.  Here are all the global variables used
@@ -55,13 +56,37 @@ static const char *lexptr, *prev_lexptr, *error_lexptr, *global_errmsg;
 /* The components built by the parser are allocated ahead of time,
    and cached in this structure.  */
 
+#define ALLOC_CHUNK 100
+
 struct demangle_info {
   int used;
-  struct demangle_component comps[1];
+  struct demangle_info *next;
+  struct demangle_component comps[ALLOC_CHUNK];
 };
 
 static struct demangle_info *demangle_info;
-#define d_grab() (&demangle_info->comps[demangle_info->used++])
+
+static struct demangle_component *
+d_grab (void)
+{
+  struct demangle_info *more;
+
+  if (demangle_info->used >= ALLOC_CHUNK)
+    {
+      if (demangle_info->next == NULL)
+	{
+	  more = malloc (sizeof (struct demangle_info));
+	  more->next = NULL;
+	  demangle_info->next = more;
+	}
+      else
+	more = demangle_info->next;
+
+      more->used = 0;
+      demangle_info = more;
+    }
+  return &demangle_info->comps[demangle_info->used++];
+}
 
 /* The parse tree created by the parser is stored here after a successful
    parse.  */
@@ -145,6 +170,12 @@ static struct demangle_component *d_binary (const char *,
 #define yygindex cpname_yygindex
 #define yytable	 cpname_yytable
 #define yycheck	 cpname_yycheck
+#define yyss	cpname_yyss
+#define yysslim	cpname_yysslim
+#define yyssp	cpname_yyssp
+#define yystacksize cpname_yystacksize
+#define yyvs	cpname_yyvs
+#define yyvsp	cpname_yyvsp
 
 int yyparse (void);
 static int yylex (void);
@@ -163,7 +194,11 @@ fill_comp (enum demangle_component_type d_type, struct demangle_component *lhs,
 	   struct demangle_component *rhs)
 {
   struct demangle_component *ret = d_grab ();
-  cplus_demangle_fill_component (ret, d_type, lhs, rhs);
+  int i;
+
+  i = cplus_demangle_fill_component (ret, d_type, lhs, rhs);
+  gdb_assert (i);
+
   return ret;
 }
 
@@ -179,7 +214,11 @@ static struct demangle_component *
 make_operator (const char *name, int args)
 {
   struct demangle_component *ret = d_grab ();
-  cplus_demangle_fill_operator (ret, name, args);
+  int i;
+
+  i = cplus_demangle_fill_operator (ret, name, args);
+  gdb_assert (i);
+
   return ret;
 }
 
@@ -187,7 +226,11 @@ static struct demangle_component *
 make_dtor (enum gnu_v3_dtor_kinds kind, struct demangle_component *name)
 {
   struct demangle_component *ret = d_grab ();
-  cplus_demangle_fill_dtor (ret, kind, name);
+  int i;
+
+  i = cplus_demangle_fill_dtor (ret, kind, name);
+  gdb_assert (i);
+
   return ret;
 }
 
@@ -195,7 +238,11 @@ static struct demangle_component *
 make_builtin_type (const char *name)
 {
   struct demangle_component *ret = d_grab ();
-  cplus_demangle_fill_builtin_type (ret, name);
+  int i;
+
+  i = cplus_demangle_fill_builtin_type (ret, name);
+  gdb_assert (i);
+
   return ret;
 }
 
@@ -203,7 +250,11 @@ static struct demangle_component *
 make_name (const char *name, int len)
 {
   struct demangle_component *ret = d_grab ();
-  cplus_demangle_fill_name (ret, name, len);
+  int i;
+
+  i = cplus_demangle_fill_name (ret, name, len);
+  gdb_assert (i);
+
   return ret;
 }
 
@@ -229,10 +280,6 @@ make_name (const char *name, int len)
       int fold_flag;
     } abstract;
     int lval;
-    struct {
-      int val;
-      struct demangle_component *type;
-    } typed_val_int;
     const char *opname;
   }
 
@@ -287,14 +334,6 @@ make_name (const char *name, int len)
 /* Non-C++ things we get from the demangler.  */
 %token <lval> DEMANGLER_SPECIAL
 %token CONSTRUCTION_VTABLE CONSTRUCTION_IN
-%token <typed_val_int> GLOBAL
-
-%{
-enum {
-  GLOBAL_CONSTRUCTORS = DEMANGLE_COMPONENT_LITERAL + 20,
-  GLOBAL_DESTRUCTORS = DEMANGLE_COMPONENT_LITERAL + 21
-};
-%}
 
 /* Precedence declarations.  */
 
@@ -404,20 +443,32 @@ demangler_special
 			  d_right ($$) = NULL; }
 		|	CONSTRUCTION_VTABLE start CONSTRUCTION_IN start
 			{ $$ = fill_comp (DEMANGLE_COMPONENT_CONSTRUCTION_VTABLE, $2, $4); }
-		|	GLOBAL
-			{ $$ = make_empty ($1.val);
-			  d_left ($$) = $1.type;
-			  d_right ($$) = NULL; }
 		;
 
 operator	:	OPERATOR NEW
-			{ $$ = make_operator ("new", 1); }
+			{
+			  /* Match the whitespacing of cplus_demangle_operators.
+			     It would abort on unrecognized string otherwise.  */
+			  $$ = make_operator ("new", 3);
+			}
 		|	OPERATOR DELETE
-			{ $$ = make_operator ("delete", 1); }
+			{
+			  /* Match the whitespacing of cplus_demangle_operators.
+			     It would abort on unrecognized string otherwise.  */
+			  $$ = make_operator ("delete ", 1);
+			}
 		|	OPERATOR NEW '[' ']'
-			{ $$ = make_operator ("new[]", 1); }
+			{
+			  /* Match the whitespacing of cplus_demangle_operators.
+			     It would abort on unrecognized string otherwise.  */
+			  $$ = make_operator ("new[]", 3);
+			}
 		|	OPERATOR DELETE '[' ']'
-			{ $$ = make_operator ("delete[]", 1); }
+			{
+			  /* Match the whitespacing of cplus_demangle_operators.
+			     It would abort on unrecognized string otherwise.  */
+			  $$ = make_operator ("delete[] ", 1);
+			}
 		|	OPERATOR '+'
 			{ $$ = make_operator ("+", 2); }
 		|	OPERATOR '-'
@@ -473,7 +524,7 @@ operator	:	OPERATOR NEW
 		|	OPERATOR ARROW
 			{ $$ = make_operator ("->", 2); }
 		|	OPERATOR '(' ')'
-			{ $$ = make_operator ("()", 0); }
+			{ $$ = make_operator ("()", 2); }
 		|	OPERATOR '[' ']'
 			{ $$ = make_operator ("[]", 2); }
 		;
@@ -987,6 +1038,8 @@ exp1	:	exp '>' exp
    in parentheses.  */
 exp1	:	'&' start
 		{ $$ = fill_comp (DEMANGLE_COMPONENT_UNARY, make_operator ("&", 1), $2); }
+	|	'&' '(' start ')'
+		{ $$ = fill_comp (DEMANGLE_COMPONENT_UNARY, make_operator ("&", 1), $3); }
 	;
 
 /* Expressions, not including the comma operator.  */
@@ -1042,18 +1095,13 @@ exp	:	REINTERPRET_CAST '<' type '>' '(' exp1 ')' %prec UNARY
 		}
 	;
 
-/* Another form of C++-style cast.  "type ( exp1 )" is not allowed (it's too
-   ambiguous), but "name ( exp1 )" is.  Because we don't need to support
-   function types, we can handle this unambiguously (the use of typespec_2
-   prevents a silly, harmless conflict with qualifiers_opt).  This does not
-   appear in demangler output so it's not a great loss if we need to
-   disable it.  */
-exp	:	typespec_2 '(' exp1 ')' %prec UNARY
-		{ $$ = fill_comp (DEMANGLE_COMPONENT_UNARY,
-				    fill_comp (DEMANGLE_COMPONENT_CAST, $1, NULL),
-				    $3);
-		}
-	;
+/* Another form of C++-style cast is "type ( exp1 )".  This creates too many
+   conflicts to support.  For a while we supported the simpler
+   "typespec_2 ( exp1 )", but that conflicts with "& ( start )" as a
+   reference, deep within the wilderness of abstract declarators:
+   Qux<int(&(*))> vs Qux<int(&(var))>, a shift-reduce conflict at the
+   innermost left parenthesis.  So we do not support function-like casts.
+   Fortunately they never appear in demangler output.  */
 
 /* TO INVESTIGATE: ._0 style anonymous names; anonymous namespaces */
 
@@ -1151,7 +1199,11 @@ exp	:	FLOAT
 	;
 
 exp	:	SIZEOF '(' type ')'	%prec UNARY
-		{ $$ = d_unary ("sizeof", $3); }
+		{
+		  /* Match the whitespacing of cplus_demangle_operators.
+		     It would abort on unrecognized string otherwise.  */
+		  $$ = d_unary ("sizeof ", $3);
+		}
 	;
 
 /* C++.  */
@@ -1439,7 +1491,7 @@ c_parse_backslash (int host_char, int *target_char)
    after the zeros.  A value of 0 does not mean end of string.  */
 
 static int
-parse_escape (const char **string_ptr)
+cp_parse_escape (const char **string_ptr)
 {
   int target_char;
   int c = *(*string_ptr)++;
@@ -1460,7 +1512,7 @@ parse_escape (const char **string_ptr)
 	  if (c == '?')
 	    return 0177;
 	  else if (c == '\\')
-	    target_char = parse_escape (string_ptr);
+	    target_char = cp_parse_escape (string_ptr);
 	  else
 	    target_char = c;
 
@@ -1534,7 +1586,7 @@ yylex (void)
 {
   int c;
   int namelen;
-  const char *tokstart, *tokptr;
+  const char *tokstart;
 
  retry:
   prev_lexptr = lexptr;
@@ -1558,17 +1610,17 @@ yylex (void)
       lexptr++;
       c = *lexptr++;
       if (c == '\\')
-	c = parse_escape (&lexptr);
+	c = cp_parse_escape (&lexptr);
       else if (c == '\'')
 	{
-	  yyerror ("empty character constant");
+	  yyerror (_("empty character constant"));
 	  return ERROR;
 	}
 
       c = *lexptr++;
       if (c != '\'')
 	{
-	  yyerror ("invalid character constant");
+	  yyerror (_("invalid character constant"));
 	  return ERROR;
 	}
 
@@ -1692,7 +1744,7 @@ yylex (void)
 
 	    memcpy (err_copy, tokstart, p - tokstart);
 	    err_copy[p - tokstart] = 0;
-	    yyerror ("invalid number");
+	    yyerror (_("invalid number"));
 	    return ERROR;
 	  }
 	lexptr = p;
@@ -1768,14 +1820,14 @@ yylex (void)
 
     case '"':
       /* These can't occur in C++ names.  */
-      yyerror ("unexpected string literal");
+      yyerror (_("unexpected string literal"));
       return ERROR;
     }
 
   if (!(c == '_' || c == '$' || ISALPHA (c)))
     {
       /* We must have come across a bad character (e.g. ';').  */
-      yyerror ("invalid character");
+      yyerror (_("invalid character"));
       return ERROR;
     }
 
@@ -1838,23 +1890,23 @@ yylex (void)
 	{
 	  const char *p;
 	  lexptr = tokstart + 29;
-	  yylval.typed_val_int.val = GLOBAL_CONSTRUCTORS;
+	  yylval.lval = DEMANGLE_COMPONENT_GLOBAL_CONSTRUCTORS;
 	  /* Find the end of the symbol.  */
 	  p = symbol_end (lexptr);
-	  yylval.typed_val_int.type = make_name (lexptr, p - lexptr);
+	  yylval.comp = make_name (lexptr, p - lexptr);
 	  lexptr = p;
-	  return GLOBAL;
+	  return DEMANGLER_SPECIAL;
 	}
       if (strncmp (tokstart, "global destructors keyed to ", 28) == 0)
 	{
 	  const char *p;
 	  lexptr = tokstart + 28;
-	  yylval.typed_val_int.val = GLOBAL_DESTRUCTORS;
+	  yylval.lval = DEMANGLE_COMPONENT_GLOBAL_DESTRUCTORS;
 	  /* Find the end of the symbol.  */
 	  p = symbol_end (lexptr);
-	  yylval.typed_val_int.type = make_name (lexptr, p - lexptr);
+	  yylval.comp = make_name (lexptr, p - lexptr);
 	  lexptr = p;
-	  return GLOBAL;
+	  return DEMANGLER_SPECIAL;
 	}
 
       HANDLE_SPECIAL ("vtable for ", DEMANGLE_COMPONENT_VTABLE);
@@ -1924,19 +1976,18 @@ yyerror (char *msg)
   global_errmsg = msg ? msg : "parse error";
 }
 
-/* Allocate all the components we'll need to build a tree.  We generally
-   allocate too many components, but the extra memory usage doesn't hurt
-   because the trees are temporary.  If we start keeping the trees for
-   a longer lifetime we'll need to be cleverer.  */
+/* Allocate a chunk of the components we'll need to build a tree.  We
+   generally allocate too many components, but the extra memory usage
+   doesn't hurt because the trees are temporary and the storage is
+   reused.  More may be allocated later, by d_grab.  */
 static struct demangle_info *
-allocate_info (int comps)
+allocate_info (void)
 {
-  struct demangle_info *ret;
+  struct demangle_info *info = malloc (sizeof (struct demangle_info));
 
-  ret = malloc (sizeof (struct demangle_info)
-		+ sizeof (struct demangle_component) * (comps - 1));
-  ret->used = 0;
-  return ret;
+  info->next = NULL;
+  info->used = 0;
+  return info;
 }
 
 /* Convert RESULT to a string.  The return value is allocated
@@ -1948,54 +1999,105 @@ allocate_info (int comps)
 char *
 cp_comp_to_string (struct demangle_component *result, int estimated_len)
 {
-  char *str, *prefix = NULL, *buf;
-  size_t err = 0;
+  size_t err;
 
-  if (result->type == GLOBAL_DESTRUCTORS)
-    {
-      result = d_left (result);
-      prefix = "global destructors keyed to ";
-    }
-  else if (result->type == GLOBAL_CONSTRUCTORS)
-    {
-      result = d_left (result);
-      prefix = "global constructors keyed to ";
-    }
-
-  str = cplus_demangle_print (DMGL_PARAMS | DMGL_ANSI, result, estimated_len, &err);
-  if (str == NULL)
-    return NULL;
-
-  if (prefix == NULL)
-    return str;
-
-  buf = malloc (strlen (str) + strlen (prefix) + 1);
-  strcpy (buf, prefix);
-  strcat (buf, str);
-  free (str);
-  return (buf);
+  return cplus_demangle_print (DMGL_PARAMS | DMGL_ANSI, result, estimated_len,
+			       &err);
 }
 
-/* Convert a demangled name to a demangle_component tree.  *MEMORY is set to the
-   block of used memory that should be freed when finished with the
-   tree.  On error, NULL is returned, and an error message will be
-   set in *ERRMSG (which does not need to be freed).  */
+/* A convenience function to allocate and initialize a new struct
+   demangled_parse_info.  */
 
-struct demangle_component *
-cp_demangled_name_to_comp (const char *demangled_name, void **memory,
-			   const char **errmsg)
+struct demangle_parse_info *
+cp_new_demangle_parse_info (void)
+{
+  struct demangle_parse_info *info;
+
+  info = malloc (sizeof (struct demangle_parse_info));
+  info->info = NULL;
+  info->tree = NULL;
+  obstack_init (&info->obstack);
+
+  return info;
+}
+
+/* Free any memory associated with the given PARSE_INFO.  */
+
+void
+cp_demangled_name_parse_free (struct demangle_parse_info *parse_info)
+{
+  struct demangle_info *info = parse_info->info;
+
+  /* Free any allocated chunks of memory for the parse.  */
+  while (info != NULL)
+    {
+      struct demangle_info *next = info->next;
+
+      free (info);
+      info = next;
+    }
+
+  /* Free any memory allocated during typedef replacement.  */
+  obstack_free (&parse_info->obstack, NULL);
+
+  /* Free the parser info.  */
+  free (parse_info);
+}
+
+/* Merge the two parse trees given by DEST and SRC.  The parse tree
+   in SRC is attached to DEST at the node represented by TARGET.
+   SRC is then freed.
+
+   NOTE 1: Since there is no API to merge obstacks, this function does
+   even attempt to try it.  Fortunately, we do not (yet?) need this ability.
+   The code will assert if SRC->obstack is not empty.
+
+   NOTE 2: The string from which SRC was parsed must not be freed, since
+   this function will place pointers to that string into DEST.  */
+
+void
+cp_merge_demangle_parse_infos (struct demangle_parse_info *dest,
+			       struct demangle_component *target,
+			       struct demangle_parse_info *src)
+
+{
+  struct demangle_info *di;
+
+  /* Copy the SRC's parse data into DEST.  */
+  *target = *src->tree;
+  di = dest->info;
+  while (di->next != NULL)
+    di = di->next;
+  di->next = src->info;
+
+  /* Clear the (pointer to) SRC's parse data so that it is not freed when
+     cp_demangled_parse_info_free is called.  */
+  src->info = NULL;
+
+  /* Free SRC.  */
+  cp_demangled_name_parse_free (src);
+}
+
+/* Convert a demangled name to a demangle_component tree.  On success,
+   a structure containing the root of the new tree is returned; it must
+   be freed by calling cp_demangled_name_parse_free. On error, NULL is
+   returned, and an error message will be set in *ERRMSG (which does
+   not need to be freed).  */
+
+struct demangle_parse_info *
+cp_demangled_name_to_comp (const char *demangled_name, const char **errmsg)
 {
   static char errbuf[60];
-  struct demangle_component *result;
+  struct demangle_parse_info *result;
 
-  int len = strlen (demangled_name);
-
-  len = len + len / 8;
   prev_lexptr = lexptr = demangled_name;
   error_lexptr = NULL;
   global_errmsg = NULL;
 
-  demangle_info = allocate_info (len);
+  demangle_info = allocate_info ();
+
+  result = cp_new_demangle_parse_info ();
+  result->info = demangle_info;
 
   if (yyparse ())
     {
@@ -2006,12 +2108,11 @@ cp_demangled_name_to_comp (const char *demangled_name, void **memory,
 	  strcat (errbuf, "'");
 	  *errmsg = errbuf;
 	}
-      free (demangle_info);
+      cp_demangled_name_parse_free (result);
       return NULL;
     }
 
-  *memory = demangle_info;
-  result = global_result;
+  result->tree = global_result;
   global_result = NULL;
 
   return result;
@@ -2024,17 +2125,6 @@ cp_print (struct demangle_component *result)
 {
   char *str;
   size_t err = 0;
-
-  if (result->type == GLOBAL_DESTRUCTORS)
-    {
-      result = d_left (result);
-      fputs ("global destructors keyed to ", stdout);
-    }
-  else if (result->type == GLOBAL_CONSTRUCTORS)
-    {
-      result = d_left (result);
-      fputs ("global constructors keyed to ", stdout);
-    }
 
   str = cplus_demangle_print (DMGL_PARAMS | DMGL_ANSI, result, 64, &err);
   if (str == NULL)
@@ -2061,15 +2151,41 @@ trim_chars (char *lexptr, char **extra_chars)
   return c;
 }
 
+/* When this file is built as a standalone program, xmalloc comes from
+   libiberty --- in which case we have to provide xfree ourselves.  */
+
+void
+xfree (void *ptr)
+{
+  if (ptr != NULL)
+    {
+      /* Literal `free' would get translated back to xfree again.  */
+      CONCAT2 (fr,ee) (ptr);
+    }
+}
+
+/* GDB normally defines internal_error itself, but when this file is built
+   as a standalone program, we must also provide an implementation.  */
+
+void
+internal_error (const char *file, int line, const char *fmt, ...)
+{
+  va_list ap;
+
+  va_start (ap, fmt);
+  fprintf (stderr, "%s:%d: internal error: ", file, line);
+  vfprintf (stderr, fmt, ap);
+  exit (1);
+}
+
 int
 main (int argc, char **argv)
 {
-  char *str2, *extra_chars, c;
+  char *str2, *extra_chars = "", c;
   char buf[65536];
   int arg;
   const char *errmsg;
-  void *memory;
-  struct demangle_component *result;
+  struct demangle_parse_info *result;
 
   arg = 1;
   if (argv[arg] && strcmp (argv[arg], "--debug") == 0)
@@ -2088,14 +2204,14 @@ main (int argc, char **argv)
 	str2 = cplus_demangle (buf, DMGL_PARAMS | DMGL_ANSI | DMGL_VERBOSE);
 	if (str2 == NULL)
 	  {
-	    /* printf ("Demangling error\n"); */
+	    printf ("Demangling error\n");
 	    if (c)
 	      printf ("%s%c%s\n", buf, c, extra_chars);
 	    else
 	      printf ("%s\n", buf);
 	    continue;
 	  }
-	result = cp_demangled_name_to_comp (str2, &memory, &errmsg);
+	result = cp_demangled_name_to_comp (str2, &errmsg);
 	if (result == NULL)
 	  {
 	    fputs (errmsg, stderr);
@@ -2103,8 +2219,8 @@ main (int argc, char **argv)
 	    continue;
 	  }
 
-	cp_print (result);
-	free (memory);
+	cp_print (result->tree);
+	cp_demangled_name_parse_free (result);
 
 	free (str2);
 	if (c)
@@ -2116,16 +2232,16 @@ main (int argc, char **argv)
       }
   else
     {
-      result = cp_demangled_name_to_comp (argv[arg], &memory, &errmsg);
+      result = cp_demangled_name_to_comp (argv[arg], &errmsg);
       if (result == NULL)
 	{
 	  fputs (errmsg, stderr);
 	  fputc ('\n', stderr);
 	  return 0;
 	}
-      cp_print (result);
+      cp_print (result->tree);
+      cp_demangled_name_parse_free (result);
       putchar ('\n');
-      free (memory);
     }
   return 0;
 }

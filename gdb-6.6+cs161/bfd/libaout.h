@@ -1,6 +1,6 @@
 /* BFD back-end data structures for a.out (and similar) files.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation, Inc.
    Written by Cygnus Support.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #ifndef LIBAOUT_H
 #define LIBAOUT_H
@@ -348,6 +349,21 @@ typedef struct aout_symbol
    Various things depend on this struct being around any time an a.out
    file is being handled.  An example is dbxread.c in GDB.  */
 
+enum aout_subformat {
+  default_format = 0,
+  /* Used on HP 9000/300 running HP/UX.  See hp300hpux.c.  */
+  gnu_encap_format,
+  /* Used on Linux, 386BSD, etc.  See include/aout/aout64.h.  */
+  q_magic_format
+};
+
+enum aout_magic {
+  undecided_magic = 0,
+  z_magic,
+  o_magic,
+  n_magic
+};
+
 struct aoutdata
 {
   struct internal_exec *hdr;		/* Exec file header.  */
@@ -383,22 +399,9 @@ struct aoutdata
   unsigned vma_adjusted : 1;
 
   /* Used when a bfd supports several highly similar formats.  */
-  enum
-    {
-      default_format = 0,
-      /* Used on HP 9000/300 running HP/UX.  See hp300hpux.c.  */
-      gnu_encap_format,
-      /* Used on Linux, 386BSD, etc.  See include/aout/aout64.h.  */
-      q_magic_format
-    } subformat;
+  enum aout_subformat subformat;
 
-  enum
-    {
-      undecided_magic = 0,
-      z_magic,
-      o_magic,
-      n_magic
-    } magic;
+  enum aout_magic magic;
 
   /* A buffer for find_nearest_line.  */
   char *line_buf;
@@ -524,6 +527,9 @@ extern void NAME (aout, swap_std_reloc_in)
 
 extern reloc_howto_type * NAME (aout, reloc_type_lookup)
   (bfd *, bfd_reloc_code_real_type);
+
+extern reloc_howto_type * NAME (aout, reloc_name_lookup)
+  (bfd *, const char *);
 
 extern bfd_boolean NAME (aout, slurp_reloc_table)
   (bfd *, sec_ptr, asymbol **);

@@ -1,27 +1,26 @@
 /* Print National Semiconductor 32000 instructions.
-   Copyright 1986, 1988, 1991, 1992, 1994, 1998, 2001, 2002, 2005
-   Free Software Foundation, Inc.
+   Copyright 1986, 1988, 1991, 1992, 1994, 1998, 2001, 2002, 2005, 2007,
+   2009  Free Software Foundation, Inc.
 
-   This file is part of opcodes library.
+   This file is part of the GNU opcodes library.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
    MA 02110-1301, USA.  */
 
-
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "dis-asm.h"
 #if !defined(const) && !defined(__STDC__)
 #define const
@@ -467,7 +466,6 @@ print_insn_arg (int d,
   int Ivalue;
   int addr_mode;
   int disp1, disp2;
-  int index;
   int size;
 
   switch (d)
@@ -617,17 +615,17 @@ print_insn_arg (int d,
 	case 0x1d:
 	case 0x1e:
 	case 0x1f:
-	  /* Scaled index basemode[R0 -- R7:B,W,D,Q].  */
-	  index = bit_extract (buffer, index_offset - 8, 3);
-	  print_insn_arg (d, index_offset, aoffsetp, buffer, addr,
-			  result, 0);
 	  {
+	    int bit_index;
 	    static const char *ind = "bwdq";
 	    char *off;
-
+	    
+	    /* Scaled index basemode[R0 -- R7:B,W,D,Q].  */
+	    bit_index = bit_extract (buffer, index_offset - 8, 3);
+	    print_insn_arg (d, index_offset, aoffsetp, buffer, addr,
+			    result, 0);
 	    off = result + strlen (result);
-	    sprintf (off, "[r%d:%c]", index,
-		     ind[addr_mode & 3]);
+	    sprintf (off, "[r%d:%c]", bit_index, ind[addr_mode & 3]);
 	  }
 	  break;
 	}

@@ -1,12 +1,12 @@
 /* M16C/M32C specific support for 32-bit ELF.
-   Copyright (C) 2005, 2006
+   Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012
    Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,8 +18,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
 #include "elf/m32c.h"
@@ -28,9 +28,9 @@
 /* Forward declarations.  */
 static reloc_howto_type * m32c_reloc_type_lookup
   (bfd *, bfd_reloc_code_real_type);
-static void m32c_info_to_howto_rela 
+static void m32c_info_to_howto_rela
   (bfd *, arelent *, Elf_Internal_Rela *);
-static bfd_boolean m32c_elf_relocate_section 
+static bfd_boolean m32c_elf_relocate_section
   (bfd *, struct bfd_link_info *, bfd *, asection *, bfd_byte *, Elf_Internal_Rela *, Elf_Internal_Sym *, asection **);
 static bfd_boolean m32c_elf_check_relocs
   (bfd *, struct bfd_link_info *, asection *, const Elf_Internal_Rela *);
@@ -60,13 +60,16 @@ static reloc_howto_type m32c_elf_howto_table [] =
 	 0,			/* dst_mask */
 	 FALSE),		/* pcrel_offset */
 
+  /* GCC intentionally overflows these next two in order to work
+     around limitations in the addressing modes, so don't complain
+     about overflow.  */
   HOWTO (R_M32C_16,		/* type */
 	 0,			/* rightshift */
 	 1,			/* size (0 = byte, 1 = short, 2 = long) */
 	 16,			/* bitsize */
 	 FALSE,			/* pc_relative */
 	 0,			/* bitpos */
-	 complain_overflow_bitfield, /* complain_on_overflow */
+	 complain_overflow_dont, /* complain_on_overflow */
 	 bfd_elf_generic_reloc,	/* special_function */
 	 "R_M32C_16",		/* name */
 	 FALSE,			/* partial_inplace */
@@ -80,7 +83,7 @@ static reloc_howto_type m32c_elf_howto_table [] =
 	 24,			/* bitsize */
 	 FALSE,			/* pc_relative */
 	 0,			/* bitpos */
-	 complain_overflow_bitfield, /* complain_on_overflow */
+	 complain_overflow_dont, /* complain_on_overflow */
 	 bfd_elf_generic_reloc,	/* special_function */
 	 "R_M32C_24",		/* name */
 	 FALSE,			/* partial_inplace */
@@ -265,7 +268,22 @@ m32c_reloc_type_lookup
   for (i = ARRAY_SIZE (m32c_reloc_map); --i;)
     if (m32c_reloc_map [i].bfd_reloc_val == code)
       return & m32c_elf_howto_table [m32c_reloc_map[i].m32c_reloc_val];
-  
+
+  return NULL;
+}
+
+static reloc_howto_type *
+m32c_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED, const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < sizeof (m32c_elf_howto_table) / sizeof (m32c_elf_howto_table[0]);
+       i++)
+    if (m32c_elf_howto_table[i].name != NULL
+	&& strcasecmp (m32c_elf_howto_table[i].name, r_name) == 0)
+      return &m32c_elf_howto_table[i];
+
   return NULL;
 }
 
@@ -344,7 +362,7 @@ m32c_elf_relocate_section
   dynobj = elf_hash_table (info)->dynobj;
   splt = NULL;
   if (dynobj != NULL)
-    splt = bfd_get_section_by_name (dynobj, ".plt");
+    splt = bfd_get_linker_section (dynobj, ".plt");
 
   for (rel = relocs; rel < relend; rel ++)
     {
@@ -357,7 +375,7 @@ m32c_elf_relocate_section
       bfd_reloc_status_type        r;
       const char *                 name = NULL;
       int                          r_type;
-      
+
       r_type = ELF32_R_TYPE (rel->r_info);
 
       /* These are only used for relaxing; we don't actually relocate
@@ -366,34 +384,14 @@ m32c_elf_relocate_section
 	  || r_type == R_M32C_RL_1ADDR
 	  || r_type == R_M32C_RL_2ADDR)
 	continue;
-      
+
       r_symndx = ELF32_R_SYM (rel->r_info);
 
-      if (info->relocatable)
-	{
-	  /* This is a relocatable link.  We don't have to change
-             anything, unless the reloc is against a section symbol,
-             in which case we have to adjust according to where the
-             section symbol winds up in the output section.  */
-	  if (r_symndx < symtab_hdr->sh_info)
-	    {
-	      sym = local_syms + r_symndx;
-	      
-	      if (ELF_ST_TYPE (sym->st_info) == STT_SECTION)
-		{
-		  sec = local_sections [r_symndx];
-		  rel->r_addend += sec->output_offset + sym->st_value;
-		}
-	    }
-
-	  continue;
-	}
-
-      /* This is a final link.  */
       howto  = m32c_elf_howto_table + ELF32_R_TYPE (rel->r_info);
       h      = NULL;
       sym    = NULL;
       sec    = NULL;
+      relocation = 0;
 
       if (r_symndx < symtab_hdr->sh_info)
 	{
@@ -402,7 +400,7 @@ m32c_elf_relocate_section
 	  relocation = (sec->output_section->vma
 			+ sec->output_offset
 			+ sym->st_value);
-	  
+
 	  name = bfd_elf_string_from_elf_section
 	    (input_bfd, symtab_hdr->sh_link, sym->st_name);
 	  name = (sym->st_name == 0) ? bfd_section_name (input_bfd, sec) : name;
@@ -410,13 +408,13 @@ m32c_elf_relocate_section
       else
 	{
 	  h = sym_hashes [r_symndx - symtab_hdr->sh_info];
-	  
+
 	  while (h->root.type == bfd_link_hash_indirect
 		 || h->root.type == bfd_link_hash_warning)
 	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 
 	  name = h->root.root.string;
-	  
+
 	  if (h->root.type == bfd_link_hash_defined
 	      || h->root.type == bfd_link_hash_defweak)
 	    {
@@ -426,17 +424,29 @@ m32c_elf_relocate_section
 			    + sec->output_offset);
 	    }
 	  else if (h->root.type == bfd_link_hash_undefweak)
-	    {
-	      relocation = 0;
-	    }
-	  else
+	    ;
+	  else if (!info->relocatable)
 	    {
 	      if (! ((*info->callbacks->undefined_symbol)
 		     (info, h->root.root.string, input_bfd,
 		      input_section, rel->r_offset, TRUE)))
 		return FALSE;
-	      relocation = 0;
 	    }
+	}
+
+      if (sec != NULL && discarded_section (sec))
+	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
+					 rel, 1, relend, howto, 0, contents);
+
+      if (info->relocatable)
+	{
+	  /* This is a relocatable link.  We don't have to change
+             anything, unless the reloc is against a section symbol,
+             in which case we have to adjust according to where the
+             section symbol winds up in the output section.  */
+	  if (sym != NULL && ELF_ST_TYPE (sym->st_info) == STT_SECTION)
+	    rel->r_addend += sec->output_offset;
+	  continue;
 	}
 
       switch (ELF32_R_TYPE (rel->r_info))
@@ -532,13 +542,13 @@ m32c_elf_relocate_section
 		(info, (h ? &h->root : NULL), name, howto->name, (bfd_vma) 0,
 		 input_bfd, input_section, rel->r_offset);
 	      break;
-	      
+
 	    case bfd_reloc_undefined:
 	      r = info->callbacks->undefined_symbol
 		(info, name, input_bfd, input_section, rel->r_offset,
 		 TRUE);
 	      break;
-	      
+
 	    case bfd_reloc_outofrange:
 	      msg = _("internal error: out of range error");
 	      break;
@@ -570,7 +580,7 @@ m32c_elf_relocate_section
 
 /* We support 16-bit pointers to code above 64k by generating a thunk
    below 64k containing a JMP instruction to the final address.  */
- 
+
 static bfd_boolean
 m32c_elf_check_relocs
     (bfd *                     abfd,
@@ -580,33 +590,28 @@ m32c_elf_check_relocs
 {
   Elf_Internal_Shdr *           symtab_hdr;
   struct elf_link_hash_entry ** sym_hashes;
-  struct elf_link_hash_entry ** sym_hashes_end;
   const Elf_Internal_Rela *     rel;
   const Elf_Internal_Rela *     rel_end;
   bfd_vma *local_plt_offsets;
   asection *splt;
   bfd *dynobj;
- 
+
   if (info->relocatable)
     return TRUE;
- 
+
   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (abfd);
   local_plt_offsets = elf_local_got_offsets (abfd);
   splt = NULL;
   dynobj = elf_hash_table(info)->dynobj;
 
-  sym_hashes_end = sym_hashes + symtab_hdr->sh_size/sizeof (Elf32_External_Sym);
-  if (!elf_bad_symtab (abfd))
-    sym_hashes_end -= symtab_hdr->sh_info;
- 
   rel_end = relocs + sec->reloc_count;
   for (rel = relocs; rel < rel_end; rel++)
     {
       struct elf_link_hash_entry *h;
       unsigned long r_symndx;
       bfd_vma *offset;
- 
+
       r_symndx = ELF32_R_SYM (rel->r_info);
       if (r_symndx < symtab_hdr->sh_info)
         h = NULL;
@@ -617,7 +622,7 @@ m32c_elf_check_relocs
 		 || h->root.type == bfd_link_hash_warning)
 	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 	}
- 
+
       switch (ELF32_R_TYPE (rel->r_info))
         {
 	  /* This relocation describes a 16-bit pointer to a function.
@@ -628,13 +633,14 @@ m32c_elf_check_relocs
 	    elf_hash_table (info)->dynobj = dynobj = abfd;
 	  if (splt == NULL)
 	    {
-	      splt = bfd_get_section_by_name (dynobj, ".plt");
+	      splt = bfd_get_linker_section (dynobj, ".plt");
 	      if (splt == NULL)
 		{
 		  flagword flags = (SEC_ALLOC | SEC_LOAD | SEC_HAS_CONTENTS
 				    | SEC_IN_MEMORY | SEC_LINKER_CREATED
 				    | SEC_READONLY | SEC_CODE);
-		  splt = bfd_make_section_with_flags (dynobj, ".plt", flags);
+		  splt = bfd_make_section_anyway_with_flags (dynobj, ".plt",
+							     flags);
 		  if (splt == NULL
 		      || ! bfd_set_section_alignment (dynobj, splt, 1))
 		    return FALSE;
@@ -670,7 +676,7 @@ m32c_elf_check_relocs
 	  break;
         }
     }
- 
+
   return TRUE;
 }
 
@@ -687,7 +693,7 @@ m32c_elf_finish_dynamic_sections (bfd *abfd ATTRIBUTE_UNUSED,
      been filled in.  */
 
   if ((dynobj = elf_hash_table (info)->dynobj) != NULL
-      && (splt = bfd_get_section_by_name (dynobj, ".plt")) != NULL)
+      && (splt = bfd_get_linker_section (dynobj, ".plt")) != NULL)
     {
       bfd_byte *contents = splt->contents;
       unsigned int i, size = splt->size;
@@ -715,7 +721,7 @@ m32c_elf_always_size_sections (bfd *output_bfd ATTRIBUTE_UNUSED,
   if (dynobj == NULL)
     return TRUE;
 
-  splt = bfd_get_section_by_name (dynobj, ".plt");
+  splt = bfd_get_linker_section (dynobj, ".plt");
   BFD_ASSERT (splt != NULL);
 
   splt->contents = (bfd_byte *) bfd_zalloc (dynobj, splt->size);
@@ -793,7 +799,7 @@ m32c_elf_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
 	    case EF_M32C_CPU_M32C:  strcat (old_opt, " -m32c");  break;
 	    }
 	}
-      
+
       /* Print out any mismatches from above.  */
       if (new_opt[0])
 	{
@@ -824,7 +830,7 @@ m32c_elf_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
 
 
 static bfd_boolean
-m32c_elf_print_private_bfd_data (bfd *abfd, PTR ptr)
+m32c_elf_print_private_bfd_data (bfd *abfd, void *ptr)
 {
   FILE *file = (FILE *) ptr;
   flagword flags;
@@ -835,7 +841,7 @@ m32c_elf_print_private_bfd_data (bfd *abfd, PTR ptr)
   _bfd_elf_print_private_bfd_data (abfd, ptr);
 
   flags = elf_elfheader (abfd)->e_flags;
-  fprintf (file, _("private flags = 0x%lx:"), (long)flags);
+  fprintf (file, _("private flags = 0x%lx:"), (unsigned long) flags);
 
   switch (flags & EF_M32C_CPU_MASK)
     {
@@ -896,7 +902,7 @@ dump_symtab (bfd * abfd, void *internal_syms, void *external_syms)
       external_syms = bfd_malloc (1000);
       free_external = 1;
     }
-  
+
   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
   locsymcount = symtab_hdr->sh_size / get_elf_backend_data(abfd)->s->sizeof_sym;
   if (free_internal)
@@ -938,10 +944,10 @@ dump_symtab (bfd * abfd, void *internal_syms, void *external_syms)
 	case SHN_UNDEF: st_shndx_str = "SHN_UNDEF";
 	default: st_shndx_str = "";
 	}
-      
+
       printf ("isym = %p st_value = %lx st_size = %lx st_name = (%lu) %s "
 	      "st_info = (%d) %s %s st_other = (%d) %s st_shndx = (%d) %s\n",
-	      isym, 
+	      isym,
 	      (unsigned long) isym->st_value,
 	      (unsigned long) isym->st_size,
 	      isym->st_name,
@@ -979,13 +985,9 @@ struct relax_plt_data
 };
 
 static bfd_boolean
-m32c_relax_plt_check (struct elf_link_hash_entry *h,
-                      PTR xdata)
+m32c_relax_plt_check (struct elf_link_hash_entry *h, void * xdata)
 {
   struct relax_plt_data *data = (struct relax_plt_data *) xdata;
-
-  if (h->root.type == bfd_link_hash_warning)
-    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -1014,13 +1016,9 @@ m32c_relax_plt_check (struct elf_link_hash_entry *h,
    previously had a plt entry, give it a new entry offset.  */
 
 static bfd_boolean
-m32c_relax_plt_realloc (struct elf_link_hash_entry *h,
-                        PTR xdata)
+m32c_relax_plt_realloc (struct elf_link_hash_entry *h, void * xdata)
 {
   bfd_vma *entry = (bfd_vma *) xdata;
-
-  if (h->root.type == bfd_link_hash_warning)
-    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 
   if (h->plt.offset != (bfd_vma) -1)
     {
@@ -1032,8 +1030,7 @@ m32c_relax_plt_realloc (struct elf_link_hash_entry *h,
 }
 
 static bfd_boolean
-m32c_elf_relax_plt_section (bfd *dynobj,
-                            asection *splt,
+m32c_elf_relax_plt_section (asection *splt,
                             struct bfd_link_info *info,
                             bfd_boolean *again)
 {
@@ -1044,11 +1041,6 @@ m32c_elf_relax_plt_section (bfd *dynobj,
   *again = FALSE;
 
   if (info->relocatable)
-    return TRUE;
-
-  /* We only relax the .plt section at the moment.  */
-  if (dynobj != elf_hash_table (info)->dynobj
-      || strcmp (splt->name, ".plt") != 0)
     return TRUE;
 
   /* Quick check for an empty plt.  */
@@ -1176,7 +1168,7 @@ static bfd_vma
 m32c_offset_for_reloc (bfd *abfd,
 		       Elf_Internal_Rela *rel,
 		       Elf_Internal_Shdr *symtab_hdr,
-		       Elf_External_Sym_Shndx *shndx_buf,
+		       Elf_External_Sym_Shndx *shndx_buf ATTRIBUTE_UNUSED,
 		       Elf_Internal_Sym *intsyms)
 {
   bfd_vma symval;
@@ -1186,14 +1178,10 @@ m32c_offset_for_reloc (bfd *abfd,
     {
       /* A local symbol.  */
       Elf_Internal_Sym *isym;
-      Elf_External_Sym_Shndx *shndx;
       asection *ssec;
-
 
       isym = intsyms + ELF32_R_SYM (rel->r_info);
       ssec = bfd_section_from_elf_index (abfd, isym->st_shndx);
-      shndx = shndx_buf + (shndx_buf ? ELF32_R_SYM (rel->r_info) : 0);
-
       symval = isym->st_value;
       if (ssec)
 	symval += ssec->output_section->vma
@@ -1342,8 +1330,9 @@ m32c_elf_relax_section
   int machine;
 
   if (abfd == elf_hash_table (link_info)->dynobj
+      && (sec->flags & SEC_LINKER_CREATED) != 0
       && strcmp (sec->name, ".plt") == 0)
-    return m32c_elf_relax_plt_section (abfd, sec, link_info, again);
+    return m32c_elf_relax_plt_section (sec, link_info, again);
 
   /* Assume nothing changes.  */
   *again = FALSE;
@@ -1391,14 +1380,14 @@ m32c_elf_relax_section
       if (shndx_buf == NULL)
 	goto error_return;
       if (bfd_seek (abfd, shndx_hdr->sh_offset, SEEK_SET) != 0
-	  || bfd_bread ((PTR) shndx_buf, amt, abfd) != amt)
+	  || bfd_bread (shndx_buf, amt, abfd) != amt)
 	goto error_return;
       shndx_hdr->contents = (bfd_byte *) shndx_buf;
     }
 
   /* Get a copy of the native relocations.  */
   internal_relocs = (_bfd_elf_link_read_relocs
-		     (abfd, sec, (PTR) NULL, (Elf_Internal_Rela *) NULL,
+		     (abfd, sec, NULL, (Elf_Internal_Rela *) NULL,
 		      link_info->keep_memory));
   if (internal_relocs == NULL)
     goto error_return;
@@ -1590,7 +1579,7 @@ m32c_elf_relax_section
 
 	      enctbl = m16c_addr_encodings;
 	      posn = 2;
-	      
+
 	      /* Check the opcode for jumps.  We know it's safe to
 		 do this because all 2ADDR insns are at least two
 		 bytes long.  */
@@ -1776,7 +1765,7 @@ m32c_elf_relax_section
       /* Note that we've changed the relocs, section contents, etc.  */
       elf_section_data (sec)->relocs = internal_relocs;
       free_relocs = NULL;
-      
+
       elf_section_data (sec)->this_hdr.contents = contents;
       free_contents = NULL;
 
@@ -1858,7 +1847,6 @@ m32c_elf_relax_delete_bytes
   bfd_byte *contents;
   Elf_Internal_Rela *irel;
   Elf_Internal_Rela *irelend;
-  Elf_Internal_Rela *irelalign;
   bfd_vma toaddr;
   Elf_Internal_Sym *isym;
   Elf_Internal_Sym *isymend;
@@ -1871,9 +1859,6 @@ m32c_elf_relax_delete_bytes
 
   contents   = elf_section_data (sec)->this_hdr.contents;
 
-  /* The deletion must stop at the next ALIGN reloc for an aligment
-     power larger than the number of bytes we are deleting.  */
-  irelalign = NULL;
   toaddr = sec->size;
 
   irel = elf_section_data (sec)->relocs;
@@ -1939,12 +1924,23 @@ m32c_elf_relax_delete_bytes
 
   for (; isym < isymend; isym++, shndx = (shndx ? shndx + 1 : NULL))
     {
-
+      /* If the symbol is in the range of memory we just moved, we
+	 have to adjust its value.  */
       if ((int) isym->st_shndx == sec_shndx
 	  && isym->st_value > addr
 	  && isym->st_value < toaddr)
 	{
 	  isym->st_value -= count;
+	}
+      /* If the symbol *spans* the bytes we just deleted (i.e. it's
+	 *end* is in the moved bytes but it's *start* isn't), then we
+	 must adjust its size.  */
+      if ((int) isym->st_shndx == sec_shndx
+	    && isym->st_value < addr
+	  && isym->st_value + isym->st_size > addr
+	  && isym->st_value + isym->st_size < toaddr)
+	{
+	  isym->st_size -= count;
 	}
     }
 
@@ -1960,23 +1956,42 @@ m32c_elf_relax_delete_bytes
       struct elf_link_hash_entry * sym_hash = * sym_hashes;
 
       if (sym_hash &&
-	  (   sym_hash->root.type == bfd_link_hash_defined
+	  (sym_hash->root.type == bfd_link_hash_defined
 	   || sym_hash->root.type == bfd_link_hash_defweak)
-	  && sym_hash->root.u.def.section == sec
-	  && sym_hash->root.u.def.value > addr
-	  && sym_hash->root.u.def.value < toaddr)
+	  && sym_hash->root.u.def.section == sec)
 	{
-	  sym_hash->root.u.def.value -= count;
+	  if (sym_hash->root.u.def.value > addr
+	      && sym_hash->root.u.def.value < toaddr)
+	    {
+	      sym_hash->root.u.def.value -= count;
+	    }
+	  if (sym_hash->root.u.def.value < addr
+	      && sym_hash->root.u.def.value + sym_hash->size > addr
+	      && sym_hash->root.u.def.value + sym_hash->size < toaddr)
+	    {
+	      sym_hash->size -= count;
+	    }
 	}
     }
 
   return TRUE;
 }
 
+/* This is for versions of gcc prior to 4.3.  */
+static unsigned int
+_bfd_m32c_elf_eh_frame_address_size (bfd *abfd, asection *sec ATTRIBUTE_UNUSED)
+{
+  if ((elf_elfheader (abfd)->e_flags & EF_M32C_CPU_MASK) == EF_M32C_CPU_M16C)
+    return 2;
+  return 4;
+}
+
+
 
 #define ELF_ARCH		bfd_arch_m32c
 #define ELF_MACHINE_CODE	EM_M32C
-#define ELF_MAXPAGESIZE		0x1000
+#define ELF_MACHINE_ALT1	EM_M32C_OLD
+#define ELF_MAXPAGESIZE		0x100
 
 #if 0
 #define TARGET_BIG_SYM		bfd_elf32_m32c_vec
@@ -1999,8 +2014,10 @@ m32c_elf_relax_delete_bytes
   m32c_elf_finish_dynamic_sections
 
 #define elf_backend_can_gc_sections		1
+#define elf_backend_eh_frame_address_size _bfd_m32c_elf_eh_frame_address_size
 
 #define bfd_elf32_bfd_reloc_type_lookup		m32c_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup	m32c_reloc_name_lookup
 #define bfd_elf32_bfd_relax_section		m32c_elf_relax_section
 #define bfd_elf32_bfd_set_private_flags		m32c_elf_set_private_flags
 #define bfd_elf32_bfd_merge_private_bfd_data	m32c_elf_merge_private_bfd_data

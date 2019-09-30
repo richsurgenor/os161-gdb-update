@@ -1,10 +1,22 @@
-sinclude(../config/acx.m4)
-sinclude(../config/gettext-sister.m4)
-sinclude(../config/nls.m4)
-sinclude(../config/po.m4)
-sinclude(../config/progtest.m4)
-sinclude(../bfd/bfd.m4)
-sinclude(../bfd/warning.m4)
+dnl
+dnl   Copyright 2012 Free Software Foundation
+dnl
+dnl This file is free software; you can redistribute it and/or modify
+dnl it under the terms of the GNU General Public License as published by
+dnl the Free Software Foundation; either version 3 of the License, or
+dnl (at your option) any later version.
+dnl 
+dnl This program is distributed in the hope that it will be useful,
+dnl but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+dnl GNU General Public License for more details.
+dnl 
+dnl You should have received a copy of the GNU General Public License
+dnl along with this program; see the file COPYING3.  If not see
+dnl <http://www.gnu.org/licenses/>.
+dnl
+
+sinclude([../config/zlib.m4])
 
 dnl See whether we need to use fopen-bin.h rather than fopen-same.h.
 AC_DEFUN([BFD_BINARY_FOPEN],
@@ -49,16 +61,6 @@ else
 fi
 AC_SUBST(EXEEXT_FOR_BUILD)])dnl
 
-sinclude(../libtool.m4)
-dnl The lines below arrange for aclocal not to bring libtool.m4
-dnl AM_PROG_LIBTOOL into aclocal.m4, while still arranging for automake
-dnl to add a definition of LIBTOOL to Makefile.in.
-ifelse(yes,no,[
-AC_DEFUN([AM_PROG_LIBTOOL],)
-AC_DEFUN([AM_DISABLE_SHARED],)
-AC_SUBST(LIBTOOL)
-])
-
 AC_DEFUN([AM_INSTALL_LIBBFD],
 [AC_MSG_CHECKING([whether to install libbfd])
   AC_ARG_ENABLE(install-libbfd,
@@ -82,6 +84,8 @@ AC_DEFUN([AM_INSTALL_LIBBFD],
     bfdincludedir='$(exec_prefix)/$(host_noncanonical)/$(target_noncanonical)/include'
   fi
   AC_SUBST(bfdlibdir)
+  AM_SUBST_NOTMAKE(bfdlibdir)
   AC_SUBST(bfdincludedir)
+  AM_SUBST_NOTMAKE(bfdincludedir)
 ]
 )

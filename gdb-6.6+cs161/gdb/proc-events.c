@@ -1,13 +1,13 @@
 /* Machine-independent support for SVR4 /proc (process file system)
 
-   Copyright (C) 1999, 2000, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
    Written by Michael Snyder at Cygnus Solutions.
    Based on work by Fred Fish, Stu Grossman, Geoff Noer, and others.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* Pretty-print "events of interest".
 
@@ -46,6 +44,8 @@
 #include <sys/fault.h>
 #endif
 
+#include "proc-utils.h"
+
 /* Much of the information used in the /proc interface, particularly
    for printing status information, is kept as tables of structures of
    the following form.  These tables can be used to map numeric values
@@ -62,51 +62,12 @@ struct trans
 
 /* Pretty print syscalls.  */
 
-/* Ugh -- UnixWare and Solaris spell these differently!  */
-
-#ifdef  SYS_lwpcreate
-#define SYS_lwp_create	SYS_lwpcreate
-#endif
-
-#ifdef  SYS_lwpexit
-#define SYS_lwp_exit SYS_lwpexit
-#endif
-
-#ifdef  SYS_lwpwait
-#define SYS_lwp_wait SYS_lwpwait
-#endif
-
-#ifdef  SYS_lwpself
-#define SYS_lwp_self SYS_lwpself
-#endif
-
-#ifdef  SYS_lwpinfo
-#define SYS_lwp_info SYS_lwpinfo
-#endif
-
-#ifdef  SYS_lwpprivate
-#define SYS_lwp_private SYS_lwpprivate
-#endif
-
-#ifdef  SYS_lwpkill
-#define SYS_lwp_kill SYS_lwpkill
-#endif
-
-#ifdef  SYS_lwpsuspend
-#define SYS_lwp_suspend SYS_lwpsuspend
-#endif
-
-#ifdef  SYS_lwpcontinue
-#define SYS_lwp_continue SYS_lwpcontinue
-#endif
-
-
 /* Syscall translation table.  */
 
 #define MAX_SYSCALLS 262	/* Pretty arbitrary.  */
 static char *syscall_table[MAX_SYSCALLS];
 
-void
+static void
 init_syscall_table (void)
 {
 #ifdef SYS_BSD_getime
@@ -1516,7 +1477,8 @@ static struct trans signal_table[] =
   { SIGIO, "SIGIO", "Socket I/O possible" },	/* alias for SIGPOLL */
 #endif
 #ifdef SIGSTOP
-  { SIGSTOP, "SIGSTOP", "Stop, not from tty" },	/* cannot be caught or ignored */
+  { SIGSTOP, "SIGSTOP", "Stop, not from tty" },	/* cannot be caught or
+						   ignored */
 #endif
 #ifdef SIGTSTP
   { SIGTSTP, "SIGTSTP", "User stop from tty" },

@@ -3,20 +3,20 @@
    THIS FILE IS MACHINE GENERATED WITH CGEN: Cpu tools GENerator.
    - the resultant file is machine generated, cgen-ibld.in isn't
 
-   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005
-   Free Software Foundation, Inc.
+   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005, 2006, 2007,
+   2008, 2010  Free Software Foundation, Inc.
 
-   This file is part of the GNU Binutils and GDB, the GNU debugger.
+   This file is part of libopcodes.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation, Inc.,
@@ -33,6 +33,7 @@
 #include "symcat.h"
 #include "mt-desc.h"
 #include "mt-opc.h"
+#include "cgen/basic-modes.h"
 #include "opintl.h"
 #include "safe-ctype.h"
 
@@ -137,7 +138,7 @@ insert_normal (CGEN_CPU_DESC cd,
   if (length == 0)
     return NULL;
 
-  if (word_length > 32)
+  if (word_length > 8 * sizeof (CGEN_INSN_INT))
     abort ();
 
   /* For architectures with insns smaller than the base-insn-bitsize,
@@ -168,13 +169,21 @@ insert_normal (CGEN_CPU_DESC cd,
   else if (! CGEN_BOOL_ATTR (attrs, CGEN_IFLD_SIGNED))
     {
       unsigned long maxval = mask;
-      
-      if ((unsigned long) value > maxval)
+      unsigned long val = (unsigned long) value;
+
+      /* For hosts with a word size > 32 check to see if value has been sign
+	 extended beyond 32 bits.  If so then ignore these higher sign bits
+	 as the user is attempting to store a 32-bit signed value into an
+	 unsigned 32-bit field which is allowed.  */
+      if (sizeof (unsigned long) > 4 && ((value >> 32) == -1))
+	val &= 0xFFFFFFFF;
+
+      if (val > maxval)
 	{
 	  /* xgettext:c-format */
 	  sprintf (errbuf,
-		   _("operand out of range (%lu not between 0 and %lu)"),
-		   value, maxval);
+		   _("operand out of range (0x%lx not between 0 and 0x%lx)"),
+		   val, maxval);
 	  return errbuf;
 	}
     }
@@ -433,16 +442,15 @@ extract_normal (CGEN_CPU_DESC cd,
       return 1;
     }
 
-  if (word_length > 32)
+  if (word_length > 8 * sizeof (CGEN_INSN_INT))
     abort ();
 
   /* For architectures with insns smaller than the insn-base-bitsize,
      word_length may be too big.  */
   if (cd->min_insn_bitsize < cd->base_insn_bitsize)
     {
-      if (word_offset == 0
-	  && word_length > total_length)
-	word_length = total_length;
+      if (word_offset + word_length > total_length)
+	word_length = total_length - word_offset;
     }
 
   /* Does the value reside in INSN_VALUE, and at the right alignment?  */
@@ -461,7 +469,7 @@ extract_normal (CGEN_CPU_DESC cd,
     {
       unsigned char *bufp = ex_info->insn_bytes + word_offset / 8;
 
-      if (word_length > 32)
+      if (word_length > 8 * sizeof (CGEN_INSN_INT))
 	abort ();
 
       if (fill_cache (cd, ex_info, word_offset / 8, word_length / 8, pc) == 0)
@@ -674,7 +682,7 @@ mt_cgen_insert_operand (CGEN_CPU_DESC cd,
     case MT_OPERAND_LOOPSIZE :
       {
         long value = fields->f_loopo;
-        value = ((unsigned int) (value) >> (2));
+        value = ((USI) (value) >> (2));
         errmsg = insert_normal (cd, value, 0, 0, 7, 8, 32, total_length, buffer);
       }
       break;

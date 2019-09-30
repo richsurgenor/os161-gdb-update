@@ -1,11 +1,12 @@
 /* IQ2000-specific support for 32-bit ELF.
-   Copyright (C) 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2003, 2004, 2005, 2006, 2007, 2008, 2010, 2012
+   Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,8 +18,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
 #include "elf/iq2000.h"
@@ -289,7 +290,7 @@ iq2000_elf_relocate_hi16 (bfd *input_bfd,
   bfd_vma insn;
 
   insn = bfd_get_32 (input_bfd, contents + relhi->r_offset);
-  
+
   value += relhi->r_addend;
   value &= 0x7fffffff; /* Mask off top-bit which is Harvard mask bit.  */
 
@@ -298,10 +299,38 @@ iq2000_elf_relocate_hi16 (bfd *input_bfd,
   if (value & 0x8000)
     value += 0x10000;
 
-  value >>= 16; 
+  value >>= 16;
   insn = ((insn & ~0xFFFF) | value);
 
   bfd_put_32 (input_bfd, insn, contents + relhi->r_offset);
+  return bfd_reloc_ok;
+}
+
+static bfd_reloc_status_type
+iq2000_elf_relocate_offset16 (bfd *input_bfd,
+			      Elf_Internal_Rela *rel,
+			      bfd_byte *contents,
+			      bfd_vma value,
+			      bfd_vma location)
+{
+  bfd_vma insn;
+  bfd_vma jtarget;
+
+  insn = bfd_get_32 (input_bfd, contents + rel->r_offset);
+
+  value += rel->r_addend;
+
+  if (value & 3)
+    return bfd_reloc_dangerous;
+
+  jtarget = (value & 0x3fffc) | (location & 0xf0000000L);
+
+  if (jtarget != value)
+    return bfd_reloc_overflow;
+
+  insn = (insn & ~0xFFFF) | ((value >> 2) & 0xFFFF);
+
+  bfd_put_32 (input_bfd, insn, contents + rel->r_offset);
   return bfd_reloc_ok;
 }
 
@@ -349,6 +378,26 @@ iq2000_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
   return NULL;
 }
 
+static reloc_howto_type *
+iq2000_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED, const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < (sizeof (iq2000_elf_howto_table)
+	    / sizeof (iq2000_elf_howto_table[0]));
+       i++)
+    if (iq2000_elf_howto_table[i].name != NULL
+	&& strcasecmp (iq2000_elf_howto_table[i].name, r_name) == 0)
+      return &iq2000_elf_howto_table[i];
+
+  if (strcasecmp (iq2000_elf_vtinherit_howto.name, r_name) == 0)
+    return &iq2000_elf_vtinherit_howto;
+  if (strcasecmp (iq2000_elf_vtentry_howto.name, r_name) == 0)
+    return &iq2000_elf_vtentry_howto;
+
+  return NULL;
+}
 
 /* Perform a single relocation.	 By default we use the standard BFD
    routines.  */
@@ -395,7 +444,7 @@ iq2000_info_to_howto_rela (bfd * abfd ATTRIBUTE_UNUSED,
 /* Look through the relocs for a section during the first phase.
    Since we don't do .gots or .plts, we just need to consider the
    virtual table relocs for gc.	 */
- 
+
 static bfd_boolean
 iq2000_elf_check_relocs (bfd *abfd,
 			 struct bfd_link_info *info,
@@ -403,26 +452,23 @@ iq2000_elf_check_relocs (bfd *abfd,
 			 const Elf_Internal_Rela *relocs)
 {
   Elf_Internal_Shdr *symtab_hdr;
-  struct elf_link_hash_entry **sym_hashes, **sym_hashes_end;
+  struct elf_link_hash_entry **sym_hashes;
   const Elf_Internal_Rela *rel;
   const Elf_Internal_Rela *rel_end;
   bfd_boolean changed = FALSE;
-  
+
   if (info->relocatable)
     return TRUE;
-  
+
   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (abfd);
-  sym_hashes_end = sym_hashes + symtab_hdr->sh_size / sizeof (Elf32_External_Sym);
-  if (!elf_bad_symtab (abfd))
-    sym_hashes_end -= symtab_hdr->sh_info;
-  
+
   rel_end = relocs + sec->reloc_count;
   for (rel = relocs; rel < rel_end; rel++)
     {
       struct elf_link_hash_entry *h;
       unsigned long r_symndx;
-      
+
       r_symndx = ELF32_R_SYM (rel->r_info);
       if (r_symndx < symtab_hdr->sh_info)
 	h = NULL;
@@ -433,7 +479,7 @@ iq2000_elf_check_relocs (bfd *abfd,
 		 || h->root.type == bfd_link_hash_warning)
 	    h = (struct elf_link_hash_entry *) h->root.u.i.link;
 	}
-      
+
       switch (ELF32_R_TYPE (rel->r_info))
 	{
 	  /* This relocation describes the C++ object vtable
@@ -442,11 +488,13 @@ iq2000_elf_check_relocs (bfd *abfd,
 	  if (!bfd_elf_gc_record_vtinherit (abfd, sec, h, rel->r_offset))
 	    return FALSE;
 	  break;
-	  
+
 	  /* This relocation describes which C++ vtable entries
 	     are actually used.  Record for later use during GC.  */
 	case R_IQ2000_GNU_VTENTRY:
-	  if (!bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
+	  BFD_ASSERT (h != NULL);
+	  if (h != NULL
+	      && !bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
 	    return FALSE;
 	  break;
 
@@ -521,9 +569,6 @@ iq2000_elf_relocate_section (bfd *		     output_bfd ATTRIBUTE_UNUSED,
   Elf_Internal_Rela *		rel;
   Elf_Internal_Rela *		relend;
 
-  if (info->relocatable)
-    return TRUE;
-
   symtab_hdr = & elf_tdata (input_bfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (input_bfd);
   relend     = relocs + input_section->reloc_count;
@@ -539,32 +584,41 @@ iq2000_elf_relocate_section (bfd *		     output_bfd ATTRIBUTE_UNUSED,
       bfd_reloc_status_type	   r;
       const char *		   name = NULL;
       int			   r_type;
-      
+
       r_type = ELF32_R_TYPE (rel->r_info);
-      
+
       if (   r_type == R_IQ2000_GNU_VTINHERIT
 	  || r_type == R_IQ2000_GNU_VTENTRY)
 	continue;
-      
+
       r_symndx = ELF32_R_SYM (rel->r_info);
 
-      /* This is a final link.	*/
       howto  = iq2000_elf_howto_table + ELF32_R_TYPE (rel->r_info);
       h	     = NULL;
       sym    = NULL;
       sec    = NULL;
-      
+
       if (r_symndx < symtab_hdr->sh_info)
 	{
+	  asection *osec;
+
 	  sym = local_syms + r_symndx;
-	  sec = local_sections [r_symndx];
+	  osec = sec = local_sections [r_symndx];
+	  if ((sec->flags & SEC_MERGE)
+	      && ELF_ST_TYPE (sym->st_info) == STT_SECTION)
+	    /* This relocation is relative to a section symbol that is
+	       going to be merged.  Change it so that it is relative
+	       to the merged section symbol.  */
+	    rel->r_addend = _bfd_elf_rel_local_sym (output_bfd, sym, &sec,
+						    rel->r_addend);
+
 	  relocation = (sec->output_section->vma
 			+ sec->output_offset
 			+ sym->st_value);
-	  
+
 	  name = bfd_elf_string_from_elf_section
 	    (input_bfd, symtab_hdr->sh_link, sym->st_name);
-	  name = (name == NULL) ? bfd_section_name (input_bfd, sec) : name;
+	  name = (name == NULL) ? bfd_section_name (input_bfd, osec) : name;
 	}
       else
 	{
@@ -579,10 +633,24 @@ iq2000_elf_relocate_section (bfd *		     output_bfd ATTRIBUTE_UNUSED,
 	  name = h->root.root.string;
 	}
 
+      if (sec != NULL && discarded_section (sec))
+	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
+					 rel, 1, relend, howto, 0, contents);
+
+      if (info->relocatable)
+	continue;
+
       switch (r_type)
 	{
 	case R_IQ2000_HI16:
 	  r = iq2000_elf_relocate_hi16 (input_bfd, rel, contents, relocation);
+	  break;
+
+	case R_IQ2000_OFFSET_16:
+	  r = iq2000_elf_relocate_offset16 (input_bfd, rel, contents, relocation,
+					    input_section->output_section->vma
+					    + input_section->output_offset
+					    + rel->r_offset);
 	  break;
 
 	case R_IQ2000_PC16:
@@ -606,12 +674,12 @@ iq2000_elf_relocate_section (bfd *		     output_bfd ATTRIBUTE_UNUSED,
 		(info, (h ? &h->root : NULL), name, howto->name,
 		 (bfd_vma) 0, input_bfd, input_section, rel->r_offset);
 	      break;
-	      
+
 	    case bfd_reloc_undefined:
 	      r = info->callbacks->undefined_symbol
 		(info, name, input_bfd, input_section, rel->r_offset, TRUE);
 	      break;
-	      
+
 	    case bfd_reloc_outofrange:
 	      msg = _("internal error: out of range error");
 	      break;
@@ -705,6 +773,10 @@ iq2000_elf_copy_private_bfd_data (bfd *ibfd, bfd *obfd)
 
   elf_elfheader (obfd)->e_flags = elf_elfheader (ibfd)->e_flags;
   elf_flags_init (obfd) = TRUE;
+
+  /* Copy object attributes.  */
+  _bfd_elf_copy_obj_attributes (ibfd, obfd);
+
   return TRUE;
 }
 
@@ -764,7 +836,7 @@ iq2000_elf_merge_private_bfd_data (bfd *ibfd, bfd *obfd)
 	      break;
 	    }
 	}
-      
+
       /* Print out any mismatches from above.  */
       if (new_opt[0])
 	{
@@ -807,7 +879,7 @@ iq2000_elf_print_private_bfd_data (bfd *abfd, void * ptr)
   _bfd_elf_print_private_bfd_data (abfd, ptr);
 
   flags = elf_elfheader (abfd)->e_flags;
-  fprintf (file, _("private flags = 0x%lx:"), (long)flags);
+  fprintf (file, _("private flags = 0x%lx:"), (unsigned long) flags);
 
   switch (flags & EF_IQ2000_CPU_MASK)
     {
@@ -853,6 +925,7 @@ iq2000_elf_object_p (bfd *abfd)
 #define elf_backend_can_gc_sections		1
 
 #define bfd_elf32_bfd_reloc_type_lookup		iq2000_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup	iq2000_reloc_name_lookup
 #define bfd_elf32_bfd_set_private_flags		iq2000_elf_set_private_flags
 #define bfd_elf32_bfd_copy_private_bfd_data	iq2000_elf_copy_private_bfd_data
 #define bfd_elf32_bfd_merge_private_bfd_data	iq2000_elf_merge_private_bfd_data

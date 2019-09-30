@@ -1,12 +1,12 @@
 /* Target-dependent code for NetBSD/amd64.
 
-   Copyright (C) 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "arch-utils.h"
@@ -34,31 +32,30 @@
 
 /* Support for signal handlers.  */
 
-/* Return whether the frame preceding NEXT_FRAME corresponds to a
-   NetBSD sigtramp routine.  */
+/* Return whether THIS_FRAME corresponds to a NetBSD sigtramp
+   routine.  */
 
 static int
-amd64nbsd_sigtramp_p (struct frame_info *next_frame)
+amd64nbsd_sigtramp_p (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
-  char *name;
+  CORE_ADDR pc = get_frame_pc (this_frame);
+  const char *name;
 
   find_pc_partial_function (pc, &name, NULL, NULL);
   return nbsd_pc_in_sigtramp (pc, name);
 }
 
-/* Assuming NEXT_FRAME is preceded by a frame corresponding to a
-   NetBSD sigtramp routine, return the address of the associated
-   mcontext structure.  */
+/* Assuming THIS_FRAME corresponds to a NetBSD sigtramp routine,
+   return the address of the associated mcontext structure.  */
 
 static CORE_ADDR
-amd64nbsd_mcontext_addr (struct frame_info *next_frame)
+amd64nbsd_mcontext_addr (struct frame_info *this_frame)
 {
   CORE_ADDR addr;
 
   /* The register %r15 points at `struct ucontext' upon entry of a
      signal trampoline.  */
-  addr = frame_unwind_register_unsigned (next_frame, AMD64_R15_REGNUM);
+  addr = get_frame_register_unsigned (this_frame, AMD64_R15_REGNUM);
 
   /* The mcontext structure lives as offset 56 in `struct ucontext'.  */
   return addr + 56;
@@ -80,7 +77,7 @@ int amd64nbsd_r_reg_offset[] =
   0 * 8,			/* %rdi */
   12 * 8,			/* %rbp */
   24 * 8,			/* %rsp */
-  4 * 8,			/* %r8 .. */
+  4 * 8,			/* %r8 ..  */
   5 * 8,
   6 * 8,
   7 * 8,
@@ -128,7 +125,7 @@ amd64nbsd_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
 void _initialize_amd64nbsd_tdep (void);
 
 void
-_initialize_amd64nbsd_ndep (void)
+_initialize_amd64nbsd_tdep (void)
 {
   /* The NetBSD/amd64 native dependent code makes this assumption.  */
   gdb_assert (ARRAY_SIZE (amd64nbsd_r_reg_offset) == AMD64_NUM_GREGS);

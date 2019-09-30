@@ -1,18 +1,17 @@
-# Copyright 2004 Free Software Foundation, Inc.
+# Copyright 2004-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # The program sigaltstack.c creates a backtrace containing nested
@@ -24,22 +23,16 @@
 # such a stack.
 
 if [target_info exists gdb,nosignals] {
-    verbose "Skipping signals.exp because of nosignals."
+    verbose "Skipping sigaltstack.exp because of nosignals."
     continue
 }
 
-if $tracelevel then {
-    strace $tracelevel
-}
-
-set prms_id 0
-set bug_id 0
 
 set testfile sigaltstack
 set srcfile ${testfile}.c
 set binfile ${objdir}/${subdir}/${testfile}
 if  { [gdb_compile "${srcdir}/${subdir}/${srcfile}" "${binfile}" executable {debug}] != "" } {
-    untested "Couldn't compile ${module}.c"
+    untested "Couldn't compile ${srcfile}.c"
     return -1
 }
 
@@ -66,8 +59,7 @@ gdb_test "continue" ".* catcher .*" "continue to catch"
 gdb_test "next"
 
 # Full backtrace?
-send_gdb "bt\n"
-gdb_expect_list "backtrace" ".*$gdb_prompt $" {
+gdb_test_sequence "bt" "backtrace" {
     "\[\r\n\]+.0 \[^\r\n\]* catcher "
     "\[\r\n\]+.1  .signal handler called."
     "\[\r\n\]+.2 \[^\r\n\]* thrower .next_level=INNER"
@@ -75,7 +67,7 @@ gdb_expect_list "backtrace" ".*$gdb_prompt $" {
     "\[\r\n\]+.4  .signal handler called."
     "\[\r\n\]+.5 \[^\r\n\]* thrower .next_level=OUTER"
     "\[\r\n\]+.6 \[^\r\n\]* catcher "
-    "\[\r\n\]+.7 \[^\r\n\]* main .*"
+    "\[\r\n\]+.7 \[^\r\n\]* main "
 }
 
 proc finish_test { pattern msg } {
@@ -86,8 +78,8 @@ proc finish_test { pattern msg } {
 	    # Some platforms use a special read-only page for signal
 	    # trampolines.  We can't set a breakpoint there, and we
 	    # don't gracefully fall back to single-stepping.
-	    setup_kfail "i?86-*-linux*" gdb/1736
-	    setup_kfail "*-*-openbsd*" gdb/1736
+	    setup_kfail gdb/1736 "i?86-*-linux*"
+	    setup_kfail gdb/1736 "*-*-openbsd*"
 	    fail "$msg (could not set breakpoint)"
 	}
 	-re "$pattern.*${gdb_prompt} $" {

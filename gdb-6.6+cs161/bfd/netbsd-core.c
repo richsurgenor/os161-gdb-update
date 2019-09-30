@@ -1,6 +1,6 @@
 /* BFD back end for NetBSD style core files
    Copyright 1988, 1989, 1991, 1992, 1993, 1996, 1998, 1999, 2000, 2001,
-   2002, 2003, 2004, 2005, 2006
+   2002, 2003, 2004, 2005, 2006, 2007, 2012
    Free Software Foundation, Inc.
    Written by Paul Kranenburg, EUR
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,10 +18,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "libaout.h"           /* BFD a.out internal data structures.  */
 
@@ -43,6 +44,7 @@
 #define SPARC64_WCOOKIE_OFFSET	832
 
 #define netbsd_core_file_matches_executable_p generic_core_file_matches_executable_p
+#define netbsd_core_file_pid _bfd_nocore_core_file_pid
 
 struct netbsd_core_struct
 {
@@ -279,6 +281,7 @@ const bfd_target netbsd_core_vec =
     0,				/* Symbol prefix.  */
     ' ',			/* ar_pad_char.  */
     16,				/* ar_max_namelen.  */
+    0,				/* Match priority.  */
     NO_GET64, NO_GETS64, NO_PUT64,	/* 64 bit data.  */
     NO_GET, NO_GETS, NO_PUT,		/* 32 bit data.  */
     NO_GET, NO_GETS, NO_PUT,		/* 16 bit data.  */
@@ -313,5 +316,5 @@ const bfd_target netbsd_core_vec =
 
     NULL,
 
-    (PTR) 0			        /* Backend_data.  */
+    NULL			        /* Backend_data.  */
   };

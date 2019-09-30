@@ -1,24 +1,25 @@
 /* chew
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 2000, 2001,
-   2002, 2003, 2005
+   2002, 2003, 2005, 2007, 2009, 2012
    Free Software Foundation, Inc.
    Contributed by steve chamberlain @cygnus
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 /* Yet another way of extracting documentation from source.
    No, I haven't finished it yet, but I hope you people like it better
@@ -119,6 +120,7 @@ static void overwrite_string (string_type *, string_type *);
 static void catbuf (string_type *, char *, unsigned int);
 static void cattext (string_type *, char *);
 static void catstr (string_type *, string_type *);
+static void die (char *);
 #endif
 
 static void
@@ -128,7 +130,7 @@ init_string_with_size (buffer, size)
 {
   buffer->write_idx = 0;
   buffer->size = size;
-  buffer->ptr = malloc (size);
+  buffer->ptr = (char *) malloc (size);
 }
 
 static void
@@ -161,7 +163,9 @@ write_buffer (buffer, f)
      string_type *buffer;
      FILE *f;
 {
-  fwrite (buffer->ptr, buffer->write_idx, 1, f);
+  if (buffer->write_idx != 0
+      && fwrite (buffer->ptr, buffer->write_idx, 1, f) != 1)
+    die ("cannot write output");
 }
 
 static void
@@ -197,7 +201,7 @@ catchar (buffer, ch)
   if (buffer->write_idx == buffer->size)
     {
       buffer->size *= 2;
-      buffer->ptr = realloc (buffer->ptr, buffer->size);
+      buffer->ptr = (char *) realloc (buffer->ptr, buffer->size);
     }
 
   buffer->ptr[buffer->write_idx++] = ch;
@@ -224,7 +228,7 @@ catbuf (buffer, buf, len)
     {
       while (buffer->write_idx + len >= buffer->size)
 	buffer->size *= 2;
-      buffer->ptr = realloc (buffer->ptr, buffer->size);
+      buffer->ptr = (char *) realloc (buffer->ptr, buffer->size);
     }
   memcpy (buffer->ptr + buffer->write_idx, buf, len);
   buffer->write_idx += len;
@@ -472,8 +476,8 @@ remove_noncomments (src, dst)
 static void
 print_stack_level ()
 {
-  fprintf (stderr, "current string stack depth = %d, ", tos - stack);
-  fprintf (stderr, "current integer stack depth = %d\n", isp - istack);
+  fprintf (stderr, "current string stack depth = %ld, ", tos - stack);
+  fprintf (stderr, "current integer stack depth = %ld\n", isp - istack);
   pc++;
 }
 
@@ -1173,7 +1177,7 @@ nextword (string, word)
 	}
     }
 
-  *word = malloc (length + 1);
+  *word = (char *) malloc (length + 1);
 
   dst = *word;
   src = word_start;
@@ -1263,14 +1267,14 @@ dict_type *
 newentry (word)
      char *word;
 {
-  dict_type *new = (dict_type *) malloc (sizeof (dict_type));
-  new->word = word;
-  new->next = root;
-  root = new;
-  new->code = (stinst_type *) malloc (sizeof (stinst_type));
-  new->code_length = 1;
-  new->code_end = 0;
-  return new;
+  dict_type *new_d = (dict_type *) malloc (sizeof (dict_type));
+  new_d->word = word;
+  new_d->next = root;
+  root = new_d;
+  new_d->code = (stinst_type *) malloc (sizeof (stinst_type));
+  new_d->code_length = 1;
+  new_d->code_end = 0;
+  return new_d;
 }
 
 unsigned int
@@ -1295,19 +1299,19 @@ add_intrinsic (name, func)
      char *name;
      void (*func) ();
 {
-  dict_type *new = newentry (name);
-  add_to_definition (new, func);
-  add_to_definition (new, 0);
+  dict_type *new_d = newentry (name);
+  add_to_definition (new_d, func);
+  add_to_definition (new_d, 0);
 }
 
 void
 add_var (name)
      char *name;
 {
-  dict_type *new = newentry (name);
-  add_to_definition (new, push_number);
-  add_to_definition (new, (stinst_type) (&(new->var)));
-  add_to_definition (new, 0);
+  dict_type *new_d = newentry (name);
+  add_to_definition (new_d, push_number);
+  add_to_definition (new_d, (stinst_type) (&(new_d->var)));
+  add_to_definition (new_d, 0);
 }
 
 void
@@ -1559,7 +1563,7 @@ main (ac, av)
   write_buffer (stack + 0, stdout);
   if (tos != stack)
     {
-      fprintf (stderr, "finishing with current stack level %d\n",
+      fprintf (stderr, "finishing with current stack level %ld\n",
 	       tos - stack);
       return 1;
     }

@@ -1,12 +1,12 @@
 /* Target-dependent code for UltraSPARC.
 
-   Copyright (C) 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef SPARC64_TDEP_H
 #define SPARC64_TDEP_H 1
@@ -84,6 +82,18 @@ enum sparc64_regnum
   = SPARC64_Q0_REGNUM + 15
 };
 
+/* Processor state bits.  */
+#define SPARC64_PSTATE_AG	0x001
+#define SPARC64_PSTATE_IE	0x002
+#define SPARC64_PSTATE_PRIV	0x004
+#define SPARC64_PSTATE_AM	0x008
+#define SPARC64_PSTATE_PEF	0x010
+#define SPARC64_PSTATE_RED	0x020
+#define SPARC64_PSTATE_TLE	0x100
+#define SPARC64_PSTATE_CLE	0x200
+#define SPARC64_PSTATE_PID0	0x400
+#define SPARC64_PSTATE_PID1	0x800
+
 extern void sparc64_init_abi (struct gdbarch_info info,
 			      struct gdbarch *gdbarch);
 
@@ -93,15 +103,18 @@ extern void sparc64_supply_gregset (const struct sparc_gregset *gregset,
 extern void sparc64_collect_gregset (const struct sparc_gregset *gregset,
 				     const struct regcache *regcache,
 				     int regnum, void *gregs);
-extern void sparc64_supply_fpregset (struct regcache *regcache,
+extern void sparc64_supply_fpregset (const struct sparc_fpregset *fpregset,
+				     struct regcache *regcache,
 				     int regnum, const void *fpregs);
-extern void sparc64_collect_fpregset (const struct regcache *regcache,
+extern void sparc64_collect_fpregset (const struct sparc_fpregset *fpregset,
+				      const struct regcache *regcache,
 				      int regnum, void *fpregs);
 
 /* Functions and variables exported from sparc64-sol2-tdep.c.  */
 
 /* Register offsets for Solaris 2.  */
 extern const struct sparc_gregset sparc64_sol2_gregset;
+extern const struct sparc_fpregset sparc64_sol2_fpregset;
 
 extern void sparc64_sol2_init_abi (struct gdbarch_info info,
 				   struct gdbarch *gdbarch);
@@ -119,5 +132,7 @@ extern const struct sparc_gregset sparc64nbsd_gregset;
 extern struct trad_frame_saved_reg *
   sparc64nbsd_sigcontext_saved_regs (CORE_ADDR sigcontext_addr,
 				     struct frame_info *next_frame);
+
+extern const struct sparc_fpregset sparc64_bsd_fpregset;
 
 #endif /* sparc64-tdep.h */

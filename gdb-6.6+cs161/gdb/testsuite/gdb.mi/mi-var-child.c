@@ -1,21 +1,19 @@
-/* Copyright 1999, 2004, 2005 Free Software Foundation, Inc.
+/* Copyright 1999-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or (at
-   your option) any later version.
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   This program is distributed in the hope that it will be useful, but
-   WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <stdlib.h>
 #include <string.h>
@@ -199,17 +197,21 @@ do_children_tests (void)
   weird_struct *weird;
   struct _struct_n_pointer *psnp;
   struct _struct_n_pointer snp0, snp1, snp2;
-  char a0, *a1, **a2, ***a3;
-  char b0, *b1, **b2, ***b3;
-  char c0, *c1, **c2, ***c3;
+  char a0[2] = {}, *a1, **a2, ***a3;
+  char b0[2] = {}, *b1, **b2, ***b3;
+  char c0[2] = {}, *c1, **c2, ***c3;
   long z0, *z1, **z2, ***z3;
   long y0, *y1, **y2, ***y3;
   long x0, *x1, **x2, ***x3;
   int *foo;
   int bar;
 
-  struct _struct_decl struct_declarations;
-  memset (&struct_declarations, 0, sizeof (struct_declarations));
+  /* Avoid pointing into NULL, as that is editable on some
+     systems.  */
+  int dummy;
+  int *dummy_ptr = &dummy;
+
+  struct _struct_decl struct_declarations = { 0, 0, NULL, 0, &dummy_ptr };
   weird = &struct_declarations;
 
   struct_declarations.integer = 123;
@@ -233,16 +235,16 @@ do_children_tests (void)
   struct_declarations.long_array[11] = 5678;
 
   /* Struct/pointer/array tests */
-  a0 = '0';
-  a1 = &a0;
+  a0[0] = '0';  
+  a1 = a0;
   a2 = &a1;
   a3 = &a2;
-  b0 = '1';
-  b1 = &b0;
+  b0[0] = '1';
+  b1 = b0;
   b2 = &b1;
   b3 = &b2;
-  c0 = '2';
-  c1 = &c0;
+  c0[1] = '2';
+  c1 = c0;
   c2 = &c1;
   c3 = &c2;
   z0 = 0xdead + 0;
@@ -308,6 +310,29 @@ do_special_tests (void)
   incr_a(2);
 }
 
+struct very_simple_struct
+{
+  int a;
+  int b;
+};
+
+int
+do_child_deletion (void)
+{
+  /*: BEGIN: child_deletion :*/
+  struct very_simple_struct s = {1, 2};
+  /*:
+    mi_create_varobj S s "create varobj for s"
+    mi_list_varobj_children S {{S.a a 0 int} {S.b b 0 int}}	\
+       "list children of S"
+    mi_delete_varobj S.a "delete S.a"    
+    mi_delete_varobj S.b "delete S.b"
+    mi_delete_varobj S "delete S"
+    :*/
+  return 99;
+  /*: END: child_deletion :*/  
+}
+
 int
 main (int argc, char *argv [])
 {
@@ -315,6 +340,7 @@ main (int argc, char *argv [])
   do_block_tests ();
   do_children_tests ();
   do_special_tests ();
+  do_child_deletion ();
   exit (0);
 }
 

@@ -1,13 +1,12 @@
 /* Shared library support for RS/6000 (xcoff) object files, for GDB.
-   Copyright (C) 1991, 1992, 1995, 1996, 1999, 2000, 2001
-   Free Software Foundation, Inc.
+   Copyright (C) 1991-2013 Free Software Foundation, Inc.
    Contributed by IBM Corporation.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "bfd.h"
@@ -64,6 +61,7 @@ static void sharedlibrary_command (char *pattern, int from_tty);
 static void
 solib_info (char *args, int from_tty)
 {
+  int addr_size = gdbarch_addr_bit (target_gdbarch ()) / 8;
   struct vmap *vp = vmap;
 
   /* Check for new shared libraries loaded with load ().  */
@@ -79,14 +77,16 @@ solib_info (char *args, int from_tty)
   /* Skip over the first vmap, it is the main program, always loaded.  */
   vp = vp->nxt;
 
-  printf_unfiltered ("\
-Text Range		Data Range		Syms	Shared Object Library\n");
+  printf_unfiltered ("Text Range		Data Range		"
+		     "Syms	Shared Object Library\n");
 
   for (; vp != NULL; vp = vp->nxt)
     {
       printf_unfiltered ("0x%s-0x%s	0x%s-0x%s	%s	%s%s%s%s\n",
-			 paddr (vp->tstart),paddr (vp->tend),
-			 paddr (vp->dstart), paddr (vp->dend),
+			 phex (vp->tstart, addr_size),
+			 phex (vp->tend, addr_size),
+			 phex (vp->dstart, addr_size),
+			 phex (vp->dend, addr_size),
 			 vp->loaded ? "Yes" : "No ",
 			 vp->name,
 			 *vp->member ? "(" : "",
@@ -123,7 +123,7 @@ sharedlibrary_command (char *pattern, int from_tty)
     if (!vp)
       return;
 
-    /* skip over the first vmap, it is the main program, always loaded. */
+    /* skip over the first vmap, it is the main program, always loaded.  */
     for (vp = vp->nxt; vp; vp = vp->nxt)
       if (! pattern
 	    || re_exec (vp->name)
@@ -157,6 +157,8 @@ sharedlibrary_command (char *pattern, int from_tty)
   }
 }
 
+void _initialize_xcoffsolib (void);
+
 void
 _initialize_xcoffsolib (void)
 {
@@ -172,7 +174,8 @@ Show autoloading of shared library symbols."), _("\
 If \"on\", symbols from all shared object libraries will be loaded\n\
 automatically when the inferior begins execution, when the dynamic linker\n\
 informs gdb that a new library has been loaded, or when attaching to the\n\
-inferior.  Otherwise, symbols must be loaded manually, using `sharedlibrary'."),
+inferior.  Otherwise, symbols must be loaded manually, using \
+`sharedlibrary'."),
 			   NULL,
 			   NULL, /* FIXME: i18n: */
 			   &setlist, &showlist);

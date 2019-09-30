@@ -1,6 +1,6 @@
 /* Target-dependent code for AMD64 Solaris.
 
-   Copyright (C) 2001, 2002, 2003, 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    Contributed by Joseph Myers, CodeSourcery, LLC.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,9 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "frame.h"
@@ -47,7 +45,7 @@ static int amd64_sol2_gregset_reg_offset[] = {
   8 * 8,			/* %rdi */
   10 * 8,			/* %rbp */
   20 * 8,			/* %rsp */
-  7 * 8,			/* %r8 ... */
+  7 * 8,			/* %r8 ...  */
   6 * 8,
   5 * 8,
   4 * 8,
@@ -56,7 +54,7 @@ static int amd64_sol2_gregset_reg_offset[] = {
   1 * 8,
   0 * 8,			/* ... %r15 */
   17 * 8,			/* %rip */
-  16 * 8,			/* %eflags */
+  19 * 8,			/* %eflags */
   18 * 8,			/* %cs */
   21 * 8,			/* %ss */
   25 * 8,			/* %ds */
@@ -66,14 +64,14 @@ static int amd64_sol2_gregset_reg_offset[] = {
 };
 
 
-/* Return whether the frame preceding NEXT_FRAME corresponds to a
-   Solaris sigtramp routine.  */
+/* Return whether THIS_FRAME corresponds to a Solaris sigtramp
+   routine.  */
 
 static int
-amd64_sol2_sigtramp_p (struct frame_info *next_frame)
+amd64_sol2_sigtramp_p (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
-  char *name;
+  CORE_ADDR pc = get_frame_pc (this_frame);
+  const char *name;
 
   find_pc_partial_function (pc, &name, NULL, NULL);
   return (name && (strcmp ("sigacthandler", name) == 0
@@ -84,12 +82,12 @@ amd64_sol2_sigtramp_p (struct frame_info *next_frame)
    'mcontext_t' that contains the saved set of machine registers.  */
 
 static CORE_ADDR
-amd64_sol2_mcontext_addr (struct frame_info *next_frame)
+amd64_sol2_mcontext_addr (struct frame_info *this_frame)
 {
   CORE_ADDR sp, ucontext_addr;
 
-  sp = frame_unwind_register_unsigned (next_frame, AMD64_RSP_REGNUM);
-  ucontext_addr = get_frame_memory_unsigned (next_frame, sp + 8, 8);
+  sp = get_frame_register_unsigned (this_frame, AMD64_RSP_REGNUM);
+  ucontext_addr = get_frame_memory_unsigned (this_frame, sp + 8, 8);
 
   return ucontext_addr + 72;
 }
@@ -114,6 +112,9 @@ amd64_sol2_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   set_gdbarch_skip_solib_resolver (gdbarch, sol2_skip_solib_resolver);
   set_solib_svr4_fetch_link_map_offsets
     (gdbarch, svr4_lp64_fetch_link_map_offsets);
+
+  /* How to print LWP PTIDs from core files.  */
+  set_gdbarch_core_pid_to_str (gdbarch, sol2_core_pid_to_str);
 }
 
 

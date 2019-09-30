@@ -1,13 +1,13 @@
 /* The remote-virtual-component simulator framework
    for GDB, the GNU Debugger.
 
-   Copyright 2006 Free Software Foundation, Inc.
+   Copyright 2006-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #include "sim-main.h"
@@ -406,7 +404,7 @@ hw_rv_write (struct hw *me,
 
   /* If we don't have a valid fd here, it's because we got an error
      initially, and we suppressed that error.  */
-  if (rv->fd < 0)
+  if (rv->fd == -1)
     hw_abort (me, "couldn't open a connection to %s:%d because: %s",
 	      rv->host, rv->port, strerror (rv->saved_errno));
 
@@ -639,7 +637,7 @@ hw_rv_handle_incoming (struct hw *me,
     {
       hw_rv_read (me, cbuf, 3);
 
-      if (rv->fd < 0)
+      if (rv->fd == -1)
 	return;
 
       len = cbuf[0] + cbuf[1] * 256 - 3;
@@ -725,7 +723,7 @@ hw_rv_poll_once (struct hw *me)
   int ret;
   struct timeval tv;
 
-  if (rv->fd < 0)
+  if (rv->fd == -1)
     /* Connection has died or was never initiated.  */
     return;
 
@@ -889,7 +887,7 @@ hw_rv_init_socket (struct hw *me)
   server.sin_port = htons (rv->port);
   sock = socket (AF_INET, SOCK_STREAM, 0);
 
-  if (sock < 0)
+  if (sock == -1)
     hw_abort (me, "can't get a socket for %s:%d connection",
 	      rv->host, rv->port);
 

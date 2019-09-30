@@ -1,12 +1,12 @@
 /* Remote target system call support.
-   Copyright 1997, 1998, 2002, 2004 Free Software Foundation, Inc.
+   Copyright 1997-2013 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with GAS; see the file COPYING.  If not, write to the Free Software
-   Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* This interface isn't intended to be specific to any particular kind
    of remote (hardware, simulator, whatever).  As such, support for it
@@ -76,8 +75,8 @@ char *simulator_sysroot = "";
 /* Utility of cb_syscall to fetch a path name or other string from the target.
    The result is 0 for success or a host errno value.  */
 
-static int
-get_string (cb, sc, buf, buflen, addr)
+int
+cb_get_string (cb, sc, buf, buflen, addr)
      host_callback *cb;
      CB_SYSCALL *sc;
      char *buf;
@@ -93,7 +92,7 @@ get_string (cb, sc, buf, buflen, addr)
 	 path name along with the syscall request, and cache the file
 	 name somewhere (or otherwise tweak this as desired).  */
       unsigned int count = (*sc->read_mem) (cb, sc, addr, p, 1);
-				    
+
       if (count != 1)
 	return EINVAL;
       if (*p == 0)
@@ -121,7 +120,7 @@ get_path (cb, sc, addr, bufp)
   int result;
   int sysroot_len = strlen (simulator_sysroot);
 
-  result = get_string (cb, sc, buf, MAX_PATH_LEN - sysroot_len, addr);
+  result = cb_get_string (cb, sc, buf, MAX_PATH_LEN - sysroot_len, addr);
   if (result == 0)
     {
       /* Prepend absolute paths with simulator_sysroot.  Relative paths
@@ -292,7 +291,7 @@ cb_syscall (cb, sc)
 
 	while (count > 0)
 	  {
-	    if (fd == 0)
+	    if (cb_is_stdin (cb, fd))
 	      result = (int) (*cb->read_stdin) (cb, buf,
 						(count < FILE_XFR_SIZE
 						 ? count : FILE_XFR_SIZE));
@@ -345,12 +344,12 @@ cb_syscall (cb, sc)
 		errcode = EINVAL;
 		goto FinishSyscall;
 	      }
-	    if (fd == 1)
+	    if (cb_is_stdout (cb, fd))
 	      {
 		result = (int) (*cb->write_stdout) (cb, buf, bytes_read);
 		(*cb->flush_stdout) (cb);
 	      }
-	    else if (fd == 2)
+	    else if (cb_is_stderr (cb, fd))
 	      {
 		result = (int) (*cb->write_stderr) (cb, buf, bytes_read);
 		(*cb->flush_stderr) (cb);

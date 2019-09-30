@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include <stdio.h>
+#include <errno.h>
 #include <signal.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -34,7 +36,22 @@
 # endif
 #endif
 
-#include "sysdep.h"
+#ifdef HAVE_STRING_H
+#include <string.h>
+#else
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+#endif
+
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
 #include "bfd.h"
 #include "gdb/callback.h"
 #include "gdb/remote-sim.h"
@@ -64,7 +81,7 @@
 
 extern unsigned short sh_jump_table[], sh_dsp_table[0x1000], ppi_table[];
 
-int sim_write (SIM_DESC sd, SIM_ADDR addr, unsigned char *buffer, int size);
+int sim_write (SIM_DESC sd, SIM_ADDR addr, const unsigned char *buffer, int size);
 
 #define O_RECOMPILE 85
 #define DEFINE_TABLE
@@ -845,7 +862,7 @@ do { \
 #else
 
 #define MA(n) \
-  do { memstalls += ((((int) PC & 3) != 0) ? (n) : ((n) - 1)); } while (0)
+  do { memstalls += ((((long) PC & 3) != 0) ? (n) : ((n) - 1)); } while (0)
 
 #define L(x)   thislock = x;
 #define TL(x)  if ((x) == prevlock) stalls++;
@@ -1429,14 +1446,9 @@ macl (regs, memory, n, m)
      int m, n;
 {
   long tempm, tempn;
-  long prod, macl, mach, sum;
-  long long ans,ansl,ansh,t;
-  unsigned long long high,low,combine;
-  union mac64
-  {
-    long m[2]; /* mach and macl*/
-    long long m64; /* 64 bit MAC */
-  }mac64;
+  long macl, mach;
+  long long ans;
+  long long mac64;
 
   tempm = RSLAT (regs[m]);
   regs[m] += 4;
@@ -1447,15 +1459,15 @@ macl (regs, memory, n, m)
   mach = MACH;
   macl = MACL;
 
-  mac64.m[0] = macl;
-  mac64.m[1] = mach;
+  mac64 = ((long long) macl & 0xffffffff) |
+          ((long long) mach & 0xffffffff) << 32;
 
   ans = (long long) tempm * (long long) tempn; /* Multiply 32bit * 32bit */
 
-  mac64.m64 += ans; /* Accumulate   64bit + 64 bit */
+  mac64 += ans; /* Accumulate 64bit + 64 bit */
 
-  macl = mac64.m[0];
-  mach = mac64.m[1];
+  macl = (long) (mac64 & 0xffffffff);
+  mach = (long) ((mac64 >> 32) & 0xffffffff);
 
   if (S)  /* Store only 48 bits of the result */
     {
@@ -2129,7 +2141,7 @@ int
 sim_write (sd, addr, buffer, size)
      SIM_DESC sd;
      SIM_ADDR addr;
-     unsigned char *buffer;
+     const unsigned char *buffer;
      int size;
 {
   int i;
@@ -2344,7 +2356,7 @@ sim_store_register (sd, rn, memory, length)
     default:
       return 0;
     }
-  return -1;
+  return length;
 }
 
 int
@@ -2519,7 +2531,7 @@ sim_fetch_register (sd, rn, memory, length)
       return 0;
     }
   * (int *) memory = swap (val);
-  return -1;
+  return length;
 }
 
 int
@@ -2774,4 +2786,10 @@ sim_set_callbacks (p)
      host_callback *p;
 {
   callback = p;
+}
+
+char **
+sim_complete_command (SIM_DESC sd, char *text, char *word)
+{
+  return NULL;
 }

@@ -1,12 +1,12 @@
 /* Native-dependent code for SPARC.
 
-   Copyright (C) 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "inferior.h"
@@ -84,19 +82,22 @@ typedef struct fp_status fpregset_t;
 
 /* Register set description.  */
 const struct sparc_gregset *sparc_gregset;
+const struct sparc_fpregset *sparc_fpregset;
 void (*sparc_supply_gregset) (const struct sparc_gregset *,
 			      struct regcache *, int , const void *);
 void (*sparc_collect_gregset) (const struct sparc_gregset *,
 			       const struct regcache *, int, void *);
-void (*sparc_supply_fpregset) (struct regcache *, int , const void *);
-void (*sparc_collect_fpregset) (const struct regcache *, int , void *);
-int (*sparc_gregset_supplies_p) (int);
-int (*sparc_fpregset_supplies_p) (int);
+void (*sparc_supply_fpregset) (const struct sparc_fpregset *,
+			       struct regcache *, int , const void *);
+void (*sparc_collect_fpregset) (const struct sparc_fpregset *,
+				const struct regcache *, int , void *);
+int (*sparc_gregset_supplies_p) (struct gdbarch *, int);
+int (*sparc_fpregset_supplies_p) (struct gdbarch *, int);
 
 /* Determine whether `gregset_t' contains register REGNUM.  */
 
 int
-sparc32_gregset_supplies_p (int regnum)
+sparc32_gregset_supplies_p (struct gdbarch *gdbarch, int regnum)
 {
   /* Integer registers.  */
   if ((regnum >= SPARC_G1_REGNUM && regnum <= SPARC_G7_REGNUM)
@@ -118,7 +119,7 @@ sparc32_gregset_supplies_p (int regnum)
 /* Determine whether `fpregset_t' contains register REGNUM.  */
 
 int
-sparc32_fpregset_supplies_p (int regnum)
+sparc32_fpregset_supplies_p (struct gdbarch *gdbarch, int regnum)
 {
   /* Floating-point registers.  */
   if (regnum >= SPARC_F0_REGNUM && regnum <= SPARC_F31_REGNUM)
@@ -135,9 +136,10 @@ sparc32_fpregset_supplies_p (int regnum)
    for all registers (including the floating-point registers).  */
 
 void
-fetch_inferior_registers (int regnum)
+sparc_fetch_inferior_registers (struct target_ops *ops,
+				struct regcache *regcache, int regnum)
 {
-  struct regcache *regcache = current_regcache;
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int pid;
 
   /* NOTE: cagney/2002-12-03: This code assumes that the currently
@@ -159,11 +161,13 @@ fetch_inferior_registers (int regnum)
 
   if (regnum == SPARC_G0_REGNUM)
     {
-      regcache_raw_supply (regcache, SPARC_G0_REGNUM, NULL);
+      gdb_byte zero[8] = { 0 };
+
+      regcache_raw_supply (regcache, SPARC_G0_REGNUM, &zero);
       return;
     }
 
-  if (regnum == -1 || sparc_gregset_supplies_p (regnum))
+  if (regnum == -1 || sparc_gregset_supplies_p (gdbarch, regnum))
     {
       gregset_t regs;
 
@@ -175,21 +179,22 @@ fetch_inferior_registers (int regnum)
 	return;
     }
 
-  if (regnum == -1 || sparc_fpregset_supplies_p (regnum))
+  if (regnum == -1 || sparc_fpregset_supplies_p (gdbarch, regnum))
     {
       fpregset_t fpregs;
 
       if (ptrace (PTRACE_GETFPREGS, pid, (PTRACE_TYPE_ARG3) &fpregs, 0) == -1)
 	perror_with_name (_("Couldn't get floating point status"));
 
-      sparc_supply_fpregset (regcache, -1, &fpregs);
+      sparc_supply_fpregset (sparc_fpregset, regcache, -1, &fpregs);
     }
 }
 
 void
-store_inferior_registers (int regnum)
+sparc_store_inferior_registers (struct target_ops *ops,
+				struct regcache *regcache, int regnum)
 {
-  struct regcache *regcache = current_regcache;
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   int pid;
 
   /* NOTE: cagney/2002-12-02: See comment in fetch_inferior_registers
@@ -198,7 +203,7 @@ store_inferior_registers (int regnum)
   if (pid == 0)
     pid = PIDGET (inferior_ptid);
 
-  if (regnum == -1 || sparc_gregset_supplies_p (regnum))
+  if (regnum == -1 || sparc_gregset_supplies_p (gdbarch, regnum))
     {
       gregset_t regs;
 
@@ -224,7 +229,7 @@ store_inferior_registers (int regnum)
 	return;
     }
 
-  if (regnum == -1 || sparc_fpregset_supplies_p (regnum))
+  if (regnum == -1 || sparc_fpregset_supplies_p (gdbarch, regnum))
     {
       fpregset_t fpregs, saved_fpregs;
 
@@ -232,7 +237,7 @@ store_inferior_registers (int regnum)
 	perror_with_name (_("Couldn't get floating-point registers"));
 
       memcpy (&saved_fpregs, &fpregs, sizeof (fpregs));
-      sparc_collect_fpregset (regcache, regnum, &fpregs);
+      sparc_collect_fpregset (sparc_fpregset, regcache, regnum, &fpregs);
 
       /* Writing the floating-point registers will fail on NetBSD with
 	 EINVAL if the inferior process doesn't have an FPU state
@@ -253,7 +258,7 @@ store_inferior_registers (int regnum)
 
 /* Fetch StackGhost Per-Process XOR cookie.  */
 
-LONGEST
+static LONGEST
 sparc_xfer_wcookie (struct target_ops *ops, enum target_object object,
 		    const char *annex, gdb_byte *readbuf,
 		    const gdb_byte *writebuf, ULONGEST offset, LONGEST len)
@@ -334,8 +339,8 @@ sparc_target (void)
   struct target_ops *t;
 
   t = inf_ptrace_target ();
-  t->to_fetch_registers = fetch_inferior_registers;
-  t->to_store_registers = store_inferior_registers;
+  t->to_fetch_registers = sparc_fetch_inferior_registers;
+  t->to_store_registers = sparc_store_inferior_registers;
   inf_ptrace_xfer_partial = t->to_xfer_partial;
   t->to_xfer_partial = sparc_xfer_partial;
   return t;
@@ -351,6 +356,8 @@ _initialize_sparc_nat (void)
   /* Deafult to using SunOS 4 register sets.  */
   if (sparc_gregset == NULL)
     sparc_gregset = &sparc32_sunos4_gregset;
+  if (sparc_fpregset == NULL)
+    sparc_fpregset = &sparc32_sunos4_fpregset;
   if (sparc_supply_gregset == NULL)
     sparc_supply_gregset = sparc32_supply_gregset;
   if (sparc_collect_gregset == NULL)

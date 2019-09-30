@@ -1,12 +1,12 @@
 /* Memory attributes support, for GDB.
 
-   Copyright (C) 2001, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef MEMATTR_H
 #define MEMATTR_H
@@ -26,6 +24,7 @@
 
 enum mem_access_mode
 {
+  MEM_NONE,                     /* Memory that is not physically present.  */
   MEM_RW,			/* read/write */
   MEM_RO,			/* read only */
   MEM_WO,			/* write only */
@@ -51,7 +50,7 @@ enum mem_access_width
    the mem_region structure.
 
    FIXME: It would be useful if there was a mechanism for targets to
-   add their own attributes.  For example, the number of wait states. */
+   add their own attributes.  For example, the number of wait states.  */
  
 struct mem_attrib 
 {
@@ -66,9 +65,9 @@ struct mem_attrib
   /* enables host-side caching of memory region data */
   int cache;
   
-  /* enables memory verification.  after a write, memory is re-read
-     to verify that the write was successful. */
-  int verify; 
+  /* Enables memory verification.  After a write, memory is re-read
+     to verify that the write was successful.  */
+  int verify;
 
   /* Block size.  Only valid if mode == MEM_FLASH.  */
   int blocksize;
@@ -76,16 +75,20 @@ struct mem_attrib
 
 struct mem_region 
 {
+  /* Lowest address in the region.  */
   CORE_ADDR lo;
+  /* Address past the highest address of the region. 
+     If 0, upper bound is "infinity".  */
   CORE_ADDR hi;
 
-  /* Item number of this memory region. */
+  /* Item number of this memory region.  */
   int number;
 
-  /* Status of this memory region (enabled if non-zero, otherwise disabled) */
+  /* Status of this memory region (enabled if non-zero, otherwise
+     disabled).  */
   int enabled_p;
 
-  /* Attributes for this region */
+  /* Attributes for this region.  */
   struct mem_attrib attrib;
 };
 

@@ -4,7 +4,7 @@
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
     GNU General Public License for more details.
  
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+    along with this program; if not, see <http://www.gnu.org/licenses/>.
  
     */
 
@@ -119,7 +118,7 @@ find_arg(char *err_msg,
 
 INLINE_PSIM\
 (void)
-psim_usage(int verbose)
+psim_usage(int verbose, int help)
 {
   printf_filtered("Usage:\n");
   printf_filtered("\n");
@@ -217,7 +216,10 @@ psim_usage(int verbose)
     printf_filtered("\n");
     print_options();
   }
-  error("");
+
+  if (REPORT_BUGS_TO[0])
+    printf ("Report bugs to %s\n", REPORT_BUGS_TO);
+  exit (help ? 0 : 1);
 }
 
 /* Test "string" for containing a string of digits that form a number
@@ -258,7 +260,8 @@ psim_options(device *root,
     while (*p != '\0') {
       switch (*p) {
       default:
-	psim_usage(0);
+	printf_filtered ("Invalid Option: %s\n", argv[argp]);
+	psim_usage(0, 0);
 	error ("");
 	break;
       case 'c':
@@ -279,7 +282,7 @@ psim_options(device *root,
 	else
 	  {
 	    printf_filtered ("Invalid <endian> option for -E (target-endian)\n");
-	    psim_usage (0);
+	    psim_usage (0, 0);
 	  }
 	break;
       case 'f':
@@ -288,10 +291,10 @@ psim_options(device *root,
 	break;
       case 'h':
       case '?':
-	psim_usage(1);
+	psim_usage(1, 1);
 	break;
       case 'H':
-	psim_usage(2);
+	psim_usage(2, 1);
 	break;
       case 'i':
 	if (isdigit(p[1])) {
@@ -352,8 +355,24 @@ psim_options(device *root,
 	  p = argv[argp] + strlen(argv[argp]) - 1;
 	  printf_filtered("Warning - architecture parameter ignored\n");
         }
+	else if (strcmp (argv[argp], "--help") == 0)
+	  psim_usage (0, 1);
+	else if (strncmp (argv[argp], "--sysroot=",
+			  sizeof ("--sysroot=") - 1) == 0)
+	  /* Ignore this option.  */
+	  p = argv[argp] + strlen(argv[argp]) - 1;
+	else if (strcmp (argv[argp], "--version") == 0)
+	  {
+	    extern const char version[];
+	    printf ("GNU simulator %s%s\n", PKGVERSION, version);
+	    exit (0);
+	  }
 	else
-	  error("Unrecognized option");
+	  {
+	    printf_filtered ("Invalid option: %s\n", argv[argp]);
+	    psim_usage (0, 0);
+	    error ("");
+	  }
 	break;
       }
       p += 1;
@@ -572,7 +591,7 @@ cntrl_c_simulation(void *data)
   psim_halt(system,
 	    psim_nr_cpus(system),
 	    was_continuing,
-	    TARGET_SIGNAL_INT);
+	    GDB_SIGNAL_INT);
 }
 
 INLINE_PSIM\

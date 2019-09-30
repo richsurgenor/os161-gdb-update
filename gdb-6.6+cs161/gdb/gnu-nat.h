@@ -1,22 +1,20 @@
 /* Common things used by the various *gnu-nat.c files
-   Copyright (C) 1995, 1996, 1997, 1999, 2000 Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
 
    Written by Miles Bader <miles@gnu.ai.mit.edu>
 
-   The GNU Hurd is free software; you can redistribute it and/or
-   modify it under the terms of the GNU General Public License as
-   published by the Free Software Foundation; either version 2, or (at
-   your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   The GNU Hurd is distributed in the hope that it will be useful, but
-   WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef __GNU_NAT_H__
 #define __GNU_NAT_H__
@@ -26,7 +24,7 @@
 
 struct inf;
 
-extern struct inf *current_inferior;
+extern struct inf *gnu_current_inf;
 
 /* Converts a GDB pid to a struct proc.  */
 struct proc *inf_tid_to_thread (struct inf *inf, int tid);
@@ -47,18 +45,18 @@ struct proc
 
     int sc;			/* Desired suspend count.   */
     int cur_sc;			/* Implemented suspend count.  */
-    int run_sc;			/* Default sc when the program is running. */
-    int pause_sc;		/* Default sc when gdb has control. */
-    int resume_sc;		/* Sc resulting from the last resume. */
+    int run_sc;			/* Default sc when the program is running.  */
+    int pause_sc;		/* Default sc when gdb has control.  */
+    int resume_sc;		/* Sc resulting from the last resume.  */
     int detach_sc;		/* SC to leave around when detaching
-				   from program. */
+				   from program.  */
 
-    thread_state_data_t state;	/* Registers, &c. */
-    int state_valid:1;		/* True if STATE is up to date. */
+    thread_state_data_t state;	/* Registers, &c.  */
+    int state_valid:1;		/* True if STATE is up to date.  */
     int state_changed:1;
 
     int aborted:1;		/* True if thread_abort has been called.  */
-    int dead:1;			/* We happen to know it's actually dead. */
+    int dead:1;			/* We happen to know it's actually dead.  */
 
     /* Bit mask of registers fetched by gdb.  This is used when we re-fetch
        STATE after aborting the thread, to detect that gdb may have out-of-date
@@ -89,13 +87,19 @@ extern char *proc_string (struct proc *proc);
 
 #define proc_debug(_proc, msg, args...) \
   do { struct proc *__proc = (_proc); \
-       debug ("{proc %d/%d %p}: " msg, \
-	      __proc_pid (__proc), __proc->tid, __proc , ##args); } while (0)
+       debug ("{proc %d/%d %s}: " msg, \
+	      __proc_pid (__proc), __proc->tid, \
+	      host_address_to_string (__proc) , ##args); } while (0)
 
 extern int gnu_debug_flag;
 
 #define debug(msg, args...) \
  do { if (gnu_debug_flag) \
-        fprintf_unfiltered (gdb_stdlog, "%s:%d: " msg "\r\n", __FILE__ , __LINE__ , ##args); } while (0)
+        fprintf_unfiltered (gdb_stdlog, "%s:%d: " msg "\r\n", \
+			    __FILE__ , __LINE__ , ##args); } while (0)
+
+/* Create a prototype generic GNU/Hurd target.  The client can
+   override it with local methods.  */
+struct target_ops *gnu_target (void);
 
 #endif /* __GNU_NAT_H__ */

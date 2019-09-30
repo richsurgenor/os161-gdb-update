@@ -2,23 +2,22 @@
 
 THIS FILE IS MACHINE GENERATED WITH CGEN.
 
-Copyright 1996-2005 Free Software Foundation, Inc.
+Copyright 1996-2013 Free Software Foundation, Inc.
 
 This file is part of the GNU simulators.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
-any later version.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.
+   You should have received a copy of the GNU General Public License along
+   with this program; if not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -26,7 +25,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #define CRISV10F_DECODE_H
 
 extern const IDESC *crisv10f_decode (SIM_CPU *, IADDR,
-                                  CGEN_INSN_INT,
+                                  CGEN_INSN_WORD,
                                   ARGBUF *);
 extern void crisv10f_init_idesc_table (SIM_CPU *);
 extern void crisv10f_sem_init_idesc_table (SIM_CPU *);
@@ -108,18 +107,18 @@ typedef enum crisv10f_sfmt_type {
  , CRISV10F_SFMT_NEG_B_R, CRISV10F_SFMT_NEG_D_R, CRISV10F_SFMT_TEST_M_B_M, CRISV10F_SFMT_TEST_M_W_M
  , CRISV10F_SFMT_TEST_M_D_M, CRISV10F_SFMT_MOVE_R_M_B_M, CRISV10F_SFMT_MOVE_R_M_W_M, CRISV10F_SFMT_MOVE_R_M_D_M
  , CRISV10F_SFMT_MULS_B, CRISV10F_SFMT_MSTEP, CRISV10F_SFMT_DSTEP, CRISV10F_SFMT_AND_B_R
- , CRISV10F_SFMT_AND_W_R, CRISV10F_SFMT_AND_D_R, CRISV10F_SFMT_AND_M_B_M, CRISV10F_SFMT_AND_M_W_M
- , CRISV10F_SFMT_AND_M_D_M, CRISV10F_SFMT_ANDCBR, CRISV10F_SFMT_ANDCWR, CRISV10F_SFMT_ANDCDR
- , CRISV10F_SFMT_ANDQ, CRISV10F_SFMT_SWAP, CRISV10F_SFMT_ASRR_B_R, CRISV10F_SFMT_ASRQ
- , CRISV10F_SFMT_LSRR_B_R, CRISV10F_SFMT_LSRR_D_R, CRISV10F_SFMT_BTST, CRISV10F_SFMT_BTSTQ
- , CRISV10F_SFMT_SETF, CRISV10F_SFMT_BCC_B, CRISV10F_SFMT_BA_B, CRISV10F_SFMT_BCC_W
- , CRISV10F_SFMT_BA_W, CRISV10F_SFMT_JUMP_R, CRISV10F_SFMT_JUMP_M, CRISV10F_SFMT_JUMP_C
- , CRISV10F_SFMT_BREAK, CRISV10F_SFMT_BOUND_M_B_M, CRISV10F_SFMT_BOUND_M_W_M, CRISV10F_SFMT_BOUND_M_D_M
- , CRISV10F_SFMT_BOUND_CB, CRISV10F_SFMT_BOUND_CW, CRISV10F_SFMT_BOUND_CD, CRISV10F_SFMT_SCC
- , CRISV10F_SFMT_ADDOQ, CRISV10F_SFMT_BDAPQPC, CRISV10F_SFMT_BDAP_32_PC, CRISV10F_SFMT_MOVE_M_PCPLUS_P0
- , CRISV10F_SFMT_MOVE_M_SPPLUS_P8, CRISV10F_SFMT_ADDO_M_B_M, CRISV10F_SFMT_ADDO_M_W_M, CRISV10F_SFMT_ADDO_M_D_M
- , CRISV10F_SFMT_ADDO_CB, CRISV10F_SFMT_ADDO_CW, CRISV10F_SFMT_ADDO_CD, CRISV10F_SFMT_DIP_M
- , CRISV10F_SFMT_DIP_C, CRISV10F_SFMT_ADDI_ACR_B_R, CRISV10F_SFMT_BIAP_PC_B_R
+ , CRISV10F_SFMT_AND_D_R, CRISV10F_SFMT_AND_M_B_M, CRISV10F_SFMT_AND_M_W_M, CRISV10F_SFMT_AND_M_D_M
+ , CRISV10F_SFMT_ANDCBR, CRISV10F_SFMT_ANDCWR, CRISV10F_SFMT_ANDCDR, CRISV10F_SFMT_ANDQ
+ , CRISV10F_SFMT_SWAP, CRISV10F_SFMT_ASRQ, CRISV10F_SFMT_LSRR_B_R, CRISV10F_SFMT_LSRR_D_R
+ , CRISV10F_SFMT_BTST, CRISV10F_SFMT_BTSTQ, CRISV10F_SFMT_SETF, CRISV10F_SFMT_BCC_B
+ , CRISV10F_SFMT_BA_B, CRISV10F_SFMT_BCC_W, CRISV10F_SFMT_BA_W, CRISV10F_SFMT_JUMP_R
+ , CRISV10F_SFMT_JUMP_M, CRISV10F_SFMT_JUMP_C, CRISV10F_SFMT_BREAK, CRISV10F_SFMT_BOUND_M_B_M
+ , CRISV10F_SFMT_BOUND_M_W_M, CRISV10F_SFMT_BOUND_M_D_M, CRISV10F_SFMT_BOUND_CB, CRISV10F_SFMT_BOUND_CW
+ , CRISV10F_SFMT_BOUND_CD, CRISV10F_SFMT_SCC, CRISV10F_SFMT_ADDOQ, CRISV10F_SFMT_BDAPQPC
+ , CRISV10F_SFMT_BDAP_32_PC, CRISV10F_SFMT_MOVE_M_PCPLUS_P0, CRISV10F_SFMT_MOVE_M_SPPLUS_P8, CRISV10F_SFMT_ADDO_M_B_M
+ , CRISV10F_SFMT_ADDO_M_W_M, CRISV10F_SFMT_ADDO_M_D_M, CRISV10F_SFMT_ADDO_CB, CRISV10F_SFMT_ADDO_CW
+ , CRISV10F_SFMT_ADDO_CD, CRISV10F_SFMT_DIP_M, CRISV10F_SFMT_DIP_C, CRISV10F_SFMT_ADDI_ACR_B_R
+ , CRISV10F_SFMT_BIAP_PC_B_R
 } CRISV10F_SFMT_TYPE;
 
 /* Function unit handlers (user written).  */

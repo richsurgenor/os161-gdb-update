@@ -4,7 +4,7 @@
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
     GNU General Public License for more details.
  
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+    along with this program; if not, see <http://www.gnu.org/licenses/>.
  
     */
 
@@ -313,7 +312,7 @@ extern int current_stdio;
    to both eliminate the overhead of function calls and (as a
    consequence) also eliminate further dead code.
 
-   On a CISC (x86) I've found that I can achieve an order of magintude
+   On a CISC (x86) I've found that I can achieve an order of magnitude
    speed improvement (x3-x5).  In the case of RISC (sparc) while the
    performance gain isn't as great it is still significant.
 

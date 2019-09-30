@@ -1,6 +1,6 @@
 /* BFD back-end for ARM COFF files.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012
    Free Software Foundation, Inc.
    Written by Cygnus Support.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,10 +18,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "coff/arm.h"
 #include "coff/internal.h"
@@ -548,7 +549,6 @@ coff_arm_rtype_to_howto (bfd *abfd ATTRIBUTE_UNUSED,
 	osect_vma = h->root.u.def.section->output_section->vma;
       else
 	{
-	  asection *sec;
 	  int i;
 
 	  /* Sigh, the only way to get the section to offset against
@@ -599,7 +599,7 @@ aoutarm_fix_pcrel_26 (bfd *abfd,
   bfd_reloc_status_type flag = bfd_reloc_ok;
 
   /* If this is an undefined symbol, return error.  */
-  if (symbol->section == &bfd_und_section
+  if (bfd_is_und_section (symbol->section)
       && (symbol->flags & BSF_WEAK) == 0)
     return output_bfd ? bfd_reloc_continue : bfd_reloc_undefined;
 
@@ -687,7 +687,7 @@ coff_thumb_pcrel_common (bfd *abfd,
     }
 
   /* If this is an undefined symbol, return error.  */
-  if (symbol->section == &bfd_und_section
+  if (bfd_is_und_section (symbol->section)
       && (symbol->flags & BSF_WEAK) == 0)
     return output_bfd ? bfd_reloc_continue : bfd_reloc_undefined;
 
@@ -817,7 +817,7 @@ coff_arm_reloc_type_lookup (bfd * abfd, bfd_reloc_code_real_type code)
 #define ASTD(i,j)       case i: return aoutarm_std_reloc_howto + j
 
   if (code == BFD_RELOC_CTOR)
-    switch (bfd_get_arch_info (abfd)->bits_per_address)
+    switch (bfd_arch_bits_per_address (abfd))
       {
       case 32:
         code = BFD_RELOC_32;
@@ -851,6 +851,23 @@ coff_arm_reloc_type_lookup (bfd * abfd, bfd_reloc_code_real_type code)
 #endif
     default: return NULL;
     }
+}
+
+static reloc_howto_type *
+coff_arm_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			    const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < (sizeof (aoutarm_std_reloc_howto)
+	    / sizeof (aoutarm_std_reloc_howto[0]));
+       i++)
+    if (aoutarm_std_reloc_howto[i].name != NULL
+	&& strcasecmp (aoutarm_std_reloc_howto[i].name, r_name) == 0)
+      return &aoutarm_std_reloc_howto[i];
+
+  return NULL;
 }
 
 #define COFF_DEFAULT_SECTION_ALIGNMENT_POWER  2
@@ -901,7 +918,7 @@ coff_arm_link_hash_table_create (bfd * abfd)
   struct coff_arm_link_hash_table * ret;
   bfd_size_type amt = sizeof (struct coff_arm_link_hash_table);
 
-  ret = bfd_malloc (amt);
+  ret = bfd_zmalloc (amt);
   if (ret == NULL)
     return NULL;
 
@@ -914,28 +931,27 @@ coff_arm_link_hash_table_create (bfd * abfd)
       return NULL;
     }
 
-  ret->thumb_glue_size   = 0;
-  ret->arm_glue_size     = 0;
-  ret->bfd_of_glue_owner = NULL;
-
   return & ret->root.root;
 }
 
-static void
+static bfd_boolean
 arm_emit_base_file_entry (struct bfd_link_info *info,
 			  bfd *output_bfd,
 			  asection *input_section,
 			  bfd_vma reloc_offset)
 {
-  bfd_vma addr = reloc_offset
-                - input_section->vma
-                + input_section->output_offset
-                  + input_section->output_section->vma;
+  bfd_vma addr = (reloc_offset
+		  - input_section->vma
+		  + input_section->output_offset
+		  + input_section->output_section->vma);
 
   if (coff_data (output_bfd)->pe)
      addr -= pe_data (output_bfd)->pe_opthdr.ImageBase;
-  fwrite (& addr, 1, sizeof (addr), (FILE *) info->base_file);
+  if (fwrite (&addr, sizeof (addr), 1, (FILE *) info->base_file) == 1)
+    return TRUE;
 
+  bfd_set_error (bfd_error_system_call);
+  return FALSE;
 }
 
 #ifndef ARM_WINCE
@@ -1311,8 +1327,8 @@ coff_arm_relocate_section (bfd *output_bfd,
 
               if (howto->type == ARM_26)
                 {
-                  if (   h->class == C_THUMBSTATFUNC
-		      || h->class == C_THUMBEXTFUNC)
+                  if (   h->symbol_class == C_THUMBSTATFUNC
+		      || h->symbol_class == C_THUMBEXTFUNC)
 		    {
 		      /* Arm code calling a Thumb function.  */
 		      unsigned long int                 tmp;
@@ -1363,10 +1379,10 @@ coff_arm_relocate_section (bfd *output_bfd,
 			  bfd_put_32 (output_bfd, h_val | a2t3_func_addr_insn,
 				      s->contents + my_offset + 8);
 
-                          if (info->base_file)
-                            arm_emit_base_file_entry (info, output_bfd, s,
-                                                      my_offset + 8);
-
+                          if (info->base_file
+			      && !arm_emit_base_file_entry (info, output_bfd,
+							    s, my_offset + 8))
+			    return FALSE;
 			}
 
 		      BFD_ASSERT (my_offset <= globals->arm_glue_size);
@@ -1398,9 +1414,9 @@ coff_arm_relocate_section (bfd *output_bfd,
 	      /* Note: We used to check for ARM_THUMB9 and ARM_THUMB12.  */
               else if (howto->type == ARM_THUMB23)
                 {
-                  if (   h->class == C_EXT
-		      || h->class == C_STAT
-		      || h->class == C_LABEL)
+                  if (   h->symbol_class == C_EXT
+		      || h->symbol_class == C_STAT
+		      || h->symbol_class == C_LABEL)
 		    {
 		      /* Thumb code calling an ARM function.  */
 		      asection *                         s = 0;
@@ -1468,9 +1484,11 @@ coff_arm_relocate_section (bfd *output_bfd,
 			      bfd_put_32 (output_bfd, h_val,
 					  s->contents + my_offset + 16);
 
-                              if (info->base_file)
-                                arm_emit_base_file_entry (info, output_bfd, s,
-							  my_offset + 16);
+                              if (info->base_file
+				  && !arm_emit_base_file_entry (info,
+								output_bfd, s,
+								my_offset + 16))
+				return FALSE;
 			    }
 			  else
 			    {
@@ -1554,13 +1572,13 @@ coff_arm_relocate_section (bfd *output_bfd,
 	    }
 	}
 
-      if (info->base_file)
-	{
-	  /* Emit a reloc if the backend thinks it needs it.  */
-	  if (sym && pe_data(output_bfd)->in_reloc_p(output_bfd, howto))
-            arm_emit_base_file_entry (info, output_bfd, input_section,
-				      rel->r_vaddr);
-	}
+      /* Emit a reloc if the backend thinks it needs it.  */
+      if (info->base_file
+	  && sym
+	  && pe_data(output_bfd)->in_reloc_p(output_bfd, howto)
+	  && !arm_emit_base_file_entry (info, output_bfd, input_section,
+					rel->r_vaddr))
+	return FALSE;
 
       if (done)
 	rstat = bfd_reloc_ok;
@@ -1698,8 +1716,8 @@ coff_arm_relocate_section (bfd *output_bfd,
 	  int patchit = FALSE;
 
 	  if (h != NULL
-	      && (   h->class == C_THUMBSTATFUNC
-		  || h->class == C_THUMBEXTFUNC))
+	      && (   h->symbol_class == C_THUMBSTATFUNC
+		  || h->symbol_class == C_THUMBEXTFUNC))
 	    {
 	      patchit = TRUE;
 	    }
@@ -1909,7 +1927,7 @@ record_thumb_to_arm_glue (struct bfd_link_info *        info,
 
   /* If we mark it 'thumb', the disassembler will do a better job.  */
   myh = (struct coff_link_hash_entry *) bh;
-  myh->class = C_THUMBEXTFUNC;
+  myh->symbol_class = C_THUMBEXTFUNC;
 
   free (tmp_name);
 
@@ -2073,7 +2091,7 @@ bfd_arm_process_before_allocation (bfd *                   abfd,
 		 the target of the call. If it is a thumb target, we
 		 insert glue.  */
 
-	      if (h->class == C_THUMBEXTFUNC)
+	      if (h->symbol_class == C_THUMBEXTFUNC)
 		record_arm_to_thumb_glue (info, h);
 	      break;
 
@@ -2087,7 +2105,7 @@ bfd_arm_process_before_allocation (bfd *                   abfd,
 		 for it.  This is not really a problem, since the link
 		 is doomed anyway.  */
 
-	      switch (h->class)
+	      switch (h->symbol_class)
 		{
 		case C_EXT:
 		case C_STAT:
@@ -2112,6 +2130,7 @@ bfd_arm_process_before_allocation (bfd *                   abfd,
 #endif /* ! defined (COFF_IMAGE_WITH_PE) */
 
 #define coff_bfd_reloc_type_lookup 		coff_arm_reloc_type_lookup
+#define coff_bfd_reloc_name_lookup	coff_arm_reloc_name_lookup
 #define coff_relocate_section 			coff_arm_relocate_section
 #define coff_bfd_is_local_label_name 		coff_arm_is_local_label_name
 #define coff_adjust_symndx			coff_arm_adjust_symndx
@@ -2184,7 +2203,7 @@ coff_arm_merge_private_bfd_data (bfd * ibfd, bfd * obfd)
 	    {
 	      _bfd_error_handler
 		/* xgettext: c-format */
-		(_("ERROR: %B is compiled for APCS-%d, whereas %B is compiled for APCS-%d"),
+		(_("error: %B is compiled for APCS-%d, whereas %B is compiled for APCS-%d"),
 		 ibfd, obfd,
 		 APCS_26_FLAG (ibfd) ? 26 : 32,
 		 APCS_26_FLAG (obfd) ? 26 : 32
@@ -2200,10 +2219,10 @@ coff_arm_merge_private_bfd_data (bfd * ibfd, bfd * obfd)
 
 	      if (APCS_FLOAT_FLAG (ibfd))
 		/* xgettext: c-format */
-		msg = _("ERROR: %B passes floats in float registers, whereas %B passes them in integer registers");
+		msg = _("error: %B passes floats in float registers, whereas %B passes them in integer registers");
 	      else
 		/* xgettext: c-format */
-		msg = _("ERROR: %B passes floats in integer registers, whereas %B passes them in float registers");
+		msg = _("error: %B passes floats in integer registers, whereas %B passes them in float registers");
 
 	      _bfd_error_handler (msg, ibfd, obfd);
 
@@ -2217,10 +2236,10 @@ coff_arm_merge_private_bfd_data (bfd * ibfd, bfd * obfd)
 
 	      if (PIC_FLAG (ibfd))
 		/* xgettext: c-format */
-		msg = _("ERROR: %B is compiled as position independent code, whereas target %B is absolute position");
+		msg = _("error: %B is compiled as position independent code, whereas target %B is absolute position");
 	      else
 		/* xgettext: c-format */
-		msg = _("ERROR: %B is compiled as absolute position code, whereas target %B is position independent");
+		msg = _("error: %B is compiled as absolute position code, whereas target %B is position independent");
 	      _bfd_error_handler (msg, ibfd, obfd);
 
 	      bfd_set_error (bfd_error_wrong_format);
@@ -2503,6 +2522,10 @@ coff_arm_final_link_postscript (bfd * abfd ATTRIBUTE_UNUSED,
 
   return bfd_arm_update_notes (abfd, ARM_NOTE_SECTION);
 }
+
+#ifndef bfd_pe_print_pdata
+#define bfd_pe_print_pdata	NULL
+#endif
 
 #include "coffcode.h"
 

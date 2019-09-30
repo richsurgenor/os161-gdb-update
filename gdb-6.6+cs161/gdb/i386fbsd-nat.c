@@ -1,12 +1,12 @@
 /* Native-dependent code for FreeBSD/i386.
 
-   Copyright (C) 2001, 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "inferior.h"
@@ -30,13 +28,15 @@
 
 #include "fbsd-nat.h"
 #include "i386-tdep.h"
+#include "i386-nat.h"
 #include "i386bsd-nat.h"
 
 /* Resume execution of the inferior process.  If STEP is nonzero,
    single-step it.  If SIGNAL is nonzero, give it that signal.  */
 
 static void
-i386fbsd_resume (ptid_t ptid, int step, enum target_signal signal)
+i386fbsd_resume (struct target_ops *ops,
+		 ptid_t ptid, int step, enum gdb_signal signal)
 {
   pid_t pid = ptid_get_pid (ptid);
   int request = PT_STEP;
@@ -49,6 +49,7 @@ i386fbsd_resume (ptid_t ptid, int step, enum target_signal signal)
 
   if (!step)
     {
+      struct regcache *regcache = get_current_regcache ();
       ULONGEST eflags;
 
       /* Workaround for a bug in FreeBSD.  Make sure that the trace
@@ -61,10 +62,10 @@ i386fbsd_resume (ptid_t ptid, int step, enum target_signal signal)
  	 never goes through the kernel's trap() function which would
  	 normally clear it.  */
 
-      regcache_cooked_read_unsigned (current_regcache, I386_EFLAGS_REGNUM,
+      regcache_cooked_read_unsigned (regcache, I386_EFLAGS_REGNUM,
 				     &eflags);
       if (eflags & 0x0100)
-	regcache_cooked_write_unsigned (current_regcache, I386_EFLAGS_REGNUM,
+	regcache_cooked_write_unsigned (regcache, I386_EFLAGS_REGNUM,
 					eflags & ~0x0100);
 
       request = PT_CONTINUE;
@@ -74,7 +75,7 @@ i386fbsd_resume (ptid_t ptid, int step, enum target_signal signal)
      was.  (If GDB wanted it to start some other way, we have already
      written a new PC value to the child.)  */
   if (ptrace (request, pid, (caddr_t) 1,
-	      target_signal_to_host (signal)) == -1)
+	      gdb_signal_to_host (signal)) == -1)
     perror_with_name (("ptrace"));
 }
 
@@ -125,6 +126,21 @@ _initialize_i386fbsd_nat (void)
 
   /* Add some extra features to the common *BSD/i386 target.  */
   t = i386bsd_target ();
+
+#ifdef HAVE_PT_GETDBREGS
+
+  i386_use_watchpoints (t);
+
+  i386_dr_low.set_control = i386bsd_dr_set_control;
+  i386_dr_low.set_addr = i386bsd_dr_set_addr;
+  i386_dr_low.get_addr = i386bsd_dr_get_addr;
+  i386_dr_low.get_status = i386bsd_dr_get_status;
+  i386_dr_low.get_control = i386bsd_dr_get_control;
+  i386_set_debug_register_length (4);
+
+#endif /* HAVE_PT_GETDBREGS */
+
+
   t->to_resume = i386fbsd_resume;
   t->to_pid_to_exec_file = fbsd_pid_to_exec_file;
   t->to_find_memory_regions = fbsd_find_memory_regions;

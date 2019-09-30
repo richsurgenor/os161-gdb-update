@@ -1,12 +1,12 @@
 /* Target-dependent code for HP-UX on PA-RISC.
 
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "arch-utils.h"
@@ -35,16 +33,10 @@
 #include "solib-som.h"
 #include "solib-pa64.h"
 #include "regset.h"
+#include "regcache.h"
 #include "exceptions.h"
 
 #include "gdb_string.h"
-
-#include <dl.h>
-#include <machine/save_state.h>
-
-#ifndef offsetof
-#define offsetof(TYPE, MEMBER) ((unsigned long) &((TYPE *)0)->MEMBER)
-#endif
 
 #define IS_32BIT_TARGET(_gdbarch) \
 	((gdbarch_tdep (_gdbarch))->bytes_per_address == 4)
@@ -73,14 +65,6 @@
 extern void _initialize_hppa_hpux_tdep (void);
 extern initialize_file_ftype _initialize_hppa_hpux_tdep;
 
-typedef struct
-  {
-    struct minimal_symbol *msym;
-    CORE_ADDR solib_handle;
-    CORE_ADDR return_val;
-  }
-args_for_find_stub;
-
 static int
 in_opd_section (CORE_ADDR pc)
 {
@@ -101,8 +85,10 @@ in_opd_section (CORE_ADDR pc)
    just shared library trampolines (import, export).  */
 
 static int
-hppa32_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
+hppa32_hpux_in_solib_call_trampoline (struct gdbarch *gdbarch,
+				      CORE_ADDR pc, char *name)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct minimal_symbol *minsym;
   struct unwind_table_entry *u;
 
@@ -112,7 +98,7 @@ hppa32_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
     return 1;
 
   minsym = lookup_minimal_symbol_by_pc (pc);
-  if (minsym && strcmp (DEPRECATED_SYMBOL_NAME (minsym), ".stub") == 0)
+  if (minsym && strcmp (SYMBOL_LINKAGE_NAME (minsym), ".stub") == 0)
     return 1;
 
   /* Get the unwind descriptor corresponding to PC, return zero
@@ -148,7 +134,7 @@ hppa32_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
 	{
 	  unsigned long insn;
 
-	  insn = read_memory_integer (addr, 4);
+	  insn = read_memory_integer (addr, 4, byte_order);
 
 	  /* Does it look like a bl?  If so then it's the call path, if
 	     we find a bv or be first, then we're on the return path.  */
@@ -169,12 +155,15 @@ hppa32_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
 }
 
 static int
-hppa64_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
+hppa64_hpux_in_solib_call_trampoline (struct gdbarch *gdbarch,
+				      CORE_ADDR pc, char *name)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+
   /* PA64 has a completely different stub/trampoline scheme.  Is it
      better?  Maybe.  It's certainly harder to determine with any
      certainty that we are in a stub because we can not refer to the
-     unwinders to help. 
+     unwinders to help.
 
      The heuristic is simple.  Try to lookup the current PC value in th
      minimal symbol table.  If that fails, then assume we are not in a
@@ -188,13 +177,13 @@ hppa64_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
   struct minimal_symbol *minsym;
   asection *sec;
   CORE_ADDR addr;
-  int insn, i;
+  int insn;
 
   minsym = lookup_minimal_symbol_by_pc (pc);
   if (! minsym)
     return 0;
 
-  sec = SYMBOL_BFD_SECTION (minsym);
+  sec = SYMBOL_OBJ_SECTION (minsym)->the_bfd_section;
 
   if (bfd_get_section_vma (sec->owner, sec) <= pc
       && pc < (bfd_get_section_vma (sec->owner, sec)
@@ -202,8 +191,8 @@ hppa64_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
       return 0;
 
   /* We might be in a stub.  Peek at the instructions.  Stubs are 3
-     instructions long. */
-  insn = read_memory_integer (pc, 4);
+     instructions long.  */
+  insn = read_memory_integer (pc, 4, byte_order);
 
   /* Find out where we think we are within the stub.  */
   if ((insn & 0xffffc00e) == 0x53610000)
@@ -216,17 +205,17 @@ hppa64_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
     return 0;
 
   /* Now verify each insn in the range looks like a stub instruction.  */
-  insn = read_memory_integer (addr, 4);
+  insn = read_memory_integer (addr, 4, byte_order);
   if ((insn & 0xffffc00e) != 0x53610000)
     return 0;
 	
   /* Now verify each insn in the range looks like a stub instruction.  */
-  insn = read_memory_integer (addr + 4, 4);
+  insn = read_memory_integer (addr + 4, 4, byte_order);
   if ((insn & 0xffffffff) != 0xe820d000)
     return 0;
     
   /* Now verify each insn in the range looks like a stub instruction.  */
-  insn = read_memory_integer (addr + 8, 4);
+  insn = read_memory_integer (addr + 8, 4, byte_order);
   if ((insn & 0xffffc00e) != 0x537b0000)
     return 0;
 
@@ -240,8 +229,10 @@ hppa64_hpux_in_solib_call_trampoline (CORE_ADDR pc, char *name)
    just shared library trampolines (import, export).  */
 
 static int
-hppa_hpux_in_solib_return_trampoline (CORE_ADDR pc, char *name)
+hppa_hpux_in_solib_return_trampoline (struct gdbarch *gdbarch,
+				      CORE_ADDR pc, const char *name)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct unwind_table_entry *u;
 
   /* Get the unwind descriptor corresponding to PC, return zero
@@ -274,7 +265,7 @@ hppa_hpux_in_solib_return_trampoline (CORE_ADDR pc, char *name)
 	{
 	  unsigned long insn;
 
-	  insn = read_memory_integer (addr, 4);
+	  insn = read_memory_integer (addr, 4, byte_order);
 
 	  /* Does it look like a bl?  If so then it's the call path, if
 	     we find a bv or be first, then we're on the return path.  */
@@ -313,8 +304,11 @@ hppa_hpux_in_solib_return_trampoline (CORE_ADDR pc, char *name)
    used in dynamic executables.  */
 
 static CORE_ADDR
-hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
+hppa_hpux_skip_trampoline_code (struct frame_info *frame, CORE_ADDR pc)
 {
+  struct gdbarch *gdbarch = get_frame_arch (frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+  int word_size = gdbarch_ptr_bit (gdbarch) / 8;
   long orig_pc = pc;
   long prev_inst, curr_inst, loc;
   struct minimal_symbol *msym;
@@ -324,21 +318,22 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
      of the function.  So we may have to do something special.  */
   if (pc == hppa_symbol_address("$$dyncall"))
     {
-      pc = (CORE_ADDR) read_register (22);
+      pc = (CORE_ADDR) get_frame_register_unsigned (frame, 22);
 
       /* If bit 30 (counting from the left) is on, then pc is the address of
          the PLT entry for this function, not the address of the function
          itself.  Bit 31 has meaning too, but only for MPE.  */
       if (pc & 0x2)
-	pc = (CORE_ADDR) read_memory_integer (pc & ~0x3, TARGET_PTR_BIT / 8);
+	pc = (CORE_ADDR) read_memory_integer (pc & ~0x3, word_size,
+					      byte_order);
     }
   if (pc == hppa_symbol_address("$$dyncall_external"))
     {
-      pc = (CORE_ADDR) read_register (22);
-      pc = (CORE_ADDR) read_memory_integer (pc & ~0x3, TARGET_PTR_BIT / 8);
+      pc = (CORE_ADDR) get_frame_register_unsigned (frame, 22);
+      pc = (CORE_ADDR) read_memory_integer (pc & ~0x3, word_size, byte_order);
     }
   else if (pc == hppa_symbol_address("_sr4export"))
-    pc = (CORE_ADDR) (read_register (22));
+    pc = (CORE_ADDR) get_frame_register_unsigned (frame, 22);
 
   /* Get the unwind descriptor corresponding to PC, return zero
      if no unwind was found.  */
@@ -349,25 +344,25 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
   /* If this isn't a linker stub, then return now.  */
   /* elz: attention here! (FIXME) because of a compiler/linker 
      error, some stubs which should have a non zero stub_unwind.stub_type 
-     have unfortunately a value of zero. So this function would return here
-     as if we were not in a trampoline. To fix this, we go look at the partial
+     have unfortunately a value of zero.  So this function would return here
+     as if we were not in a trampoline.  To fix this, we go look at the partial
      symbol information, which reports this guy as a stub.
      (FIXME): Unfortunately, we are not that lucky: it turns out that the 
-     partial symbol information is also wrong sometimes. This is because 
+     partial symbol information is also wrong sometimes.  This is because 
      when it is entered (somread.c::som_symtab_read()) it can happen that
      if the type of the symbol (from the som) is Entry, and the symbol is
-     in a shared library, then it can also be a trampoline.  This would
-     be OK, except that I believe the way they decide if we are ina shared library
-     does not work. SOOOO..., even if we have a regular function w/o trampolines
-     its minimal symbol can be assigned type mst_solib_trampoline.
+     in a shared library, then it can also be a trampoline.  This would be OK,
+     except that I believe the way they decide if we are ina shared library
+     does not work.  SOOOO..., even if we have a regular function w/o
+     trampolines its minimal symbol can be assigned type mst_solib_trampoline.
      Also, if we find that the symbol is a real stub, then we fix the unwind
      descriptor, and define the stub type to be EXPORT.
-     Hopefully this is correct most of the times. */
+     Hopefully this is correct most of the times.  */
   if (u->stub_unwind.stub_type == 0)
     {
 
 /* elz: NOTE (FIXME!) once the problem with the unwind information is fixed
-   we can delete all the code which appears between the lines */
+   we can delete all the code which appears between the lines.  */
 /*--------------------------------------------------------------------------*/
       msym = lookup_minimal_symbol_by_pc (pc);
 
@@ -380,15 +375,16 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	  struct minimal_symbol *msymbol;
 	  int function_found = 0;
 
-	  /* go look if there is another minimal symbol with the same name as 
-	     this one, but with type mst_text. This would happen if the msym
+	  /* Go look if there is another minimal symbol with the same name as 
+	     this one, but with type mst_text.  This would happen if the msym
 	     is an actual trampoline, in which case there would be another
-	     symbol with the same name corresponding to the real function */
+	     symbol with the same name corresponding to the real function.  */
 
 	  ALL_MSYMBOLS (objfile, msymbol)
 	  {
 	    if (MSYMBOL_TYPE (msymbol) == mst_text
-		&& DEPRECATED_STREQ (DEPRECATED_SYMBOL_NAME (msymbol), DEPRECATED_SYMBOL_NAME (msym)))
+		&& strcmp (SYMBOL_LINKAGE_NAME (msymbol),
+			    SYMBOL_LINKAGE_NAME (msym)) == 0)
 	      {
 		function_found = 1;
 		break;
@@ -396,14 +392,14 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	  }
 
 	  if (function_found)
-	    /* the type of msym is correct (mst_solib_trampoline), but
-	       the unwind info is wrong, so set it to the correct value */
+	    /* The type of msym is correct (mst_solib_trampoline), but
+	       the unwind info is wrong, so set it to the correct value.  */
 	    u->stub_unwind.stub_type = EXPORT;
 	  else
-	    /* the stub type info in the unwind is correct (this is not a
+	    /* The stub type info in the unwind is correct (this is not a
 	       trampoline), but the msym type information is wrong, it
-	       should be mst_text. So we need to fix the msym, and also
-	       get out of this function */
+	       should be mst_text.  So we need to fix the msym, and also
+	       get out of this function.  */
 	    {
 	      MSYMBOL_TYPE (msym) = mst_text;
 	      return orig_pc == pc ? 0 : pc & ~0x3;
@@ -431,7 +427,7 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	}
 
       prev_inst = curr_inst;
-      curr_inst = read_memory_integer (loc, 4);
+      curr_inst = read_memory_integer (loc, 4, byte_order);
 
       /* Does it look like a branch external using %r1?  Then it's the
          branch from the stub to the actual function.  */
@@ -440,10 +436,12 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	  /* Yup.  See if the previous instruction loaded
 	     a value into %r1.  If so compute and return the jump address.  */
 	  if ((prev_inst & 0xffe00000) == 0x20200000)
-	    return (hppa_extract_21 (prev_inst) + hppa_extract_17 (curr_inst)) & ~0x3;
+	    return (hppa_extract_21 (prev_inst) 
+		    + hppa_extract_17 (curr_inst)) & ~0x3;
 	  else
 	    {
-	      warning (_("Unable to find ldil X,%%r1 before ble Y(%%sr4,%%r1)."));
+	      warning (_("Unable to find ldil X,%%r1 "
+			 "before ble Y(%%sr4,%%r1)."));
 	      return orig_pc == pc ? 0 : pc & ~0x3;
 	    }
 	}
@@ -483,11 +481,12 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	      return orig_pc == pc ? 0 : pc & ~0x3;
 	    }
 
-	  libsym = lookup_minimal_symbol (DEPRECATED_SYMBOL_NAME (stubsym), NULL, NULL);
+	  libsym = lookup_minimal_symbol (SYMBOL_LINKAGE_NAME (stubsym),
+					  NULL, NULL);
 	  if (libsym == NULL)
 	    {
 	      warning (_("Unable to find library symbol for %s."),
-		       DEPRECATED_SYMBOL_NAME (stubsym));
+		       SYMBOL_PRINT_NAME (stubsym));
 	      return orig_pc == pc ? 0 : pc & ~0x3;
 	    }
 
@@ -512,8 +511,11 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	  /* Yup.  See if the previous instruction loaded
 	     rp from sp - 8.  */
 	  if (prev_inst == 0x4bc23ff1)
-	    return (read_memory_integer
-		    (read_register (HPPA_SP_REGNUM) - 8, 4)) & ~0x3;
+	    {
+	      CORE_ADDR sp;
+	      sp = get_frame_register_unsigned (frame, HPPA_SP_REGNUM);
+	      return read_memory_integer (sp - 8, 4, byte_order) & ~0x3;
+	    }
 	  else
 	    {
 	      warning (_("Unable to find restore of %%rp before bv (%%rp)."));
@@ -527,7 +529,8 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
       else if ((curr_inst & 0xffe0f000) == 0xe840d000)
 	{
 	  return (read_memory_integer
-		  (read_register (HPPA_SP_REGNUM) - 24, TARGET_PTR_BIT / 8)) & ~0x3;
+		  (get_frame_register_unsigned (frame, HPPA_SP_REGNUM) - 24,
+		   word_size, byte_order)) & ~0x3;
 	}
 
       /* What about be,n 0(sr0,%rp)?  It's just another way we return to
@@ -539,7 +542,8 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
 	     I guess we could check for the previous instruction being
 	     mtsp %r1,%sr0 if we want to do sanity checking.  */
 	  return (read_memory_integer
-		  (read_register (HPPA_SP_REGNUM) - 24, TARGET_PTR_BIT / 8)) & ~0x3;
+		  (get_frame_register_unsigned (frame, HPPA_SP_REGNUM) - 24,
+		   word_size, byte_order)) & ~0x3;
 	}
 
       /* Haven't found the branch yet, but we're still in the stub.
@@ -548,8 +552,8 @@ hppa_hpux_skip_trampoline_code (CORE_ADDR pc)
     }
 }
 
-void
-hppa_skip_permanent_breakpoint (void)
+static void
+hppa_skip_permanent_breakpoint (struct regcache *regcache)
 {
   /* To step over a breakpoint instruction on the PA takes some
      fiddling with the instruction address queue.
@@ -565,569 +569,19 @@ hppa_skip_permanent_breakpoint (void)
      front to the back.  But what do we put in the back?  What
      instruction comes after that one?  Because of the branch delay
      slot, the next insn is always at the back + 4.  */
-  write_register (HPPA_PCOQ_HEAD_REGNUM, read_register (HPPA_PCOQ_TAIL_REGNUM));
-  write_register (HPPA_PCSQ_HEAD_REGNUM, read_register (HPPA_PCSQ_TAIL_REGNUM));
 
-  write_register (HPPA_PCOQ_TAIL_REGNUM, read_register (HPPA_PCOQ_TAIL_REGNUM) + 4);
+  ULONGEST pcoq_tail, pcsq_tail;
+  regcache_cooked_read_unsigned (regcache, HPPA_PCOQ_TAIL_REGNUM, &pcoq_tail);
+  regcache_cooked_read_unsigned (regcache, HPPA_PCSQ_TAIL_REGNUM, &pcsq_tail);
+
+  regcache_cooked_write_unsigned (regcache, HPPA_PCOQ_HEAD_REGNUM, pcoq_tail);
+  regcache_cooked_write_unsigned (regcache, HPPA_PCSQ_HEAD_REGNUM, pcsq_tail);
+
+  regcache_cooked_write_unsigned (regcache,
+				  HPPA_PCOQ_TAIL_REGNUM, pcoq_tail + 4);
   /* We can leave the tail's space the same, since there's no jump.  */
 }
 
-/* Exception handling support for the HP-UX ANSI C++ compiler.
-   The compiler (aCC) provides a callback for exception events;
-   GDB can set a breakpoint on this callback and find out what
-   exception event has occurred. */
-
-/* The name of the hook to be set to point to the callback function.  */
-static char HP_ACC_EH_notify_hook[] = "__eh_notify_hook";
-/* The name of the function to be used to set the hook value.  */
-static char HP_ACC_EH_set_hook_value[] = "__eh_set_hook_value";
-/* The name of the callback function in end.o */
-static char HP_ACC_EH_notify_callback[] = "__d_eh_notify_callback";
-/* Name of function in end.o on which a break is set (called by above).  */
-static char HP_ACC_EH_break[] = "__d_eh_break";
-/* Name of flag (in end.o) that enables catching throws.  */
-static char HP_ACC_EH_catch_throw[] = "__d_eh_catch_throw";
-/* Name of flag (in end.o) that enables catching catching.  */
-static char HP_ACC_EH_catch_catch[] = "__d_eh_catch_catch";
-/* The enum used by aCC.  */
-typedef enum
-  {
-    __EH_NOTIFY_THROW,
-    __EH_NOTIFY_CATCH
-  }
-__eh_notification;
-
-/* Is exception-handling support available with this executable? */
-static int hp_cxx_exception_support = 0;
-/* Has the initialize function been run? */
-static int hp_cxx_exception_support_initialized = 0;
-/* Address of __eh_notify_hook */
-static CORE_ADDR eh_notify_hook_addr = 0;
-/* Address of __d_eh_notify_callback */
-static CORE_ADDR eh_notify_callback_addr = 0;
-/* Address of __d_eh_break */
-static CORE_ADDR eh_break_addr = 0;
-/* Address of __d_eh_catch_catch */
-static CORE_ADDR eh_catch_catch_addr = 0;
-/* Address of __d_eh_catch_throw */
-static CORE_ADDR eh_catch_throw_addr = 0;
-/* Sal for __d_eh_break */
-static struct symtab_and_line *break_callback_sal = 0;
-
-/* Code in end.c expects __d_pid to be set in the inferior,
-   otherwise __d_eh_notify_callback doesn't bother to call
-   __d_eh_break!  So we poke the pid into this symbol
-   ourselves.
-   0 => success
-   1 => failure  */
-static int
-setup_d_pid_in_inferior (void)
-{
-  CORE_ADDR anaddr;
-  struct minimal_symbol *msymbol;
-  char buf[4];			/* FIXME 32x64? */
-
-  /* Slam the pid of the process into __d_pid; failing is only a warning!  */
-  msymbol = lookup_minimal_symbol ("__d_pid", NULL, symfile_objfile);
-  if (msymbol == NULL)
-    {
-      warning (_("Unable to find __d_pid symbol in object file.\n"
-		 "Suggest linking executable with -g (links in /opt/langtools/lib/end.o)."));
-      return 1;
-    }
-
-  anaddr = SYMBOL_VALUE_ADDRESS (msymbol);
-  store_unsigned_integer (buf, 4, PIDGET (inferior_ptid)); /* FIXME 32x64? */
-  if (target_write_memory (anaddr, buf, 4))	/* FIXME 32x64? */
-    {
-      warning (_("Unable to write __d_pid.\n"
-		 "Suggest linking executable with -g (links in /opt/langtools/lib/end.o)."));
-      return 1;
-    }
-  return 0;
-}
-
-/* elz: Used to lookup a symbol in the shared libraries.
-   This function calls shl_findsym, indirectly through a
-   call to __d_shl_get. __d_shl_get is in end.c, which is always
-   linked in by the hp compilers/linkers. 
-   The call to shl_findsym cannot be made directly because it needs
-   to be active in target address space. 
-   inputs: - minimal symbol pointer for the function we want to look up
-   - address in target space of the descriptor for the library
-   where we want to look the symbol up.
-   This address is retrieved using the 
-   som_solib_get_solib_by_pc function (somsolib.c). 
-   output: - real address in the library of the function.          
-   note: the handle can be null, in which case shl_findsym will look for
-   the symbol in all the loaded shared libraries.
-   files to look at if you need reference on this stuff:
-   dld.c, dld_shl_findsym.c
-   end.c
-   man entry for shl_findsym */
-
-static CORE_ADDR
-find_stub_with_shl_get (struct minimal_symbol *function, CORE_ADDR handle)
-{
-  struct symbol *get_sym, *symbol2;
-  struct minimal_symbol *buff_minsym, *msymbol;
-  struct type *ftype;
-  struct value **args;
-  struct value *funcval;
-  struct value *val;
-
-  int x, namelen, err_value, tmp = -1;
-  CORE_ADDR endo_buff_addr, value_return_addr, errno_return_addr;
-  CORE_ADDR stub_addr;
-
-
-  args = alloca (sizeof (struct value *) * 8);		/* 6 for the arguments and one null one??? */
-  funcval = find_function_in_inferior ("__d_shl_get");
-  get_sym = lookup_symbol ("__d_shl_get", NULL, VAR_DOMAIN, NULL, NULL);
-  buff_minsym = lookup_minimal_symbol ("__buffer", NULL, NULL);
-  msymbol = lookup_minimal_symbol ("__shldp", NULL, NULL);
-  symbol2 = lookup_symbol ("__shldp", NULL, VAR_DOMAIN, NULL, NULL);
-  endo_buff_addr = SYMBOL_VALUE_ADDRESS (buff_minsym);
-  namelen = strlen (DEPRECATED_SYMBOL_NAME (function));
-  value_return_addr = endo_buff_addr + namelen;
-  ftype = check_typedef (SYMBOL_TYPE (get_sym));
-
-  /* do alignment */
-  if ((x = value_return_addr % 64) != 0)
-    value_return_addr = value_return_addr + 64 - x;
-
-  errno_return_addr = value_return_addr + 64;
-
-
-  /* set up stuff needed by __d_shl_get in buffer in end.o */
-
-  target_write_memory (endo_buff_addr, DEPRECATED_SYMBOL_NAME (function), namelen);
-
-  target_write_memory (value_return_addr, (char *) &tmp, 4);
-
-  target_write_memory (errno_return_addr, (char *) &tmp, 4);
-
-  target_write_memory (SYMBOL_VALUE_ADDRESS (msymbol),
-		       (char *) &handle, 4);
-
-  /* now prepare the arguments for the call */
-
-  args[0] = value_from_longest (TYPE_FIELD_TYPE (ftype, 0), 12);
-  args[1] = value_from_pointer (TYPE_FIELD_TYPE (ftype, 1), SYMBOL_VALUE_ADDRESS (msymbol));
-  args[2] = value_from_pointer (TYPE_FIELD_TYPE (ftype, 2), endo_buff_addr);
-  args[3] = value_from_longest (TYPE_FIELD_TYPE (ftype, 3), TYPE_PROCEDURE);
-  args[4] = value_from_pointer (TYPE_FIELD_TYPE (ftype, 4), value_return_addr);
-  args[5] = value_from_pointer (TYPE_FIELD_TYPE (ftype, 5), errno_return_addr);
-
-  /* now call the function */
-
-  val = call_function_by_hand (funcval, 6, args);
-
-  /* now get the results */
-
-  target_read_memory (errno_return_addr, (char *) &err_value, sizeof (err_value));
-
-  target_read_memory (value_return_addr, (char *) &stub_addr, sizeof (stub_addr));
-  if (stub_addr <= 0)
-    error (_("call to __d_shl_get failed, error code is %d"), err_value);
-
-  return (stub_addr);
-}
-
-/* Cover routine for find_stub_with_shl_get to pass to catch_errors */
-static int
-cover_find_stub_with_shl_get (void *args_untyped)
-{
-  args_for_find_stub *args = args_untyped;
-  args->return_val = find_stub_with_shl_get (args->msym, args->solib_handle);
-  return 0;
-}
-
-/* Initialize exception catchpoint support by looking for the
-   necessary hooks/callbacks in end.o, etc., and set the hook value
-   to point to the required debug function.
-
-   Return 0 => failure
-   1 => success          */
-
-static int
-initialize_hp_cxx_exception_support (void)
-{
-  struct symtabs_and_lines sals;
-  struct cleanup *old_chain;
-  struct cleanup *canonical_strings_chain = NULL;
-  int i;
-  char *addr_start;
-  char *addr_end = NULL;
-  char **canonical = (char **) NULL;
-  int thread = -1;
-  struct symbol *sym = NULL;
-  struct minimal_symbol *msym = NULL;
-  struct objfile *objfile;
-  asection *shlib_info;
-
-  /* Detect and disallow recursion.  On HP-UX with aCC, infinite
-     recursion is a possibility because finding the hook for exception
-     callbacks involves making a call in the inferior, which means
-     re-inserting breakpoints which can re-invoke this code.  */
-
-  static int recurse = 0;
-  if (recurse > 0)
-    {
-      hp_cxx_exception_support_initialized = 0;
-      deprecated_exception_support_initialized = 0;
-      return 0;
-    }
-
-  hp_cxx_exception_support = 0;
-
-  /* First check if we have seen any HP compiled objects; if not,
-     it is very unlikely that HP's idiosyncratic callback mechanism
-     for exception handling debug support will be available!
-     This will percolate back up to breakpoint.c, where our callers
-     will decide to try the g++ exception-handling support instead. */
-  if (!deprecated_hp_som_som_object_present)
-    return 0;
-
-  /* We have a SOM executable with SOM debug info; find the hooks.  */
-
-  /* First look for the notify hook provided by aCC runtime libs */
-  /* If we find this symbol, we conclude that the executable must
-     have HP aCC exception support built in.  If this symbol is not
-     found, even though we're a HP SOM-SOM file, we may have been
-     built with some other compiler (not aCC).  This results percolates
-     back up to our callers in breakpoint.c which can decide to
-     try the g++ style of exception support instead.
-     If this symbol is found but the other symbols we require are
-     not found, there is something weird going on, and g++ support
-     should *not* be tried as an alternative.
-
-     ASSUMPTION: Only HP aCC code will have __eh_notify_hook defined.  
-     ASSUMPTION: HP aCC and g++ modules cannot be linked together.  */
-
-  /* libCsup has this hook; it'll usually be non-debuggable */
-  msym = lookup_minimal_symbol (HP_ACC_EH_notify_hook, NULL, NULL);
-  if (msym)
-    {
-      eh_notify_hook_addr = SYMBOL_VALUE_ADDRESS (msym);
-      hp_cxx_exception_support = 1;
-    }
-  else
-    {
-      warning (_("\
-Unable to find exception callback hook (%s).\n\
-Executable may not have been compiled debuggable with HP aCC.\n\
-GDB will be unable to intercept exception events."),
-	       HP_ACC_EH_notify_hook);
-      eh_notify_hook_addr = 0;
-      hp_cxx_exception_support = 0;
-      return 0;
-    }
-
-  /* Next look for the notify callback routine in end.o */
-  /* This is always available in the SOM symbol dictionary if end.o is
-     linked in. */
-  msym = lookup_minimal_symbol (HP_ACC_EH_notify_callback, NULL, NULL);
-  if (msym)
-    {
-      eh_notify_callback_addr = SYMBOL_VALUE_ADDRESS (msym);
-      hp_cxx_exception_support = 1;
-    }
-  else
-    {
-      warning (_("\
-Unable to find exception callback routine (%s).\n\
-Suggest linking executable with -g (links in /opt/langtools/lib/end.o).\n\
-GDB will be unable to intercept exception events."),
-	       HP_ACC_EH_notify_callback);
-      eh_notify_callback_addr = 0;
-      return 0;
-    }
-
-  if (!gdbarch_tdep (current_gdbarch)->is_elf)
-    {
-    /* Check whether the executable is dynamically linked or archive bound */
-    /* With an archive-bound executable we can use the raw addresses we find
-       for the callback function, etc. without modification. For an executable
-       with shared libraries, we have to do more work to find the plabel, which
-       can be the target of a call through $$dyncall from the aCC runtime 
-       support library (libCsup) which is linked shared by default by aCC. */
-    /* This test below was copied from somsolib.c/somread.c.  It may not be a very
-       reliable one to test that an executable is linked shared. 
-       pai/1997-07-18 */
-    shlib_info = bfd_get_section_by_name (symfile_objfile->obfd, "$SHLIB_INFO$");
-    if (shlib_info && (bfd_section_size (symfile_objfile->obfd, shlib_info) != 0))
-      {
-        /* The minsym we have has the local code address, but that's not
-           the plabel that can be used by an inter-load-module call.  */
-        /* Find solib handle for main image (which has end.o), and use
-           that and the min sym as arguments to __d_shl_get() (which
-           does the equivalent of shl_findsym()) to find the plabel.  */
-
-        args_for_find_stub args;
-
-        args.solib_handle = gdbarch_tdep (current_gdbarch)->solib_get_solib_by_pc (eh_notify_callback_addr);
-        args.msym = msym;
-        args.return_val = 0;
-
-        recurse++;
-        catch_errors (cover_find_stub_with_shl_get, &args,
-		      _("Error while finding exception callback hook:\n"),
-		      RETURN_MASK_ALL);
-        eh_notify_callback_addr = args.return_val;
-        recurse--;
-
-        deprecated_exception_catchpoints_are_fragile = 1;
-
-        if (!eh_notify_callback_addr)
-	  {
-	    /* We can get here either if there is no plabel in the export list
-	       for the main image, or if something strange happened (?) */
-	    warning (_("\
-Couldn't find a plabel (indirect function label) for the exception callback.\n\
-GDB will not be able to intercept exception events."));
-	    return 0;
-	  }
-      }
-    else
-      deprecated_exception_catchpoints_are_fragile = 0;
-    }
-
-  /* Now, look for the breakpointable routine in end.o */
-  /* This should also be available in the SOM symbol dict. if end.o linked in */
-  msym = lookup_minimal_symbol (HP_ACC_EH_break, NULL, NULL);
-  if (msym)
-    {
-      eh_break_addr = SYMBOL_VALUE_ADDRESS (msym);
-      hp_cxx_exception_support = 1;
-    }
-  else
-    {
-      warning (_("\
-Unable to find exception callback routine to set breakpoint (%s).\n\
-Suggest linking executable with -g (link in /opt/langtools/lib/end.o).\n\
-GDB will be unable to intercept exception events."),
-	       HP_ACC_EH_break);
-      eh_break_addr = 0;
-      return 0;
-    }
-
-  /* Next look for the catch enable flag provided in end.o */
-  sym = lookup_symbol (HP_ACC_EH_catch_catch, (struct block *) NULL,
-		       VAR_DOMAIN, 0, (struct symtab **) NULL);
-  if (sym)			/* sometimes present in debug info */
-    {
-      eh_catch_catch_addr = SYMBOL_VALUE_ADDRESS (sym);
-      hp_cxx_exception_support = 1;
-    }
-  else
-    /* otherwise look in SOM symbol dict. */
-    {
-      msym = lookup_minimal_symbol (HP_ACC_EH_catch_catch, NULL, NULL);
-      if (msym)
-	{
-	  eh_catch_catch_addr = SYMBOL_VALUE_ADDRESS (msym);
-	  hp_cxx_exception_support = 1;
-	}
-      else
-	{
-	  warning (_("\
-Unable to enable interception of exception catches.\n\
-Executable may not have been compiled debuggable with HP aCC.\n\
-Suggest linking executable with -g (link in /opt/langtools/lib/end.o)."));
-	  return 0;
-	}
-    }
-
-  /* Next look for the catch enable flag provided end.o */
-  sym = lookup_symbol (HP_ACC_EH_catch_catch, (struct block *) NULL,
-		       VAR_DOMAIN, 0, (struct symtab **) NULL);
-  if (sym)			/* sometimes present in debug info */
-    {
-      eh_catch_throw_addr = SYMBOL_VALUE_ADDRESS (sym);
-      hp_cxx_exception_support = 1;
-    }
-  else
-    /* otherwise look in SOM symbol dict. */
-    {
-      msym = lookup_minimal_symbol (HP_ACC_EH_catch_throw, NULL, NULL);
-      if (msym)
-	{
-	  eh_catch_throw_addr = SYMBOL_VALUE_ADDRESS (msym);
-	  hp_cxx_exception_support = 1;
-	}
-      else
-	{
-	  warning (_("\
-Unable to enable interception of exception throws.\n\
-Executable may not have been compiled debuggable with HP aCC.\n\
-Suggest linking executable with -g (link in /opt/langtools/lib/end.o)."));
-	  return 0;
-	}
-    }
-
-  /* Set the flags */
-  hp_cxx_exception_support = 2;	/* everything worked so far */
-  hp_cxx_exception_support_initialized = 1;
-  deprecated_exception_support_initialized = 1;
-
-  return 1;
-}
-
-/* Target operation for enabling or disabling interception of
-   exception events.
-   KIND is either EX_EVENT_THROW or EX_EVENT_CATCH
-   ENABLE is either 0 (disable) or 1 (enable).
-   Return value is NULL if no support found;
-   -1 if something went wrong,
-   or a pointer to a symtab/line struct if the breakpointable
-   address was found. */
-
-struct symtab_and_line *
-child_enable_exception_callback (enum exception_event_kind kind, int enable)
-{
-  char buf[4];
-
-  if (!deprecated_exception_support_initialized
-      || !hp_cxx_exception_support_initialized)
-    if (!initialize_hp_cxx_exception_support ())
-      return NULL;
-
-  switch (hp_cxx_exception_support)
-    {
-    case 0:
-      /* Assuming no HP support at all */
-      return NULL;
-    case 1:
-      /* HP support should be present, but something went wrong */
-      return (struct symtab_and_line *) -1;	/* yuck! */
-      /* there may be other cases in the future */
-    }
-
-  /* Set the EH hook to point to the callback routine.  */
-  store_unsigned_integer (buf, 4, enable ? eh_notify_callback_addr : 0);	/* FIXME 32x64 problem */
-  /* pai: (temp) FIXME should there be a pack operation first? */
-  if (target_write_memory (eh_notify_hook_addr, buf, 4))	/* FIXME 32x64 problem */
-    {
-      warning (_("\
-Could not write to target memory for exception event callback.\n\
-Interception of exception events may not work."));
-      return (struct symtab_and_line *) -1;
-    }
-  if (enable)
-    {
-      /* Ensure that __d_pid is set up correctly -- end.c code checks this. :-( */
-      if (PIDGET (inferior_ptid) > 0)
-	{
-	  if (setup_d_pid_in_inferior ())
-	    return (struct symtab_and_line *) -1;
-	}
-      else
-	{
-	  warning (_("Internal error: Invalid inferior pid?  Cannot intercept exception events."));
-	  return (struct symtab_and_line *) -1;
-	}
-    }
-
-  switch (kind)
-    {
-    case EX_EVENT_THROW:
-      store_unsigned_integer (buf, 4, enable ? 1 : 0);
-      if (target_write_memory (eh_catch_throw_addr, buf, 4))	/* FIXME 32x64? */
-	{
-	  warning (_("Couldn't enable exception throw interception."));
-	  return (struct symtab_and_line *) -1;
-	}
-      break;
-    case EX_EVENT_CATCH:
-      store_unsigned_integer (buf, 4, enable ? 1 : 0);
-      if (target_write_memory (eh_catch_catch_addr, buf, 4))	/* FIXME 32x64? */
-	{
-	  warning (_("Couldn't enable exception catch interception."));
-	  return (struct symtab_and_line *) -1;
-	}
-      break;
-    default:
-      error (_("Request to enable unknown or unsupported exception event."));
-    }
-
-  /* Copy break address into new sal struct, malloc'ing if needed.  */
-  if (!break_callback_sal)
-    break_callback_sal = XMALLOC (struct symtab_and_line);
-  init_sal (break_callback_sal);
-  break_callback_sal->symtab = NULL;
-  break_callback_sal->pc = eh_break_addr;
-  break_callback_sal->line = 0;
-  break_callback_sal->end = eh_break_addr;
-
-  return break_callback_sal;
-}
-
-/* Record some information about the current exception event */
-static struct exception_event_record current_ex_event;
-
-/* Report current exception event.  Returns a pointer to a record
-   that describes the kind of the event, where it was thrown from,
-   and where it will be caught.  More information may be reported
-   in the future */
-struct exception_event_record *
-child_get_current_exception_event (void)
-{
-  CORE_ADDR event_kind;
-  CORE_ADDR throw_addr;
-  CORE_ADDR catch_addr;
-  struct frame_info *fi, *curr_frame;
-  int level = 1;
-
-  curr_frame = get_current_frame ();
-  if (!curr_frame)
-    return (struct exception_event_record *) NULL;
-
-  /* Go up one frame to __d_eh_notify_callback, because at the
-     point when this code is executed, there's garbage in the
-     arguments of __d_eh_break. */
-  fi = find_relative_frame (curr_frame, &level);
-  if (level != 0)
-    return (struct exception_event_record *) NULL;
-
-  select_frame (fi);
-
-  /* Read in the arguments */
-  /* __d_eh_notify_callback() is called with 3 arguments:
-     1. event kind catch or throw
-     2. the target address if known
-     3. a flag -- not sure what this is. pai/1997-07-17 */
-  event_kind = read_register (HPPA_ARG0_REGNUM);
-  catch_addr = read_register (HPPA_ARG1_REGNUM);
-
-  /* Now go down to a user frame */
-  /* For a throw, __d_eh_break is called by
-     __d_eh_notify_callback which is called by
-     __notify_throw which is called
-     from user code.
-     For a catch, __d_eh_break is called by
-     __d_eh_notify_callback which is called by
-     <stackwalking stuff> which is called by
-     __throw__<stuff> or __rethrow_<stuff> which is called
-     from user code. */
-  /* FIXME: Don't use such magic numbers; search for the frames */
-  level = (event_kind == EX_EVENT_THROW) ? 3 : 4;
-  fi = find_relative_frame (curr_frame, &level);
-  if (level != 0)
-    return (struct exception_event_record *) NULL;
-
-  select_frame (fi);
-  throw_addr = get_frame_pc (fi);
-
-  /* Go back to original (top) frame */
-  select_frame (curr_frame);
-
-  current_ex_event.kind = (enum exception_event_kind) event_kind;
-  current_ex_event.throw_sal = find_pc_line (throw_addr, 1);
-  current_ex_event.catch_sal = find_pc_line (catch_addr, 1);
-
-  return &current_ex_event;
-}
 
 /* Signal frames.  */
 struct hppa_hpux_sigtramp_unwind_cache
@@ -1169,12 +623,13 @@ static int hppa_hpux_tramp_reg[] = {
 };
 
 static struct hppa_hpux_sigtramp_unwind_cache *
-hppa_hpux_sigtramp_frame_unwind_cache (struct frame_info *next_frame,
+hppa_hpux_sigtramp_frame_unwind_cache (struct frame_info *this_frame,
 				       void **this_cache)
 
 {
-  struct gdbarch *gdbarch = get_frame_arch (next_frame);
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
   struct gdbarch_tdep *tdep = gdbarch_tdep (gdbarch);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct hppa_hpux_sigtramp_unwind_cache *info;
   unsigned int flag;
   CORE_ADDR sp, scptr, off;
@@ -1185,9 +640,9 @@ hppa_hpux_sigtramp_frame_unwind_cache (struct frame_info *next_frame,
 
   info = FRAME_OBSTACK_ZALLOC (struct hppa_hpux_sigtramp_unwind_cache);
   *this_cache = info;
-  info->saved_regs = trad_frame_alloc_saved_regs (next_frame);
+  info->saved_regs = trad_frame_alloc_saved_regs (this_frame);
 
-  sp = frame_unwind_register_unsigned (next_frame, HPPA_SP_REGNUM);
+  sp = get_frame_register_unsigned (this_frame, HPPA_SP_REGNUM);
 
   if (IS_32BIT_TARGET (gdbarch))
     scptr = sp - 1352;
@@ -1196,21 +651,22 @@ hppa_hpux_sigtramp_frame_unwind_cache (struct frame_info *next_frame,
 
   off = scptr;
 
-  /* See /usr/include/machine/save_state.h for the structure of the save_state_t
-     structure. */
+  /* See /usr/include/machine/save_state.h for the structure of the
+     save_state_t structure.  */
   
-  flag = read_memory_unsigned_integer(scptr + HPPA_HPUX_SS_FLAGS_OFFSET, 4);
+  flag = read_memory_unsigned_integer (scptr + HPPA_HPUX_SS_FLAGS_OFFSET,
+				       4, byte_order);
 
   if (!(flag & HPPA_HPUX_SS_WIDEREGS))
     {
-      /* Narrow registers. */
+      /* Narrow registers.  */
       off = scptr + HPPA_HPUX_SS_NARROW_OFFSET;
       incr = 4;
       szoff = 0;
     }
   else
     {
-      /* Wide registers. */
+      /* Wide registers.  */
       off = scptr + HPPA_HPUX_SS_WIDE_OFFSET + 8;
       incr = 8;
       szoff = (tdep->bytes_per_address == 4 ? 4 : 0);
@@ -1232,46 +688,43 @@ hppa_hpux_sigtramp_frame_unwind_cache (struct frame_info *next_frame,
 
   /* TODO: fp regs */
 
-  info->base = frame_unwind_register_unsigned (next_frame, HPPA_SP_REGNUM);
+  info->base = get_frame_register_unsigned (this_frame, HPPA_SP_REGNUM);
 
   return info;
 }
 
 static void
-hppa_hpux_sigtramp_frame_this_id (struct frame_info *next_frame,
+hppa_hpux_sigtramp_frame_this_id (struct frame_info *this_frame,
 				   void **this_prologue_cache,
 				   struct frame_id *this_id)
 {
   struct hppa_hpux_sigtramp_unwind_cache *info
-    = hppa_hpux_sigtramp_frame_unwind_cache (next_frame, this_prologue_cache);
-  *this_id = frame_id_build (info->base, frame_pc_unwind (next_frame));
+    = hppa_hpux_sigtramp_frame_unwind_cache (this_frame, this_prologue_cache);
+
+  *this_id = frame_id_build (info->base, get_frame_pc (this_frame));
 }
 
-static void
-hppa_hpux_sigtramp_frame_prev_register (struct frame_info *next_frame,
+static struct value *
+hppa_hpux_sigtramp_frame_prev_register (struct frame_info *this_frame,
 					void **this_prologue_cache,
-					int regnum, int *optimizedp,
-					enum lval_type *lvalp, 
-					CORE_ADDR *addrp,
-					int *realnump, gdb_byte *valuep)
+					int regnum)
 {
   struct hppa_hpux_sigtramp_unwind_cache *info
-    = hppa_hpux_sigtramp_frame_unwind_cache (next_frame, this_prologue_cache);
-  hppa_frame_prev_register_helper (next_frame, info->saved_regs, regnum,
-		                   optimizedp, lvalp, addrp, realnump, valuep);
+    = hppa_hpux_sigtramp_frame_unwind_cache (this_frame, this_prologue_cache);
+
+  return hppa_frame_prev_register_helper (this_frame,
+					  info->saved_regs, regnum);
 }
 
-static const struct frame_unwind hppa_hpux_sigtramp_frame_unwind = {
-  SIGTRAMP_FRAME,
-  hppa_hpux_sigtramp_frame_this_id,
-  hppa_hpux_sigtramp_frame_prev_register
-};
-
-static const struct frame_unwind *
-hppa_hpux_sigtramp_unwind_sniffer (struct frame_info *next_frame)
+static int
+hppa_hpux_sigtramp_unwind_sniffer (const struct frame_unwind *self,
+                                   struct frame_info *this_frame,
+                                   void **this_cache)
 {
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct unwind_table_entry *u;
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  CORE_ADDR pc = get_frame_pc (this_frame);
 
   u = find_unwind_entry (pc);
 
@@ -1282,24 +735,35 @@ hppa_hpux_sigtramp_unwind_sniffer (struct frame_info *next_frame)
       gdb_byte buf[HPPA_INSN_SIZE];
       unsigned long insn;
 
-      if (!safe_frame_unwind_memory (next_frame, u->region_start,
+      if (!safe_frame_unwind_memory (this_frame, u->region_start,
 				     buf, sizeof buf))
-	return NULL;
+	return 0;
 
-      insn = extract_unsigned_integer (buf, sizeof buf);
+      insn = extract_unsigned_integer (buf, sizeof buf, byte_order);
       if ((insn & 0xffe0e000) == 0xe8400000)
 	u = find_unwind_entry(u->region_start + hppa_extract_17 (insn) + 8);
     }
 
   if (u && u->HP_UX_interrupt_marker)
-    return &hppa_hpux_sigtramp_frame_unwind;
+    return 1;
 
-  return NULL;
+  return 0;
 }
 
+static const struct frame_unwind hppa_hpux_sigtramp_frame_unwind = {
+  SIGTRAMP_FRAME,
+  default_frame_unwind_stop_reason,
+  hppa_hpux_sigtramp_frame_this_id,
+  hppa_hpux_sigtramp_frame_prev_register,
+  NULL,
+  hppa_hpux_sigtramp_unwind_sniffer
+};
+
 static CORE_ADDR
-hppa32_hpux_find_global_pointer (struct value *function)
+hppa32_hpux_find_global_pointer (struct gdbarch *gdbarch,
+				 struct value *function)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR faddr;
   
   faddr = value_as_address (function);
@@ -1308,34 +772,36 @@ hppa32_hpux_find_global_pointer (struct value *function)
   if (faddr & 2)
     {
       int status;
-      char buf[4];
+      gdb_byte buf[4];
 
       faddr &= ~3;
 
       status = target_read_memory (faddr + 4, buf, sizeof (buf));
       if (status == 0)
-	return extract_unsigned_integer (buf, sizeof (buf));
+	return extract_unsigned_integer (buf, sizeof (buf), byte_order);
     }
 
-  return gdbarch_tdep (current_gdbarch)->solib_get_got_by_pc (faddr);
+  return gdbarch_tdep (gdbarch)->solib_get_got_by_pc (faddr);
 }
 
 static CORE_ADDR
-hppa64_hpux_find_global_pointer (struct value *function)
+hppa64_hpux_find_global_pointer (struct gdbarch *gdbarch,
+				 struct value *function)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR faddr;
-  char buf[32];
+  gdb_byte buf[32];
 
   faddr = value_as_address (function);
 
   if (in_opd_section (faddr))
     {
       target_read_memory (faddr, buf, sizeof (buf));
-      return extract_unsigned_integer (&buf[24], 8);
+      return extract_unsigned_integer (&buf[24], 8, byte_order);
     }
   else
     {
-      return gdbarch_tdep (current_gdbarch)->solib_get_got_by_pc (faddr);
+      return gdbarch_tdep (gdbarch)->solib_get_got_by_pc (faddr);
     }
 }
 
@@ -1346,9 +812,11 @@ static unsigned int ldsid_pattern[] = {
 };
 
 static CORE_ADDR
-hppa_hpux_search_pattern (CORE_ADDR start, CORE_ADDR end, 
+hppa_hpux_search_pattern (struct gdbarch *gdbarch,
+			  CORE_ADDR start, CORE_ADDR end,
 			  unsigned int *patterns, int count)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   int num_insns = (end - start + HPPA_INSN_SIZE) / HPPA_INSN_SIZE;
   unsigned int *insns;
   gdb_byte *buf;
@@ -1359,7 +827,7 @@ hppa_hpux_search_pattern (CORE_ADDR start, CORE_ADDR end,
 
   read_memory (start, buf, num_insns * HPPA_INSN_SIZE);
   for (i = 0; i < num_insns; i++, buf += HPPA_INSN_SIZE)
-    insns[i] = extract_unsigned_integer (buf, HPPA_INSN_SIZE);
+    insns[i] = extract_unsigned_integer (buf, HPPA_INSN_SIZE, byte_order);
 
   for (offset = 0; offset <= num_insns - count; offset++)
     {
@@ -1382,13 +850,14 @@ static CORE_ADDR
 hppa32_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
 					int *argreg)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct objfile *obj;
   struct obj_section *sec;
   struct hppa_objfile_private *priv;
   struct frame_info *frame;
   struct unwind_table_entry *u;
   CORE_ADDR addr, rp;
-  char buf[4];
+  gdb_byte buf[4];
   unsigned int insn;
 
   sec = find_pc_section (pc);
@@ -1414,7 +883,8 @@ hppa32_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
   u = find_unwind_entry (rp);
   if (u && u->stub_unwind.stub_type == EXPORT)
     {
-      addr = hppa_hpux_search_pattern (u->region_start, u->region_end, 
+      addr = hppa_hpux_search_pattern (gdbarch,
+				       u->region_start, u->region_end,
 				       ldsid_pattern, 
 				       ARRAY_SIZE (ldsid_pattern));
       if (addr)
@@ -1432,7 +902,8 @@ hppa32_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
 	  u = &priv->unwind_info->table[i];
 	  if (u->stub_unwind.stub_type == EXPORT)
 	    {
-	      addr = hppa_hpux_search_pattern (u->region_start, u->region_end, 
+	      addr = hppa_hpux_search_pattern (gdbarch,
+					       u->region_start, u->region_end,
 					       ldsid_pattern, 
 					       ARRAY_SIZE (ldsid_pattern));
 	      if (addr)
@@ -1455,7 +926,7 @@ hppa32_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
       find_pc_partial_function (addr, NULL, &start, &end);
       if (start != 0 && end != 0)
         {
-	  addr = hppa_hpux_search_pattern (start, end, ldsid_pattern,
+	  addr = hppa_hpux_search_pattern (gdbarch, start, end, ldsid_pattern,
 					   ARRAY_SIZE (ldsid_pattern));
 	  if (addr)
 	    goto found_pattern;
@@ -1467,7 +938,7 @@ hppa32_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
 
 found_pattern:
   target_read_memory (addr, buf, sizeof (buf));
-  insn = extract_unsigned_integer (buf, sizeof (buf));
+  insn = extract_unsigned_integer (buf, sizeof (buf), byte_order);
   priv->dummy_call_sequence_addr = addr;
   priv->dummy_call_sequence_reg = (insn >> 21) & 0x1f;
 
@@ -1479,12 +950,12 @@ static CORE_ADDR
 hppa64_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
 					int *argreg)
 {
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct objfile *obj;
   struct obj_section *sec;
   struct hppa_objfile_private *priv;
   CORE_ADDR addr;
   struct minimal_symbol *msym;
-  int i;
 
   sec = find_pc_section (pc);
   obj = sec->objfile;
@@ -1507,10 +978,10 @@ hppa64_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
      scheme; try to read in blocks of code, and look for a "bve,n (rp)" 
      instruction.  These are likely to occur at the end of functions, so
      we only look at the last two instructions of each function.  */
-  for (i = 0, msym = obj->msymbols; i < obj->minimal_symbol_count; i++, msym++)
+  ALL_OBJFILE_MSYMBOLS (obj, msym)
     {
       CORE_ADDR begin, end;
-      char *name;
+      const char *name;
       gdb_byte buf[2 * HPPA_INSN_SIZE];
       int offset;
 
@@ -1526,7 +997,8 @@ hppa64_hpux_search_dummy_call_sequence (struct gdbarch *gdbarch, CORE_ADDR pc,
 	    {
 	      unsigned int insn;
 
-	      insn = extract_unsigned_integer (buf + offset, HPPA_INSN_SIZE);
+	      insn = extract_unsigned_integer (buf + offset,
+					       HPPA_INSN_SIZE, byte_order);
 	      if (insn == 0xe840d002) /* bve,n (rp) */
 	        {
 		  addr = (end - sizeof (buf)) + offset;
@@ -1588,11 +1060,11 @@ hppa_hpux_find_import_stub_for_addr (CORE_ADDR funcaddr)
 }
 
 static int
-hppa_hpux_sr_for_addr (CORE_ADDR addr)
+hppa_hpux_sr_for_addr (struct gdbarch *gdbarch, CORE_ADDR addr)
 {
   int sr;
   /* The space register to use is encoded in the top 2 bits of the address.  */
-  sr = addr >> (gdbarch_tdep (current_gdbarch)->bytes_per_address * 8 - 2);
+  sr = addr >> (gdbarch_tdep (gdbarch)->bytes_per_address * 8 - 2);
   return sr + 4;
 }
 
@@ -1600,7 +1072,7 @@ static CORE_ADDR
 hppa_hpux_find_dummy_bpaddr (CORE_ADDR addr)
 {
   /* In order for us to restore the space register to its starting state, 
-     we need the dummy trampoline to return to the an instruction address in 
+     we need the dummy trampoline to return to an instruction address in 
      the same space as where we started the call.  We used to place the 
      breakpoint near the current pc, however, this breaks nested dummy calls 
      as the nested call will hit the breakpoint address and terminate 
@@ -1614,16 +1086,15 @@ hppa_hpux_find_dummy_bpaddr (CORE_ADDR addr)
   struct unwind_table_entry *u;
   struct minimal_symbol *msym;
   CORE_ADDR func;
-  int i;
 
   sec = find_pc_section (addr);
   if (sec)
     {
       /* First try the lowest address in the section; we can use it as long
-         as it is "regular" code (i.e. not a stub) */
-      u = find_unwind_entry (sec->addr);
+         as it is "regular" code (i.e. not a stub).  */
+      u = find_unwind_entry (obj_section_addr (sec));
       if (!u || u->stub_unwind.stub_type == 0)
-        return sec->addr;
+        return obj_section_addr (sec);
 
       /* Otherwise, we need to find a symbol for a regular function.  We
          do this by walking the list of msymbols in the objfile.  The symbol
@@ -1634,9 +1105,7 @@ hppa_hpux_find_dummy_bpaddr (CORE_ADDR addr)
 	 work.  */
 
       find_pc_partial_function (addr, NULL, &func, NULL);
-      for (i = 0, msym = sec->objfile->msymbols;
-      	   i < sec->objfile->minimal_symbol_count;
-	   i++, msym++)
+      ALL_OBJFILE_MSYMBOLS (sec->objfile, msym)
 	{
 	  u = find_unwind_entry (SYMBOL_VALUE_ADDRESS (msym));
 	  if (func != SYMBOL_VALUE_ADDRESS (msym) 
@@ -1652,15 +1121,16 @@ hppa_hpux_find_dummy_bpaddr (CORE_ADDR addr)
 
 static CORE_ADDR
 hppa_hpux_push_dummy_code (struct gdbarch *gdbarch, CORE_ADDR sp,
-			   CORE_ADDR funcaddr, int using_gcc,
+			   CORE_ADDR funcaddr,
 			   struct value **args, int nargs,
 			   struct type *value_type,
-			   CORE_ADDR *real_pc, CORE_ADDR *bp_addr)
+			   CORE_ADDR *real_pc, CORE_ADDR *bp_addr,
+			   struct regcache *regcache)
 {
   CORE_ADDR pc, stubaddr;
   int argreg = 0;
 
-  pc = read_pc ();
+  pc = regcache_read_pc (regcache);
 
   /* Note: we don't want to pass a function descriptor here; push_dummy_call
      fills in the PIC register for us.  */
@@ -1668,12 +1138,13 @@ hppa_hpux_push_dummy_code (struct gdbarch *gdbarch, CORE_ADDR sp,
 
   /* The simple case is where we call a function in the same space that we are
      currently in; in that case we don't really need to do anything.  */
-  if (hppa_hpux_sr_for_addr (pc) == hppa_hpux_sr_for_addr (funcaddr))
+  if (hppa_hpux_sr_for_addr (gdbarch, pc)
+      == hppa_hpux_sr_for_addr (gdbarch, funcaddr))
     {
       /* Intraspace call.  */
       *bp_addr = hppa_hpux_find_dummy_bpaddr (pc);
       *real_pc = funcaddr;
-      regcache_cooked_write_unsigned (current_regcache, HPPA_RP_REGNUM, *bp_addr);
+      regcache_cooked_write_unsigned (regcache, HPPA_RP_REGNUM, *bp_addr);
 
       return sp;
     }
@@ -1726,9 +1197,7 @@ hppa_hpux_push_dummy_code (struct gdbarch *gdbarch, CORE_ADDR sp,
      - point the sequence at the trampoline
      - set the return address of the trampoline to the current space 
        (see hppa_hpux_find_dummy_call_bpaddr)
-     - set the continuing address of the "dummy code" as the sequence.
-
-*/
+     - set the continuing address of the "dummy code" as the sequence.  */
 
   if (IS_32BIT_TARGET (gdbarch))
     {
@@ -1751,18 +1220,18 @@ hppa_hpux_push_dummy_code (struct gdbarch *gdbarch, CORE_ADDR sp,
       if (stubaddr == 0)
         error (_("Cannot call external function not referenced by application "
 	       "(no import stub).\n"));
-      regcache_cooked_write_unsigned (current_regcache, 22, stubaddr);
+      regcache_cooked_write_unsigned (regcache, 22, stubaddr);
 
       write_memory (sp, (char *)&hppa32_tramp, sizeof (hppa32_tramp));
 
       *bp_addr = hppa_hpux_find_dummy_bpaddr (pc);
-      regcache_cooked_write_unsigned (current_regcache, 31, *bp_addr);
+      regcache_cooked_write_unsigned (regcache, 31, *bp_addr);
 
       *real_pc = hppa32_hpux_search_dummy_call_sequence (gdbarch, pc, &argreg);
       if (*real_pc == 0)
         error (_("Cannot make interspace call from here."));
 
-      regcache_cooked_write_unsigned (current_regcache, argreg, sp);
+      regcache_cooked_write_unsigned (regcache, argreg, sp);
 
       sp += sizeof (hppa32_tramp);
     }
@@ -1778,17 +1247,17 @@ hppa_hpux_push_dummy_code (struct gdbarch *gdbarch, CORE_ADDR sp,
 
       /* for hppa64, we don't need to call through a stub; all functions
          return via a bve.  */
-      regcache_cooked_write_unsigned (current_regcache, 22, funcaddr);
+      regcache_cooked_write_unsigned (regcache, 22, funcaddr);
       write_memory (sp, (char *)&hppa64_tramp, sizeof (hppa64_tramp));
 
       *bp_addr = pc - 4;
-      regcache_cooked_write_unsigned (current_regcache, 31, *bp_addr);
+      regcache_cooked_write_unsigned (regcache, 31, *bp_addr);
 
       *real_pc = hppa64_hpux_search_dummy_call_sequence (gdbarch, pc, &argreg);
       if (*real_pc == 0)
         error (_("Cannot make interspace call from here."));
 
-      regcache_cooked_write_unsigned (current_regcache, argreg, sp);
+      regcache_cooked_write_unsigned (regcache, argreg, sp);
 
       sp += sizeof (hppa64_tramp);
     }
@@ -1875,18 +1344,20 @@ hppa_hpux_supply_save_state (const struct regset *regset,
 			     struct regcache *regcache,
 			     int regnum, const void *regs, size_t len)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   const char *proc_info = regs;
   const char *save_state = proc_info + 8;
   ULONGEST flags;
 
-  flags = extract_unsigned_integer (save_state + HPPA_HPUX_SS_FLAGS_OFFSET, 4);
+  flags = extract_unsigned_integer (save_state + HPPA_HPUX_SS_FLAGS_OFFSET,
+				    4, byte_order);
   if (regnum == -1 || regnum == HPPA_FLAGS_REGNUM)
     {
-      struct gdbarch *arch = get_regcache_arch (regcache);
-      size_t size = register_size (arch, HPPA_FLAGS_REGNUM);
-      char buf[8];
+      size_t size = register_size (gdbarch, HPPA_FLAGS_REGNUM);
+      gdb_byte buf[8];
 
-      store_unsigned_integer (buf, size, flags);
+      store_unsigned_integer (buf, size, byte_order, flags);
       regcache_raw_supply (regcache, HPPA_FLAGS_REGNUM, buf);
     }
 
@@ -1929,29 +1400,33 @@ hppa_hpux_regset_from_core_section (struct gdbarch *gdbarch,
 #define HPPA_HPUX_SS_INSYSCALL	0x02
 
 static CORE_ADDR
-hppa_hpux_read_pc (ptid_t ptid)
+hppa_hpux_read_pc (struct regcache *regcache)
 {
   ULONGEST flags;
 
   /* If we're currently in a system call return the contents of %r31.  */
-  flags = read_register_pid (HPPA_FLAGS_REGNUM, ptid);
+  regcache_cooked_read_unsigned (regcache, HPPA_FLAGS_REGNUM, &flags);
   if (flags & HPPA_HPUX_SS_INSYSCALL)
-    return read_register_pid (HPPA_R31_REGNUM, ptid) & ~0x3;
+    {
+      ULONGEST pc;
+      regcache_cooked_read_unsigned (regcache, HPPA_R31_REGNUM, &pc);
+      return pc & ~0x3;
+    }
 
-  return hppa_read_pc (ptid);
+  return hppa_read_pc (regcache);
 }
 
 static void
-hppa_hpux_write_pc (CORE_ADDR pc, ptid_t ptid)
+hppa_hpux_write_pc (struct regcache *regcache, CORE_ADDR pc)
 {
   ULONGEST flags;
 
   /* If we're currently in a system call also write PC into %r31.  */
-  flags = read_register_pid (HPPA_FLAGS_REGNUM, ptid);
+  regcache_cooked_read_unsigned (regcache, HPPA_FLAGS_REGNUM, &flags);
   if (flags & HPPA_HPUX_SS_INSYSCALL)
-    write_register_pid (HPPA_R31_REGNUM, pc | 0x3, ptid);
+    regcache_cooked_write_unsigned (regcache, HPPA_R31_REGNUM, pc | 0x3);
 
-  return hppa_write_pc (pc, ptid);
+  hppa_write_pc (regcache, pc);
 }
 
 static CORE_ADDR
@@ -1968,49 +1443,40 @@ hppa_hpux_unwind_pc (struct gdbarch *gdbarch, struct frame_info *next_frame)
 }
 
 
-static void
-hppa_hpux_inferior_created (struct target_ops *objfile, int from_tty)
-{
-  /* Some HP-UX related globals to clear when a new "main"
-     symbol file is loaded.  HP-specific.  */
-  deprecated_hp_som_som_object_present = 0;
-  hp_cxx_exception_support_initialized = 0;
-}
-
 /* Given the current value of the pc, check to see if it is inside a stub, and
    if so, change the value of the pc to point to the caller of the stub.
-   NEXT_FRAME is the next frame in the current list of frames.
-   BASE contains to stack frame base of the current frame. 
-   SAVE_REGS is the register file stored in the frame cache. */
+   THIS_FRAME is the current frame in the current list of frames.
+   BASE contains to stack frame base of the current frame.
+   SAVE_REGS is the register file stored in the frame cache.  */
 static void
-hppa_hpux_unwind_adjust_stub (struct frame_info *next_frame, CORE_ADDR base,
+hppa_hpux_unwind_adjust_stub (struct frame_info *this_frame, CORE_ADDR base,
 			      struct trad_frame_saved_reg *saved_regs)
 {
-  int optimized, realreg;
-  enum lval_type lval;
-  CORE_ADDR addr;
-  char buffer[sizeof(ULONGEST)];
-  ULONGEST val;
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
+  int word_size = gdbarch_ptr_bit (gdbarch) / 8;
+  struct value *pcoq_head_val;
+  ULONGEST pcoq_head;
   CORE_ADDR stubpc;
   struct unwind_table_entry *u;
 
-  trad_frame_get_prev_register (next_frame, saved_regs, 
-				HPPA_PCOQ_HEAD_REGNUM, 
-				&optimized, &lval, &addr, &realreg, buffer);
-  val = extract_unsigned_integer (buffer, 
-				  register_size (get_frame_arch (next_frame), 
-      				  		 HPPA_PCOQ_HEAD_REGNUM));
+  pcoq_head_val = trad_frame_get_prev_register (this_frame, saved_regs, 
+				                HPPA_PCOQ_HEAD_REGNUM);
+  pcoq_head =
+    extract_unsigned_integer (value_contents_all (pcoq_head_val),
+			      register_size (gdbarch, HPPA_PCOQ_HEAD_REGNUM),
+			      byte_order);
 
-  u = find_unwind_entry (val);
+  u = find_unwind_entry (pcoq_head);
   if (u && u->stub_unwind.stub_type == EXPORT)
     {
-      stubpc = read_memory_integer (base - 24, TARGET_PTR_BIT / 8);
+      stubpc = read_memory_integer (base - 24, word_size, byte_order);
       trad_frame_set_value (saved_regs, HPPA_PCOQ_HEAD_REGNUM, stubpc);
     }
   else if (hppa_symbol_address ("__gcc_plt_call") 
-           == get_pc_function_start (val))
+           == get_pc_function_start (pcoq_head))
     {
-      stubpc = read_memory_integer (base - 8, TARGET_PTR_BIT / 8);
+      stubpc = read_memory_integer (base - 8, word_size, byte_order);
       trad_frame_set_value (saved_regs, HPPA_PCOQ_HEAD_REGNUM, stubpc);
     }
 }
@@ -2037,13 +1503,13 @@ hppa_hpux_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   set_gdbarch_read_pc (gdbarch, hppa_hpux_read_pc);
   set_gdbarch_write_pc (gdbarch, hppa_hpux_write_pc);
   set_gdbarch_unwind_pc (gdbarch, hppa_hpux_unwind_pc);
+  set_gdbarch_skip_permanent_breakpoint
+    (gdbarch, hppa_skip_permanent_breakpoint);
 
   set_gdbarch_regset_from_core_section
     (gdbarch, hppa_hpux_regset_from_core_section);
 
-  frame_unwind_append_sniffer (gdbarch, hppa_hpux_sigtramp_unwind_sniffer);
-
-  observer_attach_inferior_created (hppa_hpux_inferior_created);
+  frame_unwind_append_unwinder (gdbarch, &hppa_hpux_sigtramp_frame_unwind);
 }
 
 static void
@@ -2056,7 +1522,7 @@ hppa_hpux_som_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   tdep->find_global_pointer = hppa32_hpux_find_global_pointer;
 
   hppa_hpux_init_abi (info, gdbarch);
-  som_solib_select (tdep);
+  som_solib_select (gdbarch);
 }
 
 static void
@@ -2068,7 +1534,7 @@ hppa_hpux_elf_init_abi (struct gdbarch_info info, struct gdbarch *gdbarch)
   tdep->find_global_pointer = hppa64_hpux_find_global_pointer;
 
   hppa_hpux_init_abi (info, gdbarch);
-  pa64_solib_select (tdep);
+  pa64_solib_select (gdbarch);
 }
 
 static enum gdb_osabi

@@ -1,27 +1,28 @@
 /* Motorola 68HC11-specific support for 32-bit ELF
-   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2010, 2012
    Free Software Foundation, Inc.
    Contributed by Stephane Carrez (stcarrez@nerim.fr)
    (Heavily copied from the D10V port by Martin Hunt (hunt@cygnus.com))
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "bfdlink.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
@@ -358,6 +359,23 @@ bfd_elf32_bfd_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
   return NULL;
 }
 
+static reloc_howto_type *
+bfd_elf32_bfd_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+				 const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < (sizeof (elf_m68hc11_howto_table)
+	    / sizeof (elf_m68hc11_howto_table[0]));
+       i++)
+    if (elf_m68hc11_howto_table[i].name != NULL
+	&& strcasecmp (elf_m68hc11_howto_table[i].name, r_name) == 0)
+      return &elf_m68hc11_howto_table[i];
+
+  return NULL;
+}
+
 /* Set the howto pointer for an M68HC11 ELF reloc.  */
 
 static void
@@ -391,6 +409,8 @@ m68hc11_elf_build_one_stub (struct bfd_hash_entry *gen_entry, void *in_arg)
   info = (struct bfd_link_info *) in_arg;
 
   htab = m68hc11_elf_hash_table (info);
+  if (htab == NULL)
+    return FALSE;
 
   stub_sec = stub_entry->stub_sec;
 
@@ -656,7 +676,6 @@ m68hc11_elf_relax_section (bfd *abfd, asection *sec,
                            struct bfd_link_info *link_info, bfd_boolean *again)
 {
   Elf_Internal_Shdr *symtab_hdr;
-  Elf_Internal_Shdr *shndx_hdr;
   Elf_Internal_Rela *internal_relocs;
   Elf_Internal_Rela *free_relocs = NULL;
   Elf_Internal_Rela *irel, *irelend;
@@ -681,11 +700,10 @@ m68hc11_elf_relax_section (bfd *abfd, asection *sec,
     return TRUE;
 
   symtab_hdr = &elf_tdata (abfd)->symtab_hdr;
-  shndx_hdr = &elf_tdata (abfd)->symtab_shndx_hdr;
 
   /* Get a copy of the native relocations.  */
   internal_relocs = (_bfd_elf_link_read_relocs
-		     (abfd, sec, (PTR) NULL, (Elf_Internal_Rela *) NULL,
+		     (abfd, sec, NULL, (Elf_Internal_Rela *) NULL,
 		      link_info->keep_memory));
   if (internal_relocs == NULL)
     goto error_return;
@@ -1267,6 +1285,7 @@ static const struct bfd_elf_special_section elf32_m68hc11_special_sections[] =
 };
 
 #define ELF_ARCH		bfd_arch_m68hc11
+#define ELF_TARGET_ID		M68HC11_ELF_DATA
 #define ELF_MACHINE_CODE	EM_68HC11
 #define ELF_MAXPAGESIZE		0x1000
 
@@ -1283,6 +1302,7 @@ static const struct bfd_elf_special_section elf32_m68hc11_special_sections[] =
 #define elf_backend_final_write_processing	0
 #define elf_backend_can_gc_sections		1
 #define elf_backend_special_sections  elf32_m68hc11_special_sections
+#define elf_backend_merge_symbol_attribute elf32_m68hc11_merge_symbol_attribute
 
 #define bfd_elf32_bfd_link_hash_table_create \
                                 m68hc11_elf_bfd_link_hash_table_create

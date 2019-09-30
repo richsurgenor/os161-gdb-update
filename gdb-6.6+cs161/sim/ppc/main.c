@@ -4,7 +4,7 @@
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
     GNU General Public License for more details.
  
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+    along with this program; if not, see <http://www.gnu.org/licenses/>.
  
     */
 
@@ -253,12 +252,6 @@ zalloc(long size)
   return memory;
 }
 
-void
-zfree(void *chunk)
-{
-  free(chunk);
-}
-
 /* When a CNTRL-C occures, queue an event to shut down the simulation */
 
 static RETSIGTYPE
@@ -283,7 +276,7 @@ main(int argc, char **argv)
       print_options ();
       return 0;
     } else {
-      psim_usage(0);
+      psim_usage(0, 0);
     }
   }
   name_of_file = argv[0];
@@ -319,7 +312,7 @@ main(int argc, char **argv)
   status = psim_get_status(simulation);
   switch (status.reason) {
   case was_continuing:
-    error("psim: continuing while stoped!\n");
+    error("psim: continuing while stopped!\n");
     return 0;
   case was_trap:
     error("psim: no trap insn\n");

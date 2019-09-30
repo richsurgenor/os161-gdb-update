@@ -1,13 +1,11 @@
 /* Read dbx symbol tables and convert to internal format, for GDB.
-   Copyright (C) 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995,
-   1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004.
-   Free Software Foundation, Inc.
+   Copyright (C) 1986-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,9 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* This module provides three functions: dbx_symfile_init,
    which initializes to read a symbol file; dbx_new_init, which 
@@ -49,6 +45,7 @@
 #include "target.h"
 #include "gdbcore.h"		/* for bfd stuff */
 #include "libaout.h"		/* FIXME Secret internal BFD stuff for a.out */
+#include "filenames.h"
 #include "objfiles.h"
 #include "buildsym.h"
 #include "stabsread.h"
@@ -56,13 +53,21 @@
 #include "demangle.h"
 #include "complaints.h"
 #include "cp-abi.h"
+#include "cp-support.h"
+#include "psympriv.h"
+#include "block.h"
 
 #include "gdb_assert.h"
 #include "gdb_string.h"
 
 #include "aout/aout64.h"
-#include "aout/stab_gnu.h"	/* We always use GNU stabs, not native, now */
+#include "aout/stab_gnu.h"	/* We always use GNU stabs, not
+				   native, now.  */
 
+
+/* Key for dbx-associated data.  */
+
+const struct objfile_data *dbx_objfile_data_key;
 
 /* We put a pointer to this structure in the read_symtab_private field
    of the psymtab.  */
@@ -103,7 +108,11 @@ struct symloc
 #define FILE_STRING_OFFSET(p) (SYMLOC(p)->file_string_offset)
 
 
-/* Remember what we deduced to be the source language of this psymtab. */
+/* The objfile we are currently reading.  */
+
+static struct objfile *dbxread_objfile;
+
+/* Remember what we deduced to be the source language of this psymtab.  */
 
 static enum language psymtab_language = language_unknown;
 
@@ -117,11 +126,11 @@ static bfd *symfile_bfd;
 
 static unsigned symbol_size;
 
-/* This is the offset of the symbol table in the executable file. */
+/* This is the offset of the symbol table in the executable file.  */
 
 static unsigned symbol_table_offset;
 
-/* This is the offset of the string table in the executable file. */
+/* This is the offset of the string table in the executable file.  */
 
 static unsigned string_table_offset;
 
@@ -129,14 +138,14 @@ static unsigned string_table_offset;
    into the string table.  Instead, each .o file has a base offset in
    the string table, and the associated symbols contain offsets from
    this base.  The following two variables contain the base offset for
-   the current and next .o files. */
+   the current and next .o files.  */
 
 static unsigned int file_string_table_offset;
 static unsigned int next_file_string_table_offset;
 
 /* .o and NLM files contain unrelocated addresses which are based at
    0.  When non-zero, this flag disables some of the special cases for
-   Solaris elf+stab text addresses at location 0. */
+   Solaris elf+stab text addresses at location 0.  */
 
 static int symfile_relocatable = 0;
 
@@ -177,7 +186,8 @@ static void
 repeated_header_complaint (const char *arg1, int arg2)
 {
   complaint (&symfile_complaints,
-	     _("\"repeated\" header file %s not previously seen, at symtab pos %d"),
+	     _("\"repeated\" header file %s not "
+	       "previously seen, at symtab pos %d"),
 	     arg1, arg2);
 }
 
@@ -232,29 +242,30 @@ find_text_range (bfd * sym_bfd, struct objfile *objfile)
 /* During initial symbol readin, we need to have a structure to keep
    track of which psymtabs have which bincls in them.  This structure
    is used during readin to setup the list of dependencies within each
-   partial symbol table. */
+   partial symbol table.  */
 
 struct header_file_location
 {
   char *name;			/* Name of header file */
   int instance;			/* See above */
   struct partial_symtab *pst;	/* Partial symtab that has the
-				   BINCL/EINCL defs for this file */
+				   BINCL/EINCL defs for this file.  */
 };
 
-/* The actual list and controling variables */
+/* The actual list and controling variables.  */
 static struct header_file_location *bincl_list, *next_bincl;
 static int bincls_allocated;
 
-/* Local function prototypes */
+/* Local function prototypes.  */
 
 extern void _initialize_dbxread (void);
 
-static void read_ofile_symtab (struct partial_symtab *);
+static void read_ofile_symtab (struct objfile *, struct partial_symtab *);
 
-static void dbx_psymtab_to_symtab (struct partial_symtab *);
+static void dbx_read_symtab (struct partial_symtab *self,
+			     struct objfile *objfile);
 
-static void dbx_psymtab_to_symtab_1 (struct partial_symtab *);
+static void dbx_psymtab_to_symtab_1 (struct objfile *, struct partial_symtab *);
 
 static void read_dbx_dynamic_symtab (struct objfile *objfile);
 
@@ -293,7 +304,7 @@ static struct partial_symtab *start_psymtab (struct objfile *, char *,
 					     struct partial_symbol **,
 					     struct partial_symbol **);
 
-/* Free up old header file tables */
+/* Free up old header file tables.  */
 
 void
 free_header_files (void)
@@ -306,7 +317,7 @@ free_header_files (void)
   n_allocated_this_object_header_files = 0;
 }
 
-/* Allocate new header file tables */
+/* Allocate new header file tables.  */
 
 void
 init_header_files (void)
@@ -340,11 +351,11 @@ add_this_object_header_file (int i)
 static void
 add_old_header_file (char *name, int instance)
 {
-  struct header_file *p = HEADER_FILES (current_objfile);
+  struct header_file *p = HEADER_FILES (dbxread_objfile);
   int i;
 
-  for (i = 0; i < N_HEADER_FILES (current_objfile); i++)
-    if (strcmp (p[i].name, name) == 0 && instance == p[i].instance)
+  for (i = 0; i < N_HEADER_FILES (dbxread_objfile); i++)
+    if (filename_cmp (p[i].name, name) == 0 && instance == p[i].instance)
       {
 	add_this_object_header_file (i);
 	return;
@@ -371,31 +382,31 @@ add_new_header_file (char *name, int instance)
 
   /* Make sure there is room for one more header file.  */
 
-  i = N_ALLOCATED_HEADER_FILES (current_objfile);
+  i = N_ALLOCATED_HEADER_FILES (dbxread_objfile);
 
-  if (N_HEADER_FILES (current_objfile) == i)
+  if (N_HEADER_FILES (dbxread_objfile) == i)
     {
       if (i == 0)
 	{
-	  N_ALLOCATED_HEADER_FILES (current_objfile) = 10;
-	  HEADER_FILES (current_objfile) = (struct header_file *)
+	  N_ALLOCATED_HEADER_FILES (dbxread_objfile) = 10;
+	  HEADER_FILES (dbxread_objfile) = (struct header_file *)
 	    xmalloc (10 * sizeof (struct header_file));
 	}
       else
 	{
 	  i *= 2;
-	  N_ALLOCATED_HEADER_FILES (current_objfile) = i;
-	  HEADER_FILES (current_objfile) = (struct header_file *)
-	    xrealloc ((char *) HEADER_FILES (current_objfile),
+	  N_ALLOCATED_HEADER_FILES (dbxread_objfile) = i;
+	  HEADER_FILES (dbxread_objfile) = (struct header_file *)
+	    xrealloc ((char *) HEADER_FILES (dbxread_objfile),
 		      (i * sizeof (struct header_file)));
 	}
     }
 
   /* Create an entry for this header file.  */
 
-  i = N_HEADER_FILES (current_objfile)++;
-  hfile = HEADER_FILES (current_objfile) + i;
-  hfile->name = savestring (name, strlen (name));
+  i = N_HEADER_FILES (dbxread_objfile)++;
+  hfile = HEADER_FILES (dbxread_objfile) + i;
+  hfile->name = xstrdup (name);
   hfile->instance = instance;
   hfile->length = 10;
   hfile->vector
@@ -409,7 +420,7 @@ add_new_header_file (char *name, int instance)
 static struct type **
 explicit_lookup_type (int real_filenum, int index)
 {
-  struct header_file *f = &HEADER_FILES (current_objfile)[real_filenum];
+  struct header_file *f = &HEADER_FILES (dbxread_objfile)[real_filenum];
 
   if (index >= f->length)
     {
@@ -489,6 +500,7 @@ record_minimal_symbol (char *name, CORE_ADDR address, int type,
       /* Same with virtual function tables, both global and static.  */
       {
 	char *tempstring = name;
+
 	if (tempstring[0] == bfd_get_symbol_leading_char (objfile->obfd))
 	  ++tempstring;
 	if (is_vtable_name (tempstring))
@@ -514,19 +526,16 @@ record_minimal_symbol (char *name, CORE_ADDR address, int type,
     lowest_text_address = address;
 
   prim_record_minimal_symbol_and_info
-    (name, address, ms_type, NULL, section, bfd_section, objfile);
+    (name, address, ms_type, section, bfd_section, objfile);
 }
 
 /* Scan and build partial symbols for a symbol file.
    We have been initialized by a call to dbx_symfile_init, which 
    put all the relevant info into a "struct dbx_symfile_info",
-   hung off the objfile structure.
-
-   MAINLINE is true if we are reading the main symbol
-   table (as opposed to a shared lib or dynamically loaded file).  */
+   hung off the objfile structure.  */
 
 static void
-dbx_symfile_read (struct objfile *objfile, int mainline)
+dbx_symfile_read (struct objfile *objfile, int symfile_flags)
 {
   bfd *sym_bfd;
   int val;
@@ -556,10 +565,8 @@ dbx_symfile_read (struct objfile *objfile, int mainline)
   if (val < 0)
     perror_with_name (objfile->name);
 
-  /* If we are reinitializing, or if we have never loaded syms yet, init */
-  if (mainline
-      || (objfile->global_psymbols.size == 0
-	  &&  objfile->static_psymbols.size == 0))
+  /* Size the symbol table.  */
+  if (objfile->global_psymbols.size == 0 && objfile->static_psymbols.size == 0)
     init_psymbol_list (objfile, DBX_SYMCOUNT (objfile));
 
   symbol_size = DBX_SYMBOL_SIZE (objfile);
@@ -571,7 +578,7 @@ dbx_symfile_read (struct objfile *objfile, int mainline)
   init_minimal_symbol_collection ();
   make_cleanup_discard_minimal_symbols ();
 
-  /* Read stabs data from executable file and define symbols. */
+  /* Read stabs data from executable file and define symbols.  */
 
   read_dbx_symtab (objfile);
 
@@ -580,7 +587,7 @@ dbx_symfile_read (struct objfile *objfile, int mainline)
   read_dbx_dynamic_symtab (objfile);
 
   /* Install any minimal symbols that have been collected as the current
-     minimal symbols for this objfile. */
+     minimal symbols for this objfile.  */
 
   install_minimal_symbols (objfile);
 
@@ -610,7 +617,7 @@ dbx_new_init (struct objfile *ignore)
 
    Since BFD doesn't know how to read debug symbols in a format-independent
    way (and may never do so...), we have to do it ourselves.  We will never
-   be called unless this is an a.out (or very similar) file. 
+   be called unless this is an a.out (or very similar) file.
    FIXME, there should be a cleaner peephole into the BFD environment here.  */
 
 #define DBX_STRINGTAB_SIZE_SIZE sizeof(long)	/* FIXME */
@@ -623,21 +630,21 @@ dbx_symfile_init (struct objfile *objfile)
   char *name = bfd_get_filename (sym_bfd);
   asection *text_sect;
   unsigned char size_temp[DBX_STRINGTAB_SIZE_SIZE];
+  struct dbx_symfile_info *dbx;
 
-  /* Allocate struct to keep track of the symfile */
-  objfile->deprecated_sym_stab_info = (struct dbx_symfile_info *)
-    xmalloc (sizeof (struct dbx_symfile_info));
-  memset (objfile->deprecated_sym_stab_info, 0, sizeof (struct dbx_symfile_info));
+  /* Allocate struct to keep track of the symfile.  */
+  dbx = XCNEW (struct dbx_symfile_info);
+  set_objfile_data (objfile, dbx_objfile_data_key, dbx);
 
   DBX_TEXT_SECTION (objfile) = bfd_get_section_by_name (sym_bfd, ".text");
   DBX_DATA_SECTION (objfile) = bfd_get_section_by_name (sym_bfd, ".data");
   DBX_BSS_SECTION (objfile) = bfd_get_section_by_name (sym_bfd, ".bss");
 
-  /* FIXME POKING INSIDE BFD DATA STRUCTURES */
+  /* FIXME POKING INSIDE BFD DATA STRUCTURES.  */
 #define	STRING_TABLE_OFFSET	(sym_bfd->origin + obj_str_filepos (sym_bfd))
 #define	SYMBOL_TABLE_OFFSET	(sym_bfd->origin + obj_sym_filepos (sym_bfd))
 
-  /* FIXME POKING INSIDE BFD DATA STRUCTURES */
+  /* FIXME POKING INSIDE BFD DATA STRUCTURES.  */
 
   DBX_SYMFILE_INFO (objfile)->stab_section_info = NULL;
 
@@ -662,13 +669,13 @@ dbx_symfile_init (struct objfile *objfile)
      however at least check to see if the size is less than the size of
      the size field itself, or larger than the size of the entire file.
      Note that all valid string tables have a size greater than zero, since
-     the bytes used to hold the size are included in the count. */
+     the bytes used to hold the size are included in the count.  */
 
   if (STRING_TABLE_OFFSET == 0)
     {
       /* It appears that with the existing bfd code, STRING_TABLE_OFFSET
          will never be zero, even when there is no string table.  This
-         would appear to be a bug in bfd. */
+         would appear to be a bug in bfd.  */
       DBX_STRINGTAB_SIZE (objfile) = 0;
       DBX_STRINGTAB (objfile) = NULL;
     }
@@ -688,7 +695,7 @@ dbx_symfile_init (struct objfile *objfile)
 	{
 	  /* With the existing bfd code, STRING_TABLE_OFFSET will be set to
 	     EOF if there is no string table, and attempting to read the size
-	     from EOF will read zero bytes. */
+	     from EOF will read zero bytes.  */
 	  DBX_STRINGTAB_SIZE (objfile) = 0;
 	  DBX_STRINGTAB (objfile) = NULL;
 	}
@@ -700,7 +707,7 @@ dbx_symfile_init (struct objfile *objfile)
 	     the minimum is DBX_STRINGTAB_SIZE_SIZE.  If we just read some
 	     random data that happened to be at STRING_TABLE_OFFSET, because
 	     bfd can't tell us there is no string table, the sanity checks may
-	     or may not catch this. */
+	     or may not catch this.  */
 	  DBX_STRINGTAB_SIZE (objfile) = bfd_h_get_32 (sym_bfd, size_temp);
 
 	  if (DBX_STRINGTAB_SIZE (objfile) < sizeof (size_temp)
@@ -730,29 +737,35 @@ dbx_symfile_init (struct objfile *objfile)
 /* Perform any local cleanups required when we are done with a particular
    objfile.  I.E, we are in the process of discarding all symbol information
    for an objfile, freeing up all memory held for it, and unlinking the
-   objfile struct from the global list of known objfiles. */
+   objfile struct from the global list of known objfiles.  */
 
 static void
 dbx_symfile_finish (struct objfile *objfile)
 {
-  if (objfile->deprecated_sym_stab_info != NULL)
-    {
-      if (HEADER_FILES (objfile) != NULL)
-	{
-	  int i = N_HEADER_FILES (objfile);
-	  struct header_file *hfiles = HEADER_FILES (objfile);
-
-	  while (--i >= 0)
-	    {
-	      xfree (hfiles[i].name);
-	      xfree (hfiles[i].vector);
-	    }
-	  xfree (hfiles);
-	}
-      xfree (objfile->deprecated_sym_stab_info);
-    }
   free_header_files ();
 }
+
+static void
+dbx_free_symfile_info (struct objfile *objfile, void *arg)
+{
+  struct dbx_symfile_info *dbx = arg;
+
+  if (dbx->header_files != NULL)
+    {
+      int i = dbx->n_header_files;
+      struct header_file *hfiles = dbx->header_files;
+
+      while (--i >= 0)
+	{
+	  xfree (hfiles[i].name);
+	  xfree (hfiles[i].vector);
+	}
+      xfree (hfiles);
+    }
+
+  xfree (dbx);
+}
+
 
 
 /* Buffer for reading the symbol table entries.  */
@@ -813,6 +826,7 @@ fill_symbuf (bfd *sym_bfd)
       if (symbuf_left <= 0)
 	{
 	  file_ptr filepos = symbuf_sections->section->filepos;
+
 	  if (bfd_seek (sym_bfd, filepos, SEEK_SET) != 0)
 	    perror_with_name (bfd_get_filename (sym_bfd));
 	  symbuf_left = bfd_section_size (sym_bfd, symbuf_sections->section);
@@ -850,8 +864,9 @@ stabs_seek (int sym_offset)
 
 #define INTERNALIZE_SYMBOL(intern, extern, abfd)			\
   {									\
-    (intern).n_type = bfd_h_get_8 (abfd, (extern)->e_type);		\
     (intern).n_strx = bfd_h_get_32 (abfd, (extern)->e_strx);		\
+    (intern).n_type = bfd_h_get_8 (abfd, (extern)->e_type);		\
+    (intern).n_other = 0;						\
     (intern).n_desc = bfd_h_get_16 (abfd, (extern)->e_desc);  		\
     if (bfd_get_sign_extend_vma (abfd))					\
       (intern).n_value = bfd_h_get_signed_32 (abfd, (extern)->e_value);	\
@@ -904,6 +919,7 @@ add_bincl_to_list (struct partial_symtab *pst, char *name, int instance)
   if (next_bincl >= bincl_list + bincls_allocated)
     {
       int offset = next_bincl - bincl_list;
+
       bincls_allocated *= 2;
       bincl_list = (struct header_file_location *)
 	xrealloc ((char *) bincl_list,
@@ -959,20 +975,22 @@ make_cleanup_free_bincl_list (struct objfile *objfile)
    rather than abort the symbol reading or flood the user with messages.  */
 
 static char *
-set_namestring (struct objfile *objfile, struct internal_nlist nlist)
+set_namestring (struct objfile *objfile, const struct internal_nlist *nlist)
 {
   char *namestring;
 
-  if (((unsigned) nlist.n_strx + file_string_table_offset) >=
-      DBX_STRINGTAB_SIZE (objfile))
+  if (nlist->n_strx + file_string_table_offset
+      >= DBX_STRINGTAB_SIZE (objfile)
+      || nlist->n_strx + file_string_table_offset < nlist->n_strx)
     {
-      complaint (&symfile_complaints, _("bad string table offset in symbol %d"),
+      complaint (&symfile_complaints,
+		 _("bad string table offset in symbol %d"),
 		 symnum);
       namestring = "<bad string table offset>";
     } 
   else
-    namestring = nlist.n_strx + file_string_table_offset +
-      DBX_STRINGTAB (objfile);
+    namestring = (nlist->n_strx + file_string_table_offset
+		  + DBX_STRINGTAB (objfile));
   return namestring;
 }
 
@@ -1038,17 +1056,20 @@ read_dbx_dynamic_symtab (struct objfile *objfile)
 
 	  if (bfd_get_section_flags (abfd, sec) & SEC_CODE)
 	    {
-	      sym_value += ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
+	      sym_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_TEXT (objfile));
 	      type = N_TEXT;
 	    }
 	  else if (bfd_get_section_flags (abfd, sec) & SEC_DATA)
 	    {
-	      sym_value += ANOFFSET (objfile->section_offsets, SECT_OFF_DATA (objfile));
+	      sym_value	+= ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_DATA (objfile));
 	      type = N_DATA;
 	    }
 	  else if (bfd_get_section_flags (abfd, sec) & SEC_ALLOC)
 	    {
-	      sym_value += ANOFFSET (objfile->section_offsets, SECT_OFF_BSS (objfile));
+	      sym_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_BSS (objfile));
 	      type = N_BSS;
 	    }
 	  else
@@ -1089,7 +1110,8 @@ read_dbx_dynamic_symtab (struct objfile *objfile)
     {
       arelent *rel = *relptr;
       CORE_ADDR address =
-      rel->address + ANOFFSET (objfile->section_offsets, SECT_OFF_DATA (objfile));
+	rel->address + ANOFFSET (objfile->section_offsets,
+				 SECT_OFF_DATA (objfile));
 
       switch (bfd_get_arch (abfd))
 	{
@@ -1118,9 +1140,8 @@ read_dbx_dynamic_symtab (struct objfile *objfile)
   do_cleanups (back_to);
 }
 
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
 static CORE_ADDR
-find_stab_function_addr (char *namestring, char *filename,
+find_stab_function_addr (char *namestring, const char *filename,
 			 struct objfile *objfile)
 {
   struct minimal_symbol *msym;
@@ -1148,13 +1169,13 @@ find_stab_function_addr (char *namestring, char *filename,
 
   if (msym == NULL && filename != NULL)
     {
-      /* Try again without the filename. */
+      /* Try again without the filename.  */
       p[n] = 0;
       msym = lookup_minimal_symbol (p, NULL, objfile);
     }
   if (msym == NULL && filename != NULL)
     {
-      /* And try again for Sun Fortran, but without the filename. */
+      /* And try again for Sun Fortran, but without the filename.  */
       p[n] = '_';
       p[n + 1] = 0;
       msym = lookup_minimal_symbol (p, NULL, objfile);
@@ -1162,26 +1183,29 @@ find_stab_function_addr (char *namestring, char *filename,
 
   return msym == NULL ? 0 : SYMBOL_VALUE_ADDRESS (msym);
 }
-#endif /* SOFUN_ADDRESS_MAYBE_MISSING */
 
 static void
 function_outside_compilation_unit_complaint (const char *arg1)
 {
   complaint (&symfile_complaints,
-	     _("function `%s' appears to be defined outside of all compilation units"),
+	     _("function `%s' appears to be defined "
+	       "outside of all compilation units"),
 	     arg1);
 }
 
 /* Setup partial_symtab's describing each source file for which
-   debugging information is available. */
+   debugging information is available.  */
 
 static void
 read_dbx_symtab (struct objfile *objfile)
 {
-  struct external_nlist *bufp = 0;	/* =0 avoids gcc -Wall glitch */
+  struct gdbarch *gdbarch = get_objfile_arch (objfile);
+  struct external_nlist *bufp = 0;	/* =0 avoids gcc -Wall glitch.  */
   struct internal_nlist nlist;
   CORE_ADDR text_addr;
   int text_size;
+  char *sym_name;
+  int sym_len;
 
   char *namestring;
   int nsl;
@@ -1193,15 +1217,15 @@ read_dbx_symtab (struct objfile *objfile)
   int textlow_not_set;
   int data_sect_index;
 
-  /* Current partial symtab */
+  /* Current partial symtab.  */
   struct partial_symtab *pst;
 
-  /* List of current psymtab's include files */
-  char **psymtab_include_list;
+  /* List of current psymtab's include files.  */
+  const char **psymtab_include_list;
   int includes_allocated;
   int includes_used;
 
-  /* Index within current psymtab dependency list */
+  /* Index within current psymtab dependency list.  */
   struct partial_symtab **dependency_list;
   int dependencies_used, dependencies_allocated;
 
@@ -1219,8 +1243,8 @@ read_dbx_symtab (struct objfile *objfile)
 
   includes_allocated = 30;
   includes_used = 0;
-  psymtab_include_list = (char **) alloca (includes_allocated *
-					   sizeof (char *));
+  psymtab_include_list = (const char **) alloca (includes_allocated *
+						 sizeof (const char *));
 
   dependencies_allocated = 30;
   dependencies_used = 0;
@@ -1232,11 +1256,11 @@ read_dbx_symtab (struct objfile *objfile)
   init_bincl_list (20, objfile);
   back_to = make_cleanup_free_bincl_list (objfile);
 
-  last_source_file = NULL;
+  set_last_source_file (NULL);
 
   lowest_text_address = (CORE_ADDR) -1;
 
-  symfile_bfd = objfile->obfd;	/* For next_text_symbol */
+  symfile_bfd = objfile->obfd;	/* For next_text_symbol.  */
   abfd = objfile->obfd;
   symbuf_end = symbuf_idx = 0;
   next_symbol_text_func = dbx_next_symbol_text;
@@ -1277,8 +1301,8 @@ read_dbx_symtab (struct objfile *objfile)
 
   for (symnum = 0; symnum < DBX_SYMCOUNT (objfile); symnum++)
     {
-      /* Get the symbol for this run and pull out some info */
-      QUIT;			/* allow this to be interruptable */
+      /* Get the symbol for this run and pull out some info.  */
+      QUIT;			/* Allow this to be interruptable.  */
       if (symbuf_idx == symbuf_end)
 	fill_symbuf (abfd);
       bufp = &symbuf[symbuf_idx++];
@@ -1302,252 +1326,251 @@ read_dbx_symtab (struct objfile *objfile)
 
          *) The assignment to namestring.
          *) The call to strchr.
-         *) The addition of a partial symbol the the two partial
+         *) The addition of a partial symbol the two partial
          symbol lists.  This last is a large section of code, so
-         I've imbedded it in the following macro.
-      */
+         I've imbedded it in the following macro.  */
 
       switch (nlist.n_type)
 	{
-	  char *p;
 	  /*
 	   * Standard, external, non-debugger, symbols
 	   */
 
-	  case N_TEXT | N_EXT:
-	  case N_NBTEXT | N_EXT:
-	  nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
+	case N_TEXT | N_EXT:
+	case N_NBTEXT | N_EXT:
+	  nlist.n_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_TEXT (objfile));
 	  goto record_it;
 
-	  case N_DATA | N_EXT:
-	  case N_NBDATA | N_EXT:
-	  nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_DATA (objfile));
+	case N_DATA | N_EXT:
+	case N_NBDATA | N_EXT:
+	  nlist.n_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_DATA (objfile));
 	  goto record_it;
 
-	  case N_BSS:
-	  case N_BSS | N_EXT:
-	  case N_NBBSS | N_EXT:
-	  case N_SETV | N_EXT:		/* FIXME, is this in BSS? */
-	  nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_BSS (objfile));
+	case N_BSS:
+	case N_BSS | N_EXT:
+	case N_NBBSS | N_EXT:
+	case N_SETV | N_EXT:		/* FIXME, is this in BSS? */
+	  nlist.n_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_BSS (objfile));
 	  goto record_it;
 
-	  case N_ABS | N_EXT:
+	case N_ABS | N_EXT:
 	  record_it:
-	  namestring = set_namestring (objfile, nlist);
+	  namestring = set_namestring (objfile, &nlist);
 
-	  bss_ext_symbol:
+	bss_ext_symbol:
 	  record_minimal_symbol (namestring, nlist.n_value,
 				 nlist.n_type, objfile);	/* Always */
 	  continue;
 
-	  /* Standard, local, non-debugger, symbols */
+	  /* Standard, local, non-debugger, symbols.  */
 
-	  case N_NBTEXT:
+	case N_NBTEXT:
 
 	  /* We need to be able to deal with both N_FN or N_TEXT,
 	     because we have no way of knowing whether the sys-supplied ld
 	     or GNU ld was used to make the executable.  Sequents throw
 	     in another wrinkle -- they renumbered N_FN.  */
 
-	  case N_FN:
-	  case N_FN_SEQ:
-	  case N_TEXT:
-	  nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
-	  namestring = set_namestring (objfile, nlist);
+	case N_FN:
+	case N_FN_SEQ:
+	case N_TEXT:
+	  nlist.n_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_TEXT (objfile));
+	  namestring = set_namestring (objfile, &nlist);
 
 	  if ((namestring[0] == '-' && namestring[1] == 'l')
 	      || (namestring[(nsl = strlen (namestring)) - 1] == 'o'
 		  && namestring[nsl - 2] == '.'))
-	  {
-	    if (past_first_source_file && pst
-		/* The gould NP1 uses low values for .o and -l symbols
-		   which are not the address.  */
-		&& nlist.n_value >= pst->textlow)
-	      {
-		end_psymtab (pst, psymtab_include_list, includes_used,
-			     symnum * symbol_size,
-			     nlist.n_value > pst->texthigh
-			     ? nlist.n_value : pst->texthigh,
-			     dependency_list, dependencies_used, textlow_not_set);
-		pst = (struct partial_symtab *) 0;
-		includes_used = 0;
-		dependencies_used = 0;
-	      }
-	    else
-	      past_first_source_file = 1;
-	    last_o_file_start = nlist.n_value;
-	  }
+	    {
+	      if (past_first_source_file && pst
+		  /* The gould NP1 uses low values for .o and -l symbols
+		     which are not the address.  */
+		  && nlist.n_value >= pst->textlow)
+		{
+		  end_psymtab (objfile, pst, psymtab_include_list,
+			       includes_used, symnum * symbol_size,
+			       nlist.n_value > pst->texthigh
+			       ? nlist.n_value : pst->texthigh,
+			       dependency_list, dependencies_used,
+			       textlow_not_set);
+		  pst = (struct partial_symtab *) 0;
+		  includes_used = 0;
+		  dependencies_used = 0;
+		  has_line_numbers = 0;
+		}
+	      else
+		past_first_source_file = 1;
+	      last_o_file_start = nlist.n_value;
+	    }
 	  else
-	  goto record_it;
+	    goto record_it;
 	  continue;
 
-	  case N_DATA:
-	  nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_DATA (objfile));
+	case N_DATA:
+	  nlist.n_value += ANOFFSET (objfile->section_offsets,
+				     SECT_OFF_DATA (objfile));
 	  goto record_it;
 
-	  case N_UNDF | N_EXT:
-	  if (nlist.n_value != 0)
-	  {
-	    /* This is a "Fortran COMMON" symbol.  See if the target
-	       environment knows where it has been relocated to.  */
+	case N_UNDF | N_EXT:
+	  /* The case (nlist.n_value != 0) is a "Fortran COMMON" symbol.
+	     We used to rely on the target to tell us whether it knows
+	     where the symbol has been relocated to, but none of the
+	     target implementations actually provided that operation.
+	     So we just ignore the symbol, the same way we would do if
+	     we had a target-side symbol lookup which returned no match.
 
-	    CORE_ADDR reladdr;
+	     All other symbols (with nlist.n_value == 0), are really
+	     undefined, and so we ignore them too.  */
+	  continue;
 
-	    namestring = set_namestring (objfile, nlist);
-	    if (target_lookup_symbol (namestring, &reladdr))
-	      {
-		continue;		/* Error in lookup; ignore symbol for now.  */
-	      }
-	    nlist.n_type ^= (N_BSS ^ N_UNDF);	/* Define it as a bss-symbol */
-	    nlist.n_value = reladdr;
-	    goto bss_ext_symbol;
-	  }
-	  continue;			/* Just undefined, not COMMON */
-
-	  case N_UNDF:
+	case N_UNDF:
 	  if (processing_acc_compilation && nlist.n_strx == 1)
-	  {
-	    /* Deal with relative offsets in the string table
-	       used in ELF+STAB under Solaris.  If we want to use the
-	       n_strx field, which contains the name of the file,
-	       we must adjust file_string_table_offset *before* calling
-	       set_namestring().  */
-	    past_first_source_file = 1;
-	    file_string_table_offset = next_file_string_table_offset;
-	    next_file_string_table_offset =
-	      file_string_table_offset + nlist.n_value;
-	    if (next_file_string_table_offset < file_string_table_offset)
-	      error (_("string table offset backs up at %d"), symnum);
-	    /* FIXME -- replace error() with complaint.  */
-	    continue;
-	  }
+	    {
+	      /* Deal with relative offsets in the string table
+		 used in ELF+STAB under Solaris.  If we want to use the
+		 n_strx field, which contains the name of the file,
+		 we must adjust file_string_table_offset *before* calling
+		 set_namestring().  */
+	      past_first_source_file = 1;
+	      file_string_table_offset = next_file_string_table_offset;
+	      next_file_string_table_offset =
+		file_string_table_offset + nlist.n_value;
+	      if (next_file_string_table_offset < file_string_table_offset)
+		error (_("string table offset backs up at %d"), symnum);
+	      /* FIXME -- replace error() with complaint.  */
+	      continue;
+	    }
 	  continue;
 
 	  /* Lots of symbol types we can just ignore.  */
 
-	  case N_ABS:
-	  case N_NBDATA:
-	  case N_NBBSS:
+	case N_ABS:
+	case N_NBDATA:
+	case N_NBBSS:
 	  continue;
 
-	  /* Keep going . . . */
+	  /* Keep going . . .  */
 
 	  /*
 	   * Special symbol types for GNU
 	   */
-	  case N_INDR:
-	  case N_INDR | N_EXT:
-	  case N_SETA:
-	  case N_SETA | N_EXT:
-	  case N_SETT:
-	  case N_SETT | N_EXT:
-	  case N_SETD:
-	  case N_SETD | N_EXT:
-	  case N_SETB:
-	  case N_SETB | N_EXT:
-	  case N_SETV:
+	case N_INDR:
+	case N_INDR | N_EXT:
+	case N_SETA:
+	case N_SETA | N_EXT:
+	case N_SETT:
+	case N_SETT | N_EXT:
+	case N_SETD:
+	case N_SETD | N_EXT:
+	case N_SETB:
+	case N_SETB | N_EXT:
+	case N_SETV:
 	  continue;
 
 	  /*
 	   * Debugger symbols
 	   */
 
-	  case N_SO:
+	case N_SO:
 	  {
 	    CORE_ADDR valu;
 	    static int prev_so_symnum = -10;
 	    static int first_so_symnum;
-	    char *p;
+	    const char *p;
 	    static char *dirname_nso;
 	    int prev_textlow_not_set;
 
-	    valu = nlist.n_value + ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
+	    valu = nlist.n_value + ANOFFSET (objfile->section_offsets,
+					     SECT_OFF_TEXT (objfile));
 
 	    prev_textlow_not_set = textlow_not_set;
 
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
 	    /* A zero value is probably an indication for the SunPRO 3.0
-	       compiler. end_psymtab explicitly tests for zero, so
+	       compiler.  end_psymtab explicitly tests for zero, so
 	       don't relocate it.  */
 
-	    if (nlist.n_value == 0)
+	    if (nlist.n_value == 0
+		&& gdbarch_sofun_address_maybe_missing (gdbarch))
 	      {
 		textlow_not_set = 1;
 		valu = 0;
 	      }
 	    else
 	      textlow_not_set = 0;
-#else
-	    textlow_not_set = 0;
-#endif
+
 	    past_first_source_file = 1;
 
 	    if (prev_so_symnum != symnum - 1)
-	      {			/* Here if prev stab wasn't N_SO */
+	      {			/* Here if prev stab wasn't N_SO.  */
 		first_so_symnum = symnum;
 
 		if (pst)
 		  {
-		    end_psymtab (pst, psymtab_include_list, includes_used,
-				 symnum * symbol_size,
+		    end_psymtab (objfile, pst, psymtab_include_list,
+				 includes_used, symnum * symbol_size,
 				 valu > pst->texthigh ? valu : pst->texthigh,
 				 dependency_list, dependencies_used,
 				 prev_textlow_not_set);
 		    pst = (struct partial_symtab *) 0;
 		    includes_used = 0;
 		    dependencies_used = 0;
+		    has_line_numbers = 0;
 		  }
 	      }
 
 	    prev_so_symnum = symnum;
 
-	    /* End the current partial symtab and start a new one */
+	    /* End the current partial symtab and start a new one.  */
 
-	    namestring = set_namestring (objfile, nlist);
+	    namestring = set_namestring (objfile, &nlist);
 
-	    /* Null name means end of .o file.  Don't start a new one. */
+	    /* Null name means end of .o file.  Don't start a new one.  */
 	    if (*namestring == '\000')
 	      continue;
 
 	    /* Some compilers (including gcc) emit a pair of initial N_SOs.
 	       The first one is a directory name; the second the file name.
 	       If pst exists, is empty, and has a filename ending in '/',
-	       we assume the previous N_SO was a directory name. */
+	       we assume the previous N_SO was a directory name.  */
 
-	    p = strrchr (namestring, '/');
-	    if (p && *(p + 1) == '\000')
+	    p = lbasename (namestring);
+	    if (p != namestring && *p == '\000')
 	      {
 		/* Save the directory name SOs locally, then save it into
-		   the psymtab when it's created below. */
+		   the psymtab when it's created below.  */
 	        dirname_nso = namestring;
 	        continue;		
 	      }
 
 	    /* Some other compilers (C++ ones in particular) emit useless
-	       SOs for non-existant .c files.  We ignore all subsequent SOs that
-	       immediately follow the first.  */
+	       SOs for non-existant .c files.  We ignore all subsequent SOs
+	       that immediately follow the first.  */
 
 	    if (!pst)
 	      {
-	      pst = start_psymtab (objfile,
-				   namestring, valu,
-				   first_so_symnum * symbol_size,
-				   objfile->global_psymbols.next,
-				   objfile->static_psymbols.next);
+		pst = start_psymtab (objfile,
+				     namestring, valu,
+				     first_so_symnum * symbol_size,
+				     objfile->global_psymbols.next,
+				     objfile->static_psymbols.next);
 		pst->dirname = dirname_nso;
 		dirname_nso = NULL;
 	      }
 	    continue;
 	  }
 
-	  case N_BINCL:
+	case N_BINCL:
 	  {
 	    enum language tmp_language;
+
 	    /* Add this bincl to the bincl_list for future EXCLs.  No
 	       need to save the string; it'll be around until
-	       read_dbx_symtab function returns */
+	       read_dbx_symtab function returns.  */
 
-	    namestring = set_namestring (objfile, nlist);
+	    namestring = set_namestring (objfile, &nlist);
 	    tmp_language = deduce_language_from_filename (namestring);
 
 	    /* Only change the psymtab's language if we've learned
@@ -1557,30 +1580,31 @@ read_dbx_symtab (struct objfile *objfile)
 	    if (tmp_language != language_unknown
 		&& (tmp_language != language_c
 		    || psymtab_language != language_cplus))
-	    psymtab_language = tmp_language;
+	      psymtab_language = tmp_language;
 
 	    if (pst == NULL)
-	    {
-	      /* FIXME: we should not get here without a PST to work on.
-		 Attempt to recover.  */
-	      complaint (&symfile_complaints,
-			 _("N_BINCL %s not in entries for any file, at symtab pos %d"),
-			 namestring, symnum);
-	      continue;
-	    }
+	      {
+		/* FIXME: we should not get here without a PST to work on.
+		   Attempt to recover.  */
+		complaint (&symfile_complaints,
+			   _("N_BINCL %s not in entries for "
+			     "any file, at symtab pos %d"),
+			   namestring, symnum);
+		continue;
+	      }
 	    add_bincl_to_list (pst, namestring, nlist.n_value);
 
-	    /* Mark down an include file in the current psymtab */
+	    /* Mark down an include file in the current psymtab.  */
 
 	    goto record_include_file;
 	  }
 
-	  case N_SOL:
+	case N_SOL:
 	  {
 	    enum language tmp_language;
-	    /* Mark down an include file in the current psymtab */
 
-	    namestring = set_namestring (objfile, nlist);
+	    /* Mark down an include file in the current psymtab.  */
+	    namestring = set_namestring (objfile, &nlist);
 	    tmp_language = deduce_language_from_filename (namestring);
 
 	    /* Only change the psymtab's language if we've learned
@@ -1590,11 +1614,11 @@ read_dbx_symtab (struct objfile *objfile)
 	    if (tmp_language != language_unknown
 		&& (tmp_language != language_c
 		    || psymtab_language != language_cplus))
-	    psymtab_language = tmp_language;
+	      psymtab_language = tmp_language;
 
 	    /* In C++, one may expect the same filename to come round many
 	       times, when code is coming alternately from the main file
-	       and from inline functions in other files. So I check to see
+	       and from inline functions in other files.  So I check to see
 	       if this is a file we've seen before -- either the main
 	       source file, or a previously included file.
 
@@ -1602,12 +1626,13 @@ read_dbx_symtab (struct objfile *objfile)
 	       things like "break c-exp.y:435" need to work (I
 	       suppose the psymtab_include_list could be hashed or put
 	       in a binary tree, if profiling shows this is a major hog).  */
-	    if (pst && strcmp (namestring, pst->filename) == 0)
-	    continue;
+	    if (pst && filename_cmp (namestring, pst->filename) == 0)
+	      continue;
 	    {
 	      int i;
+
 	      for (i = 0; i < includes_used; i++)
-		if (strcmp (namestring, psymtab_include_list[i]) == 0)
+		if (filename_cmp (namestring, psymtab_include_list[i]) == 0)
 		  {
 		    i = -1;
 		    break;
@@ -1616,60 +1641,84 @@ read_dbx_symtab (struct objfile *objfile)
 		continue;
 	    }
 
-	    record_include_file:
+	  record_include_file:
 
 	    psymtab_include_list[includes_used++] = namestring;
 	    if (includes_used >= includes_allocated)
-	    {
-	      char **orig = psymtab_include_list;
+	      {
+		const char **orig = psymtab_include_list;
 
-	      psymtab_include_list = (char **)
-		alloca ((includes_allocated *= 2) *
-			sizeof (char *));
-	      memcpy (psymtab_include_list, orig,
-		      includes_used * sizeof (char *));
-	    }
+		psymtab_include_list = (const char **)
+		  alloca ((includes_allocated *= 2) * sizeof (const char *));
+		memcpy (psymtab_include_list, orig,
+			includes_used * sizeof (const char *));
+	      }
 	    continue;
 	  }
-	  case N_LSYM:			/* Typedef or automatic variable. */
-	  case N_STSYM:		/* Data seg var -- static  */
-	  case N_LCSYM:		/* BSS      "  */
-	  case N_ROSYM:		/* Read-only data seg var -- static.  */
-	  case N_NBSTS:		/* Gould nobase.  */
-	  case N_NBLCS:		/* symbols.  */
-	  case N_FUN:
-	  case N_GSYM:			/* Global (extern) variable; can be
-					   data or bss (sigh FIXME).  */
+	case N_LSYM:		/* Typedef or automatic variable.  */
+	case N_STSYM:		/* Data seg var -- static.  */
+	case N_LCSYM:		/* BSS      "  */
+	case N_ROSYM:		/* Read-only data seg var -- static.  */
+	case N_NBSTS:		/* Gould nobase.  */
+	case N_NBLCS:		/* symbols.  */
+	case N_FUN:
+	case N_GSYM:		/* Global (extern) variable; can be
+				   data or bss (sigh FIXME).  */
 
 	  /* Following may probably be ignored; I'll leave them here
 	     for now (until I do Pascal and Modula 2 extensions).  */
 
-	  case N_PC:			/* I may or may not need this; I
-					   suspect not.  */
-	  case N_M2C:			/* I suspect that I can ignore this here. */
-	  case N_SCOPE:		/* Same.   */
+	case N_PC:		/* I may or may not need this; I
+				   suspect not.  */
+	case N_M2C:		/* I suspect that I can ignore this here.  */
+	case N_SCOPE:		/* Same.   */
+	{
+	  char *p;
 
-	  namestring = set_namestring (objfile, nlist);
+	  namestring = set_namestring (objfile, &nlist);
 
 	  /* See if this is an end of function stab.  */
 	  if (pst && nlist.n_type == N_FUN && *namestring == '\000')
-	  {
-	    CORE_ADDR valu;
+	    {
+	      CORE_ADDR valu;
 
-	    /* It's value is the size (in bytes) of the function for
-	       function relative stabs, or the address of the function's
-	       end for old style stabs.  */
-	    valu = nlist.n_value + last_function_start;
-	    if (pst->texthigh == 0 || valu > pst->texthigh)
-	      pst->texthigh = valu;
-	    break;
-	  }
+	      /* It's value is the size (in bytes) of the function for
+		 function relative stabs, or the address of the function's
+		 end for old style stabs.  */
+	      valu = nlist.n_value + last_function_start;
+	      if (pst->texthigh == 0 || valu > pst->texthigh)
+		pst->texthigh = valu;
+	      break;
+	    }
 
 	  p = (char *) strchr (namestring, ':');
 	  if (!p)
-	  continue;			/* Not a debugging symbol.   */
+	    continue;		/* Not a debugging symbol.   */
 
+ 	  sym_len = 0;
+	  sym_name = NULL;	/* pacify "gcc -Werror" */
+ 	  if (psymtab_language == language_cplus)
+ 	    {
+ 	      char *new_name, *name = xmalloc (p - namestring + 1);
+ 	      memcpy (name, namestring, p - namestring);
 
+ 	      name[p - namestring] = '\0';
+ 	      new_name = cp_canonicalize_string (name);
+ 	      if (new_name != NULL)
+ 		{
+ 		  sym_len = strlen (new_name);
+ 		  sym_name = obstack_copy0 (&objfile->objfile_obstack,
+					    new_name, sym_len);
+ 		  xfree (new_name);
+ 		}
+              xfree (name);
+ 	    }
+
+ 	  if (sym_len == 0)
+ 	    {
+ 	      sym_name = namestring;
+ 	      sym_len = p - namestring;
+ 	    }
 
 	  /* Main processing section for debugging symbols which
 	     the initial read through the symbol tables needs to worry
@@ -1679,323 +1728,341 @@ read_dbx_symtab (struct objfile *objfile)
 	     which indicates the debugging type symbol.  */
 
 	  switch (p[1])
-	  {
-	  case 'S':
-	    nlist.n_value += ANOFFSET (objfile->section_offsets, data_sect_index);
-#ifdef STATIC_TRANSFORM_NAME
-	    namestring = STATIC_TRANSFORM_NAME (namestring);
-#endif
-	    add_psymbol_to_list (namestring, p - namestring,
-				 VAR_DOMAIN, LOC_STATIC,
-				 &objfile->static_psymbols,
-				 0, nlist.n_value,
-				 psymtab_language, objfile);
-	    continue;
-	  case 'G':
-	    nlist.n_value += ANOFFSET (objfile->section_offsets, data_sect_index);
-	    /* The addresses in these entries are reported to be
-	       wrong.  See the code that reads 'G's for symtabs. */
-	    add_psymbol_to_list (namestring, p - namestring,
-				 VAR_DOMAIN, LOC_STATIC,
-				 &objfile->global_psymbols,
-				 0, nlist.n_value,
-				 psymtab_language, objfile);
-	    continue;
+	    {
+	    case 'S':
+	      nlist.n_value += ANOFFSET (objfile->section_offsets,
+					 data_sect_index);
 
-	  case 'T':
-	    /* When a 'T' entry is defining an anonymous enum, it
-	       may have a name which is the empty string, or a
-	       single space.  Since they're not really defining a
-	       symbol, those shouldn't go in the partial symbol
-	       table.  We do pick up the elements of such enums at
-	       'check_enum:', below.  */
-	    if (p >= namestring + 2
-		|| (p == namestring + 1
-		    && namestring[0] != ' '))
-	      {
-		add_psymbol_to_list (namestring, p - namestring,
-				     STRUCT_DOMAIN, LOC_TYPEDEF,
-				     &objfile->static_psymbols,
-				     nlist.n_value, 0,
-				     psymtab_language, objfile);
-		if (p[2] == 't')
-		  {
-		    /* Also a typedef with the same name.  */
-		    add_psymbol_to_list (namestring, p - namestring,
-					 VAR_DOMAIN, LOC_TYPEDEF,
-					 &objfile->static_psymbols,
-					 nlist.n_value, 0,
-					 psymtab_language, objfile);
-		    p += 1;
-		  }
-	      }
-	    goto check_enum;
-	  case 't':
-	    if (p != namestring)	/* a name is there, not just :T... */
-	      {
-		add_psymbol_to_list (namestring, p - namestring,
-				     VAR_DOMAIN, LOC_TYPEDEF,
-				     &objfile->static_psymbols,
-				     nlist.n_value, 0,
-				     psymtab_language, objfile);
-	      }
-	  check_enum:
-	    /* If this is an enumerated type, we need to
-	       add all the enum constants to the partial symbol
-	       table.  This does not cover enums without names, e.g.
-	       "enum {a, b} c;" in C, but fortunately those are
-	       rare.  There is no way for GDB to find those from the
-	       enum type without spending too much time on it.  Thus
-	       to solve this problem, the compiler needs to put out the
-	       enum in a nameless type.  GCC2 does this.  */
+	      if (gdbarch_static_transform_name_p (gdbarch))
+		gdbarch_static_transform_name (gdbarch, namestring);
 
-	    /* We are looking for something of the form
-	       <name> ":" ("t" | "T") [<number> "="] "e"
-	       {<constant> ":" <value> ","} ";".  */
+	      add_psymbol_to_list (sym_name, sym_len, 1,
+				   VAR_DOMAIN, LOC_STATIC,
+				   &objfile->static_psymbols,
+				   0, nlist.n_value,
+				   psymtab_language, objfile);
+	      continue;
 
-	    /* Skip over the colon and the 't' or 'T'.  */
-	    p += 2;
-	    /* This type may be given a number.  Also, numbers can come
-	       in pairs like (0,26).  Skip over it.  */
-	    while ((*p >= '0' && *p <= '9')
-		   || *p == '(' || *p == ',' || *p == ')'
-		   || *p == '=')
-	      p++;
+	    case 'G':
+	      nlist.n_value += ANOFFSET (objfile->section_offsets,
+					 data_sect_index);
+	      /* The addresses in these entries are reported to be
+		 wrong.  See the code that reads 'G's for symtabs.  */
+	      add_psymbol_to_list (sym_name, sym_len, 1,
+				   VAR_DOMAIN, LOC_STATIC,
+				   &objfile->global_psymbols,
+				   0, nlist.n_value,
+				   psymtab_language, objfile);
+	      continue;
 
-	    if (*p++ == 'e')
-	      {
-		/* The aix4 compiler emits extra crud before the members.  */
-		if (*p == '-')
-		  {
-		    /* Skip over the type (?).  */
-		    while (*p != ':')
+	    case 'T':
+	      /* When a 'T' entry is defining an anonymous enum, it
+		 may have a name which is the empty string, or a
+		 single space.  Since they're not really defining a
+		 symbol, those shouldn't go in the partial symbol
+		 table.  We do pick up the elements of such enums at
+		 'check_enum:', below.  */
+	      if (p >= namestring + 2
+		  || (p == namestring + 1
+		      && namestring[0] != ' '))
+		{
+		  add_psymbol_to_list (sym_name, sym_len, 1,
+				       STRUCT_DOMAIN, LOC_TYPEDEF,
+				       &objfile->static_psymbols,
+				       nlist.n_value, 0,
+				       psymtab_language, objfile);
+		  if (p[2] == 't')
+		    {
+		      /* Also a typedef with the same name.  */
+		      add_psymbol_to_list (sym_name, sym_len, 1,
+					   VAR_DOMAIN, LOC_TYPEDEF,
+					   &objfile->static_psymbols,
+					   nlist.n_value, 0,
+					   psymtab_language, objfile);
+		      p += 1;
+		    }
+		}
+	      goto check_enum;
+
+	    case 't':
+	      if (p != namestring)	/* a name is there, not just :T...  */
+		{
+		  add_psymbol_to_list (sym_name, sym_len, 1,
+				       VAR_DOMAIN, LOC_TYPEDEF,
+				       &objfile->static_psymbols,
+				       nlist.n_value, 0,
+				       psymtab_language, objfile);
+		}
+	    check_enum:
+	      /* If this is an enumerated type, we need to
+		 add all the enum constants to the partial symbol
+		 table.  This does not cover enums without names, e.g.
+		 "enum {a, b} c;" in C, but fortunately those are
+		 rare.  There is no way for GDB to find those from the
+		 enum type without spending too much time on it.  Thus
+		 to solve this problem, the compiler needs to put out the
+		 enum in a nameless type.  GCC2 does this.  */
+
+	      /* We are looking for something of the form
+		 <name> ":" ("t" | "T") [<number> "="] "e"
+		 {<constant> ":" <value> ","} ";".  */
+
+	      /* Skip over the colon and the 't' or 'T'.  */
+	      p += 2;
+	      /* This type may be given a number.  Also, numbers can come
+		 in pairs like (0,26).  Skip over it.  */
+	      while ((*p >= '0' && *p <= '9')
+		     || *p == '(' || *p == ',' || *p == ')'
+		     || *p == '=')
+		p++;
+
+	      if (*p++ == 'e')
+		{
+		  /* The aix4 compiler emits extra crud before the members.  */
+		  if (*p == '-')
+		    {
+		      /* Skip over the type (?).  */
+		      while (*p != ':')
+			p++;
+
+		      /* Skip over the colon.  */
 		      p++;
+		    }
 
-		    /* Skip over the colon.  */
-		    p++;
-		  }
+		  /* We have found an enumerated type.  */
+		  /* According to comments in read_enum_type
+		     a comma could end it instead of a semicolon.
+		     I don't know where that happens.
+		     Accept either.  */
+		  while (*p && *p != ';' && *p != ',')
+		    {
+		      char *q;
 
-		/* We have found an enumerated type.  */
-		/* According to comments in read_enum_type
-		   a comma could end it instead of a semicolon.
-		   I don't know where that happens.
-		   Accept either.  */
-		while (*p && *p != ';' && *p != ',')
-		  {
-		    char *q;
+		      /* Check for and handle cretinous dbx symbol name
+			 continuation!  */
+		      if (*p == '\\' || (*p == '?' && p[1] == '\0'))
+			p = next_symbol_text (objfile);
 
-		    /* Check for and handle cretinous dbx symbol name
-		       continuation!  */
-		    if (*p == '\\' || (*p == '?' && p[1] == '\0'))
-		      p = next_symbol_text (objfile);
+		      /* Point to the character after the name
+			 of the enum constant.  */
+		      for (q = p; *q && *q != ':'; q++)
+			;
+		      /* Note that the value doesn't matter for
+			 enum constants in psymtabs, just in symtabs.  */
+		      add_psymbol_to_list (p, q - p, 1,
+					   VAR_DOMAIN, LOC_CONST,
+					   &objfile->static_psymbols, 0,
+					   0, psymtab_language, objfile);
+		      /* Point past the name.  */
+		      p = q;
+		      /* Skip over the value.  */
+		      while (*p && *p != ',')
+			p++;
+		      /* Advance past the comma.  */
+		      if (*p)
+			p++;
+		    }
+		}
+	      continue;
 
-		    /* Point to the character after the name
-		       of the enum constant.  */
-		    for (q = p; *q && *q != ':'; q++)
-		      ;
-		    /* Note that the value doesn't matter for
-		       enum constants in psymtabs, just in symtabs.  */
-		    add_psymbol_to_list (p, q - p,
-					 VAR_DOMAIN, LOC_CONST,
-					 &objfile->static_psymbols, 0,
-					 0, psymtab_language, objfile);
-		    /* Point past the name.  */
-		    p = q;
-		    /* Skip over the value.  */
-		    while (*p && *p != ',')
-		      p++;
-		    /* Advance past the comma.  */
-		    if (*p)
-		      p++;
-		  }
-	      }
-	    continue;
-	  case 'c':
-	    /* Constant, e.g. from "const" in Pascal.  */
-	    add_psymbol_to_list (namestring, p - namestring,
-				 VAR_DOMAIN, LOC_CONST,
-				 &objfile->static_psymbols, nlist.n_value,
-				 0, psymtab_language, objfile);
-	    continue;
+	    case 'c':
+	      /* Constant, e.g. from "const" in Pascal.  */
+	      add_psymbol_to_list (sym_name, sym_len, 1,
+				   VAR_DOMAIN, LOC_CONST,
+				   &objfile->static_psymbols, nlist.n_value,
+				   0, psymtab_language, objfile);
+	      continue;
 
-	  case 'f':
-	    if (! pst)
-	      {
-		int name_len = p - namestring;
-		char *name = xmalloc (name_len + 1);
-		memcpy (name, namestring, name_len);
-		name[name_len] = '\0';
-		function_outside_compilation_unit_complaint (name);
-		xfree (name);
-	      }
-	    nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
-	    /* Kludges for ELF/STABS with Sun ACC */
-	    last_function_name = namestring;
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
-	    /* Do not fix textlow==0 for .o or NLM files, as 0 is a legit
-	       value for the bottom of the text seg in those cases. */
-	    if (nlist.n_value == ANOFFSET (objfile->section_offsets, 
-					   SECT_OFF_TEXT (objfile)))
-	      {
-		CORE_ADDR minsym_valu = 
-		  find_stab_function_addr (namestring, pst->filename, objfile);
-		/* find_stab_function_addr will return 0 if the minimal
-		   symbol wasn't found.  (Unfortunately, this might also
-		   be a valid address.)  Anyway, if it *does* return 0,
-		   it is likely that the value was set correctly to begin
-		   with... */
-		if (minsym_valu != 0)
-		  nlist.n_value = minsym_valu;
-	      }
-	    if (pst && textlow_not_set)
-	      {
-		pst->textlow = nlist.n_value;
-		textlow_not_set = 0;
-	      }
-#endif
-	    /* End kludge.  */
+	    case 'f':
+	      if (! pst)
+		{
+		  int name_len = p - namestring;
+		  char *name = xmalloc (name_len + 1);
 
-	    /* Keep track of the start of the last function so we
-	       can handle end of function symbols.  */
-	    last_function_start = nlist.n_value;
+		  memcpy (name, namestring, name_len);
+		  name[name_len] = '\0';
+		  function_outside_compilation_unit_complaint (name);
+		  xfree (name);
+		}
+	      nlist.n_value += ANOFFSET (objfile->section_offsets, 
+					 SECT_OFF_TEXT (objfile));
+	      /* Kludges for ELF/STABS with Sun ACC.  */
+	      last_function_name = namestring;
+	      /* Do not fix textlow==0 for .o or NLM files, as 0 is a legit
+		 value for the bottom of the text seg in those cases.  */
+	      if (nlist.n_value == ANOFFSET (objfile->section_offsets, 
+					     SECT_OFF_TEXT (objfile))
+		  && gdbarch_sofun_address_maybe_missing (gdbarch))
+		{
+		  CORE_ADDR minsym_valu = 
+		    find_stab_function_addr (namestring, 
+					     pst ? pst->filename : NULL, 
+					     objfile);
 
-	    /* In reordered executables this function may lie outside
-	       the bounds created by N_SO symbols.  If that's the case
-	       use the address of this function as the low bound for
-	       the partial symbol table.  */
-	    if (pst
-		&& (textlow_not_set
-		    || (nlist.n_value < pst->textlow
-			&& (nlist.n_value
-			    != ANOFFSET (objfile->section_offsets,
-					 SECT_OFF_TEXT (objfile))))))
-	      {
-		pst->textlow = nlist.n_value;
-		textlow_not_set = 0;
-	      }
-	    add_psymbol_to_list (namestring, p - namestring,
-				 VAR_DOMAIN, LOC_BLOCK,
-				 &objfile->static_psymbols,
-				 0, nlist.n_value,
-				 psymtab_language, objfile);
-	    continue;
+		  /* find_stab_function_addr will return 0 if the minimal
+		     symbol wasn't found.  (Unfortunately, this might also
+		     be a valid address.)  Anyway, if it *does* return 0,
+		     it is likely that the value was set correctly to begin
+		     with...  */
+		  if (minsym_valu != 0)
+		    nlist.n_value = minsym_valu;
+		}
+	      if (pst && textlow_not_set
+		  && gdbarch_sofun_address_maybe_missing (gdbarch))
+		{
+		  pst->textlow = nlist.n_value;
+		  textlow_not_set = 0;
+		}
+	      /* End kludge.  */
 
-	    /* Global functions were ignored here, but now they
-	       are put into the global psymtab like one would expect.
-	       They're also in the minimal symbol table.  */
-	  case 'F':
-	    if (! pst)
-	      {
-		int name_len = p - namestring;
-		char *name = xmalloc (name_len + 1);
-		memcpy (name, namestring, name_len);
-		name[name_len] = '\0';
-		function_outside_compilation_unit_complaint (name);
-		xfree (name);
-	      }
-	    nlist.n_value += ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile));
-	    /* Kludges for ELF/STABS with Sun ACC */
-	    last_function_name = namestring;
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
-	    /* Do not fix textlow==0 for .o or NLM files, as 0 is a legit
-	       value for the bottom of the text seg in those cases. */
-	    if (nlist.n_value == ANOFFSET (objfile->section_offsets, 
-					   SECT_OFF_TEXT (objfile)))
-	      {
-		CORE_ADDR minsym_valu = 
-		  find_stab_function_addr (namestring, pst->filename, objfile);
-		/* find_stab_function_addr will return 0 if the minimal
-		   symbol wasn't found.  (Unfortunately, this might also
-		   be a valid address.)  Anyway, if it *does* return 0,
-		   it is likely that the value was set correctly to begin
-		   with... */
-		if (minsym_valu != 0)
-		  nlist.n_value = minsym_valu;
-	      }
-	    if (pst && textlow_not_set)
-	      {
-		pst->textlow = nlist.n_value;
-		textlow_not_set = 0;
-	      }
-#endif
-	    /* End kludge.  */
+	      /* Keep track of the start of the last function so we
+		 can handle end of function symbols.  */
+	      last_function_start = nlist.n_value;
 
-	    /* Keep track of the start of the last function so we
-	       can handle end of function symbols.  */
-	    last_function_start = nlist.n_value;
+	      /* In reordered executables this function may lie outside
+		 the bounds created by N_SO symbols.  If that's the case
+		 use the address of this function as the low bound for
+		 the partial symbol table.  */
+	      if (pst
+		  && (textlow_not_set
+		      || (nlist.n_value < pst->textlow
+			  && (nlist.n_value
+			      != ANOFFSET (objfile->section_offsets,
+					   SECT_OFF_TEXT (objfile))))))
+		{
+		  pst->textlow = nlist.n_value;
+		  textlow_not_set = 0;
+		}
+	      add_psymbol_to_list (sym_name, sym_len, 1,
+				   VAR_DOMAIN, LOC_BLOCK,
+				   &objfile->static_psymbols,
+				   0, nlist.n_value,
+				   psymtab_language, objfile);
+	      continue;
 
-	    /* In reordered executables this function may lie outside
-	       the bounds created by N_SO symbols.  If that's the case
-	       use the address of this function as the low bound for
-	       the partial symbol table.  */
-	    if (pst
-		&& (textlow_not_set
-		    || (nlist.n_value < pst->textlow
-			&& (nlist.n_value
-			    != ANOFFSET (objfile->section_offsets,
-					 SECT_OFF_TEXT (objfile))))))
-	      {
-		pst->textlow = nlist.n_value;
-		textlow_not_set = 0;
-	      }
-	    add_psymbol_to_list (namestring, p - namestring,
-				 VAR_DOMAIN, LOC_BLOCK,
-				 &objfile->global_psymbols,
-				 0, nlist.n_value,
-				 psymtab_language, objfile);
-	    continue;
+	      /* Global functions were ignored here, but now they
+		 are put into the global psymtab like one would expect.
+		 They're also in the minimal symbol table.  */
+	    case 'F':
+	      if (! pst)
+		{
+		  int name_len = p - namestring;
+		  char *name = xmalloc (name_len + 1);
 
-	    /* Two things show up here (hopefully); static symbols of
-	       local scope (static used inside braces) or extensions
-	       of structure symbols.  We can ignore both.  */
-	  case 'V':
-	  case '(':
-	  case '0':
-	  case '1':
-	  case '2':
-	  case '3':
-	  case '4':
-	  case '5':
-	  case '6':
-	  case '7':
-	  case '8':
-	  case '9':
-	  case '-':
-	  case '#':		/* for symbol identification (used in live ranges) */
-	    continue;
+		  memcpy (name, namestring, name_len);
+		  name[name_len] = '\0';
+		  function_outside_compilation_unit_complaint (name);
+		  xfree (name);
+		}
+	      nlist.n_value += ANOFFSET (objfile->section_offsets, 
+					 SECT_OFF_TEXT (objfile));
+	      /* Kludges for ELF/STABS with Sun ACC.  */
+	      last_function_name = namestring;
+	      /* Do not fix textlow==0 for .o or NLM files, as 0 is a legit
+		 value for the bottom of the text seg in those cases.  */
+	      if (nlist.n_value == ANOFFSET (objfile->section_offsets, 
+					     SECT_OFF_TEXT (objfile))
+		  && gdbarch_sofun_address_maybe_missing (gdbarch))
+		{
+		  CORE_ADDR minsym_valu = 
+		    find_stab_function_addr (namestring, 
+					     pst ? pst->filename : NULL, 
+					     objfile);
 
-	  case ':':
-	    /* It is a C++ nested symbol.  We don't need to record it
-	       (I don't think); if we try to look up foo::bar::baz,
-	       then symbols for the symtab containing foo should get
-	       read in, I think.  */
-	    /* Someone says sun cc puts out symbols like
-	       /foo/baz/maclib::/usr/local/bin/maclib,
-	       which would get here with a symbol type of ':'.  */
-	    continue;
+		  /* find_stab_function_addr will return 0 if the minimal
+		     symbol wasn't found.  (Unfortunately, this might also
+		     be a valid address.)  Anyway, if it *does* return 0,
+		     it is likely that the value was set correctly to begin
+		     with...  */
+		  if (minsym_valu != 0)
+		    nlist.n_value = minsym_valu;
+		}
+	      if (pst && textlow_not_set
+		  && gdbarch_sofun_address_maybe_missing (gdbarch))
+		{
+		  pst->textlow = nlist.n_value;
+		  textlow_not_set = 0;
+		}
+	      /* End kludge.  */
 
-	  default:
-	    /* Unexpected symbol descriptor.  The second and subsequent stabs
-	       of a continued stab can show up here.  The question is
-	       whether they ever can mimic a normal stab--it would be
-	       nice if not, since we certainly don't want to spend the
-	       time searching to the end of every string looking for
-	       a backslash.  */
+	      /* Keep track of the start of the last function so we
+		 can handle end of function symbols.  */
+	      last_function_start = nlist.n_value;
 
-	    complaint (&symfile_complaints, _("unknown symbol descriptor `%c'"),
-		       p[1]);
+	      /* In reordered executables this function may lie outside
+		 the bounds created by N_SO symbols.  If that's the case
+		 use the address of this function as the low bound for
+		 the partial symbol table.  */
+	      if (pst
+		  && (textlow_not_set
+		      || (nlist.n_value < pst->textlow
+			  && (nlist.n_value
+			      != ANOFFSET (objfile->section_offsets,
+					   SECT_OFF_TEXT (objfile))))))
+		{
+		  pst->textlow = nlist.n_value;
+		  textlow_not_set = 0;
+		}
+	      add_psymbol_to_list (sym_name, sym_len, 1,
+				   VAR_DOMAIN, LOC_BLOCK,
+				   &objfile->global_psymbols,
+				   0, nlist.n_value,
+				   psymtab_language, objfile);
+	      continue;
 
-	    /* Ignore it; perhaps it is an extension that we don't
-	       know about.  */
-	    continue;
-	  }
+	      /* Two things show up here (hopefully); static symbols of
+		 local scope (static used inside braces) or extensions
+		 of structure symbols.  We can ignore both.  */
+	    case 'V':
+	    case '(':
+	    case '0':
+	    case '1':
+	    case '2':
+	    case '3':
+	    case '4':
+	    case '5':
+	    case '6':
+	    case '7':
+	    case '8':
+	    case '9':
+	    case '-':
+	    case '#':	/* For symbol identification (used in live ranges).  */
+	      continue;
 
-	  case N_EXCL:
+	    case ':':
+	      /* It is a C++ nested symbol.  We don't need to record it
+		 (I don't think); if we try to look up foo::bar::baz,
+		 then symbols for the symtab containing foo should get
+		 read in, I think.  */
+	      /* Someone says sun cc puts out symbols like
+		 /foo/baz/maclib::/usr/local/bin/maclib,
+		 which would get here with a symbol type of ':'.  */
+	      continue;
 
-	  namestring = set_namestring (objfile, nlist);
+	    default:
+	      /* Unexpected symbol descriptor.  The second and subsequent stabs
+		 of a continued stab can show up here.  The question is
+		 whether they ever can mimic a normal stab--it would be
+		 nice if not, since we certainly don't want to spend the
+		 time searching to the end of every string looking for
+		 a backslash.  */
+
+	      complaint (&symfile_complaints,
+			 _("unknown symbol descriptor `%c'"),
+			 p[1]);
+
+	      /* Ignore it; perhaps it is an extension that we don't
+		 know about.  */
+	      continue;
+	    }
+	}
+
+	case N_EXCL:
+
+	  namestring = set_namestring (objfile, &nlist);
 
 	  /* Find the corresponding bincl and mark that psymtab on the
-	     psymtab dependency list */
+	     psymtab dependency list.  */
 	  {
 	    struct partial_symtab *needed_pst =
 	      find_corresponding_bincl_psymtab (namestring, nlist.n_value);
@@ -2025,6 +2092,7 @@ read_dbx_symtab (struct objfile *objfile)
 		if (dependencies_used >= dependencies_allocated)
 		  {
 		    struct partial_symtab **orig = dependency_list;
+
 		    dependency_list =
 		      (struct partial_symtab **)
 		      alloca ((dependencies_allocated *= 2)
@@ -2033,8 +2101,11 @@ read_dbx_symtab (struct objfile *objfile)
 			    (dependencies_used
 			     * sizeof (struct partial_symtab *)));
 #ifdef DEBUG_INFO
-		    fprintf_unfiltered (gdb_stderr, "Had to reallocate dependency list.\n");
-		    fprintf_unfiltered (gdb_stderr, "New dependencies allocated: %d\n",
+		    fprintf_unfiltered (gdb_stderr,
+					"Had to reallocate "
+					"dependency list.\n");
+		    fprintf_unfiltered (gdb_stderr,
+					"New dependencies allocated: %d\n",
 					dependencies_allocated);
 #endif
 		  }
@@ -2042,60 +2113,58 @@ read_dbx_symtab (struct objfile *objfile)
 	  }
 	  continue;
 
-	  case N_ENDM:
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
+	case N_ENDM:
 	  /* Solaris 2 end of module, finish current partial symbol table.
 	     end_psymtab will set pst->texthigh to the proper value, which
 	     is necessary if a module compiled without debugging info
 	     follows this module.  */
-	  if (pst)
-	  {
-	    end_psymtab (pst, psymtab_include_list, includes_used,
-			 symnum * symbol_size,
-			 (CORE_ADDR) 0,
-			 dependency_list, dependencies_used, textlow_not_set);
-	    pst = (struct partial_symtab *) 0;
-	    includes_used = 0;
-	    dependencies_used = 0;
-	  }
-#endif
+	  if (pst && gdbarch_sofun_address_maybe_missing (gdbarch))
+	    {
+	      end_psymtab (objfile, pst, psymtab_include_list, includes_used,
+			   symnum * symbol_size,
+			   (CORE_ADDR) 0, dependency_list,
+			   dependencies_used, textlow_not_set);
+	      pst = (struct partial_symtab *) 0;
+	      includes_used = 0;
+	      dependencies_used = 0;
+	      has_line_numbers = 0;
+	    }
 	  continue;
 
-	  case N_RBRAC:
+	case N_RBRAC:
 #ifdef HANDLE_RBRAC
 	  HANDLE_RBRAC (nlist.n_value);
 	  continue;
 #endif
-	  case N_EINCL:
-	  case N_DSLINE:
-	  case N_BSLINE:
-	  case N_SSYM:			/* Claim: Structure or union element.
-					   Hopefully, I can ignore this.  */
-	  case N_ENTRY:		/* Alternate entry point; can ignore. */
-	  case N_MAIN:			/* Can definitely ignore this.   */
-	  case N_CATCH:		/* These are GNU C++ extensions */
-	  case N_EHDECL:		/* that can safely be ignored here. */
-	  case N_LENG:
-	  case N_BCOMM:
-	  case N_ECOMM:
-	  case N_ECOML:
-	  case N_FNAME:
-	  case N_SLINE:
-	  case N_RSYM:
-	  case N_PSYM:
-	  case N_LBRAC:
-	  case N_NSYMS:		/* Ultrix 4.0: symbol count */
-	  case N_DEFD:			/* GNU Modula-2 */
-	  case N_ALIAS:		/* SunPro F77: alias name, ignore for now.  */
+	case N_EINCL:
+	case N_DSLINE:
+	case N_BSLINE:
+	case N_SSYM:		/* Claim: Structure or union element.
+				   Hopefully, I can ignore this.  */
+	case N_ENTRY:		/* Alternate entry point; can ignore.  */
+	case N_MAIN:		/* Can definitely ignore this.   */
+	case N_CATCH:		/* These are GNU C++ extensions */
+	case N_EHDECL:		/* that can safely be ignored here.  */
+	case N_LENG:
+	case N_BCOMM:
+	case N_ECOMM:
+	case N_ECOML:
+	case N_FNAME:
+	case N_SLINE:
+	case N_RSYM:
+	case N_PSYM:
+	case N_LBRAC:
+	case N_NSYMS:		/* Ultrix 4.0: symbol count */
+	case N_DEFD:		/* GNU Modula-2 */
+	case N_ALIAS:		/* SunPro F77: alias name, ignore for now.  */
 
-	  case N_OBJ:			/* useless types from Solaris */
-	  case N_OPT:
-	  case N_PATCH:
-	  /* These symbols aren't interesting; don't worry about them */
-
+	case N_OBJ:		/* Useless types from Solaris.  */
+	case N_OPT:
+	case N_PATCH:
+	  /* These symbols aren't interesting; don't worry about them.  */
 	  continue;
 
-	  default:
+	default:
 	  /* If we haven't found it yet, ignore it.  It's probably some
 	     new type we don't know about yet.  */
 	  unknown_symtype_complaint (hex_string (nlist.n_type));
@@ -2109,11 +2178,12 @@ read_dbx_symtab (struct objfile *objfile)
       /* Don't set pst->texthigh lower than it already is.  */
       CORE_ADDR text_end =
 	(lowest_text_address == (CORE_ADDR) -1
-	 ? (text_addr + ANOFFSET (objfile->section_offsets, SECT_OFF_TEXT (objfile)))
+	 ? (text_addr + ANOFFSET (objfile->section_offsets,
+				  SECT_OFF_TEXT (objfile)))
 	 : lowest_text_address)
 	+ text_size;
 
-      end_psymtab (pst, psymtab_include_list, includes_used,
+      end_psymtab (objfile, pst, psymtab_include_list, includes_used,
 		   symnum * symbol_size,
 		   text_end > pst->texthigh ? text_end : pst->texthigh,
 		   dependency_list, dependencies_used, textlow_not_set);
@@ -2127,8 +2197,7 @@ read_dbx_symtab (struct objfile *objfile)
 
    SYMFILE_NAME is the name of the symbol-file we are reading from, and ADDR
    is the address relative to which its symbols are (incremental) or 0
-   (normal). */
-
+   (normal).  */
 
 static struct partial_symtab *
 start_psymtab (struct objfile *objfile, char *filename, CORE_ADDR textlow,
@@ -2136,49 +2205,51 @@ start_psymtab (struct objfile *objfile, char *filename, CORE_ADDR textlow,
 	       struct partial_symbol **static_syms)
 {
   struct partial_symtab *result =
-  start_psymtab_common (objfile, objfile->section_offsets,
-			filename, textlow, global_syms, static_syms);
+    start_psymtab_common (objfile, objfile->section_offsets,
+			  filename, textlow, global_syms, static_syms);
 
-  result->read_symtab_private = (char *)
-    obstack_alloc (&objfile->objfile_obstack, sizeof (struct symloc));
+  result->read_symtab_private = obstack_alloc (&objfile->objfile_obstack,
+					       sizeof (struct symloc));
   LDSYMOFF (result) = ldsymoff;
-  result->read_symtab = dbx_psymtab_to_symtab;
+  result->read_symtab = dbx_read_symtab;
   SYMBOL_SIZE (result) = symbol_size;
   SYMBOL_OFFSET (result) = symbol_table_offset;
   STRING_OFFSET (result) = string_table_offset;
   FILE_STRING_OFFSET (result) = file_string_table_offset;
 
+#ifdef HAVE_ELF
   /* If we're handling an ELF file, drag some section-relocation info
      for this source file out of the ELF symbol table, to compensate for
      Sun brain death.  This replaces the section_offsets in this psymtab,
      if successful.  */
   elfstab_offset_sections (objfile, result);
+#endif
 
-  /* Deduce the source language from the filename for this psymtab. */
+  /* Deduce the source language from the filename for this psymtab.  */
   psymtab_language = deduce_language_from_filename (filename);
 
   return result;
 }
 
-/* Close off the current usage of PST.  
+/* Close off the current usage of PST.
    Returns PST or NULL if the partial symtab was empty and thrown away.
 
    FIXME:  List variables and peculiarities of same.  */
 
 struct partial_symtab *
-end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
+end_psymtab (struct objfile *objfile, struct partial_symtab *pst,
+	     const char **include_list, int num_includes,
 	     int capping_symbol_offset, CORE_ADDR capping_text,
 	     struct partial_symtab **dependency_list, int number_dependencies,
 	     int textlow_not_set)
 {
   int i;
-  struct objfile *objfile = pst->objfile;
+  struct gdbarch *gdbarch = get_objfile_arch (objfile);
 
   if (capping_symbol_offset != -1)
     LDSYMLEN (pst) = capping_symbol_offset - LDSYMOFF (pst);
   pst->texthigh = capping_text;
 
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
   /* Under Solaris, the N_SO symbols always have a value of 0,
      instead of the usual address of the .o file.  Therefore,
      we have to do some tricks to fill in texthigh and textlow.
@@ -2194,7 +2265,8 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
      a reliable texthigh by taking the address plus size of the
      last function in the file.  */
 
-  if (pst->texthigh == 0 && last_function_name)
+  if (pst->texthigh == 0 && last_function_name
+      && gdbarch_sofun_address_maybe_missing (gdbarch))
     {
       char *p;
       int n;
@@ -2225,8 +2297,10 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
       last_function_name = NULL;
     }
 
-  /* this test will be true if the last .o file is only data */
-  if (textlow_not_set)
+  if (!gdbarch_sofun_address_maybe_missing (gdbarch))
+    ;
+  /* This test will be true if the last .o file is only data.  */
+  else if (textlow_not_set)
     pst->textlow = pst->texthigh;
   else
     {
@@ -2243,7 +2317,8 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
 	if (p1->texthigh == 0 && p1->textlow != 0 && p1 != pst)
 	  {
 	    p1->texthigh = pst->textlow;
-	    /* if this file has only data, then make textlow match texthigh */
+	    /* If this file has only data, then make textlow match
+	       texthigh.  */
 	    if (p1->textlow == 0)
 	      p1->textlow = p1->texthigh;
 	  }
@@ -2251,19 +2326,20 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
     }
 
   /* End of kludge for patching Solaris textlow and texthigh.  */
-#endif /* SOFUN_ADDRESS_MAYBE_MISSING.  */
 
   pst->n_global_syms =
-    objfile->global_psymbols.next - (objfile->global_psymbols.list + pst->globals_offset);
+    objfile->global_psymbols.next - (objfile->global_psymbols.list
+				     + pst->globals_offset);
   pst->n_static_syms =
-    objfile->static_psymbols.next - (objfile->static_psymbols.list + pst->statics_offset);
+    objfile->static_psymbols.next - (objfile->static_psymbols.list
+				     + pst->statics_offset);
 
   pst->number_of_dependencies = number_dependencies;
   if (number_dependencies)
     {
       pst->dependencies = (struct partial_symtab **)
 	obstack_alloc (&objfile->objfile_obstack,
-		    number_dependencies * sizeof (struct partial_symtab *));
+		       number_dependencies * sizeof (struct partial_symtab *));
       memcpy (pst->dependencies, dependency_list,
 	      number_dependencies * sizeof (struct partial_symtab *));
     }
@@ -2273,13 +2349,12 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
   for (i = 0; i < num_includes; i++)
     {
       struct partial_symtab *subpst =
-      allocate_psymtab (include_list[i], objfile);
+	allocate_psymtab (include_list[i], objfile);
 
-      /* Copy the sesction_offsets array from the main psymtab. */
+      /* Copy the sesction_offsets array from the main psymtab.  */
       subpst->section_offsets = pst->section_offsets;
       subpst->read_symtab_private =
-	(char *) obstack_alloc (&objfile->objfile_obstack,
-				sizeof (struct symloc));
+	obstack_alloc (&objfile->objfile_obstack, sizeof (struct symloc));
       LDSYMOFF (subpst) =
 	LDSYMLEN (subpst) =
 	subpst->textlow =
@@ -2303,12 +2378,7 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
       subpst->read_symtab = pst->read_symtab;
     }
 
-  sort_pst_symbols (pst);
-
-  /* If there is already a psymtab or symtab for a file of this name, remove it.
-     (If there is a symtab, more drastic things also happen.)
-     This happens in VxWorks.  */
-  free_named_symtabs (pst->filename);
+  sort_pst_symbols (objfile, pst);
 
   if (num_includes == 0
       && number_dependencies == 0
@@ -2324,7 +2394,7 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
          is not empty, but we don't realize that.  Fixing that without slowing
          things down might be tricky.  */
 
-      discard_psymtab (pst);
+      discard_psymtab (objfile, pst);
 
       /* Indicate that psymtab was thrown away.  */
       pst = (struct partial_symtab *) NULL;
@@ -2333,22 +2403,20 @@ end_psymtab (struct partial_symtab *pst, char **include_list, int num_includes,
 }
 
 static void
-dbx_psymtab_to_symtab_1 (struct partial_symtab *pst)
+dbx_psymtab_to_symtab_1 (struct objfile *objfile, struct partial_symtab *pst)
 {
   struct cleanup *old_chain;
   int i;
 
-  if (!pst)
-    return;
-
   if (pst->readin)
     {
-      fprintf_unfiltered (gdb_stderr, "Psymtab for %s already read in.  Shouldn't happen.\n",
+      fprintf_unfiltered (gdb_stderr, "Psymtab for %s already read in.  "
+			  "Shouldn't happen.\n",
 			  pst->filename);
       return;
     }
 
-  /* Read in all partial symtabs on which this one is dependent */
+  /* Read in all partial symtabs on which this one is dependent.  */
   for (i = 0; i < pst->number_of_dependencies; i++)
     if (!pst->dependencies[i]->readin)
       {
@@ -2360,13 +2428,13 @@ dbx_psymtab_to_symtab_1 (struct partial_symtab *pst)
 	    fputs_filtered ("and ", gdb_stdout);
 	    wrap_here ("");
 	    printf_filtered ("%s...", pst->dependencies[i]->filename);
-	    wrap_here ("");	/* Flush output */
+	    wrap_here ("");	/* Flush output.  */
 	    gdb_flush (gdb_stdout);
 	  }
-	dbx_psymtab_to_symtab_1 (pst->dependencies[i]);
+	dbx_psymtab_to_symtab_1 (objfile, pst->dependencies[i]);
       }
 
-  if (LDSYMLEN (pst))		/* Otherwise it's a dummy */
+  if (LDSYMLEN (pst))		/* Otherwise it's a dummy.  */
     {
       /* Init stuff necessary for reading in symbols */
       stabsread_init ();
@@ -2375,9 +2443,9 @@ dbx_psymtab_to_symtab_1 (struct partial_symtab *pst)
       file_string_table_offset = FILE_STRING_OFFSET (pst);
       symbol_size = SYMBOL_SIZE (pst);
 
-      /* Read in this file's symbols */
-      bfd_seek (pst->objfile->obfd, SYMBOL_OFFSET (pst), SEEK_SET);
-      read_ofile_symtab (pst);
+      /* Read in this file's symbols.  */
+      bfd_seek (objfile->obfd, SYMBOL_OFFSET (pst), SEEK_SET);
+      read_ofile_symtab (objfile, pst);
 
       do_cleanups (old_chain);
     }
@@ -2386,56 +2454,56 @@ dbx_psymtab_to_symtab_1 (struct partial_symtab *pst)
 }
 
 /* Read in all of the symbols for a given psymtab for real.
-   Be verbose about it if the user wants that.  */
+   Be verbose about it if the user wants that.  SELF is not NULL.  */
 
 static void
-dbx_psymtab_to_symtab (struct partial_symtab *pst)
+dbx_read_symtab (struct partial_symtab *self, struct objfile *objfile)
 {
   bfd *sym_bfd;
   struct cleanup *back_to = NULL;
 
-  if (!pst)
-    return;
-
-  if (pst->readin)
+  if (self->readin)
     {
-      fprintf_unfiltered (gdb_stderr, "Psymtab for %s already read in.  Shouldn't happen.\n",
-			  pst->filename);
+      fprintf_unfiltered (gdb_stderr, "Psymtab for %s already read in.  "
+			  "Shouldn't happen.\n",
+			  self->filename);
       return;
     }
 
-  if (LDSYMLEN (pst) || pst->number_of_dependencies)
+  if (LDSYMLEN (self) || self->number_of_dependencies)
     {
       /* Print the message now, before reading the string table,
          to avoid disconcerting pauses.  */
       if (info_verbose)
 	{
-	  printf_filtered ("Reading in symbols for %s...", pst->filename);
+	  printf_filtered ("Reading in symbols for %s...", self->filename);
 	  gdb_flush (gdb_stdout);
 	}
 
-      sym_bfd = pst->objfile->obfd;
+      sym_bfd = objfile->obfd;
 
       next_symbol_text_func = dbx_next_symbol_text;
 
-      if (DBX_STAB_SECTION (pst->objfile))
+      if (DBX_STAB_SECTION (objfile))
 	{
 	  stabs_data
-	    = symfile_relocate_debug_section (pst->objfile->obfd,
-					      DBX_STAB_SECTION (pst->objfile),
+	    = symfile_relocate_debug_section (objfile,
+					      DBX_STAB_SECTION (objfile),
 					      NULL);
+
 	  if (stabs_data)
-	    back_to = make_cleanup (free_current_contents, (void *) &stabs_data);
+	    back_to = make_cleanup (free_current_contents,
+				    (void *) &stabs_data);
 	}
 
-      dbx_psymtab_to_symtab_1 (pst);
+      dbx_psymtab_to_symtab_1 (objfile, self);
 
       if (back_to)
 	do_cleanups (back_to);
 
       /* Match with global symbols.  This only needs to be done once,
          after all of the symtabs and dependencies have been read in.   */
-      scan_file_globals (pst->objfile);
+      scan_file_globals (objfile);
 
       /* Finish up the debug error message.  */
       if (info_verbose)
@@ -2443,10 +2511,10 @@ dbx_psymtab_to_symtab (struct partial_symtab *pst)
     }
 }
 
-/* Read in a defined section of a specific object file's symbols. */
+/* Read in a defined section of a specific object file's symbols.  */
 
 static void
-read_ofile_symtab (struct partial_symtab *pst)
+read_ofile_symtab (struct objfile *objfile, struct partial_symtab *pst)
 {
   char *namestring;
   struct external_nlist *bufp;
@@ -2454,14 +2522,12 @@ read_ofile_symtab (struct partial_symtab *pst)
   unsigned char type;
   unsigned max_symnum;
   bfd *abfd;
-  struct objfile *objfile;
   int sym_offset;		/* Offset to start of symbols to read */
   int sym_size;			/* Size of symbols to read */
   CORE_ADDR text_offset;	/* Start of text segment for symbols */
   int text_size;		/* Size of text segment for symbols */
   struct section_offsets *section_offsets;
 
-  objfile = pst->objfile;
   sym_offset = LDSYMOFF (pst);
   sym_size = LDSYMLEN (pst);
   text_offset = pst->textlow;
@@ -2469,17 +2535,17 @@ read_ofile_symtab (struct partial_symtab *pst)
   /* This cannot be simply objfile->section_offsets because of
      elfstab_offset_sections() which initializes the psymtab section
      offsets information in a special way, and that is different from
-     objfile->section_offsets. */ 
+     objfile->section_offsets.  */ 
   section_offsets = pst->section_offsets;
 
-  current_objfile = objfile;
+  dbxread_objfile = objfile;
   subfile_stack = NULL;
 
   stringtab_global = DBX_STRINGTAB (objfile);
-  last_source_file = NULL;
+  set_last_source_file (NULL);
 
   abfd = objfile->obfd;
-  symfile_bfd = objfile->obfd;	/* Implicit param to next_text_symbol */
+  symfile_bfd = objfile->obfd;	/* Implicit param to next_text_symbol.  */
   symbuf_end = symbuf_idx = 0;
   symbuf_read = 0;
   symbuf_left = sym_offset + sym_size;
@@ -2498,7 +2564,7 @@ read_ofile_symtab (struct partial_symtab *pst)
       INTERNALIZE_SYMBOL (nlist, bufp, abfd);
       OBJSTAT (objfile, n_stabs++);
 
-      namestring = set_namestring (objfile, nlist);
+      namestring = set_namestring (objfile, &nlist);
 
       processing_gcc_compilation = 0;
       if (nlist.n_type == N_TEXT)
@@ -2516,7 +2582,7 @@ read_ofile_symtab (struct partial_symtab *pst)
 	}
 
       /* Try to select a C++ demangling based on the compilation unit
-         producer. */
+         producer.  */
 
 #if 0
       /* For now, stay with AUTO_DEMANGLING for g++ output, as we don't
@@ -2551,7 +2617,7 @@ read_ofile_symtab (struct partial_symtab *pst)
        symnum < max_symnum;
        symnum++)
     {
-      QUIT;			/* Allow this to be interruptable */
+      QUIT;			/* Allow this to be interruptable.  */
       if (symbuf_idx == symbuf_end)
 	fill_symbuf (abfd);
       bufp = &symbuf[symbuf_idx++];
@@ -2560,15 +2626,28 @@ read_ofile_symtab (struct partial_symtab *pst)
 
       type = bfd_h_get_8 (abfd, bufp->e_type);
 
-      namestring = set_namestring (objfile, nlist);
+      namestring = set_namestring (objfile, &nlist);
 
       if (type & N_STAB)
 	{
+	  if (sizeof (nlist.n_value) > 4
+	      /* We are a 64-bit debugger debugging a 32-bit program.  */
+	      && (type == N_LSYM || type == N_PSYM))
+	      /* We have to be careful with the n_value in the case of N_LSYM
+		 and N_PSYM entries, because they are signed offsets from frame
+		 pointer, but we actually read them as unsigned 32-bit values.
+		 This is not a problem for 32-bit debuggers, for which negative
+		 values end up being interpreted correctly (as negative
+		 offsets) due to integer overflow.
+		 But we need to sign-extend the value for 64-bit debuggers,
+		 or we'll end up interpreting negative values as very large
+		 positive offsets.  */
+	    nlist.n_value = (nlist.n_value ^ 0x80000000) - 0x80000000;
 	  process_one_symbol (type, nlist.n_desc, nlist.n_value,
 			      namestring, section_offsets, objfile);
 	}
       /* We skip checking for a new .o or -l file; that should never
-         happen in this routine. */
+         happen in this routine.  */
       else if (type == N_TEXT)
 	{
 	  /* I don't think this code will ever be executed, because
@@ -2592,27 +2671,24 @@ read_ofile_symtab (struct partial_symtab *pst)
 #endif
 	}
       else if (type & N_EXT || type == (unsigned char) N_TEXT
-	       || type == (unsigned char) N_NBTEXT
-	)
+	       || type == (unsigned char) N_NBTEXT)
 	{
 	  /* Global symbol: see if we came across a dbx defintion for
 	     a corresponding symbol.  If so, store the value.  Remove
 	     syms from the chain when their values are stored, but
 	     search the whole chain, as there may be several syms from
-	     different files with the same name. */
+	     different files with the same name.  */
 	  /* This is probably not true.  Since the files will be read
 	     in one at a time, each reference to a global symbol will
-	     be satisfied in each file as it appears. So we skip this
-	     section. */
+	     be satisfied in each file as it appears.  So we skip this
+	     section.  */
 	  ;
 	}
     }
 
-  current_objfile = NULL;
-
   /* In a Solaris elf file, this variable, which comes from the
      value of the N_SO symbol, will still be 0.  Luckily, text_offset,
-     which comes from pst->textlow is correct. */
+     which comes from pst->textlow is correct.  */
   if (last_source_start_addr == 0)
     last_source_start_addr = text_offset;
 
@@ -2622,11 +2698,42 @@ read_ofile_symtab (struct partial_symtab *pst)
   if (last_source_start_addr > text_offset)
     last_source_start_addr = text_offset;
 
-  pst->symtab = end_symtab (text_offset + text_size, objfile, SECT_OFF_TEXT (objfile));
+  pst->symtab = end_symtab (text_offset + text_size, objfile,
+			    SECT_OFF_TEXT (objfile));
 
   end_stabs ();
+
+  dbxread_objfile = NULL;
 }
 
+
+/* Record the namespace that the function defined by SYMBOL was
+   defined in, if necessary.  BLOCK is the associated block; use
+   OBSTACK for allocation.  */
+
+static void
+cp_set_block_scope (const struct symbol *symbol,
+		    struct block *block,
+		    struct obstack *obstack)
+{
+  if (SYMBOL_DEMANGLED_NAME (symbol) != NULL)
+    {
+      /* Try to figure out the appropriate namespace from the
+	 demangled name.  */
+
+      /* FIXME: carlton/2003-04-15: If the function in question is
+	 a method of a class, the name will actually include the
+	 name of the class as well.  This should be harmless, but
+	 is a little unfortunate.  */
+
+      const char *name = SYMBOL_DEMANGLED_NAME (symbol);
+      unsigned int prefix_len = cp_entire_prefix_len (name);
+
+      block_set_scope (block,
+		       obstack_copy0 (obstack, name, prefix_len),
+		       obstack);
+    }
+}
 
 /* This handles a single symbol from the symbol-file, building symbols
    into a GDB symtab.  It takes these arguments and an implicit argument.
@@ -2648,6 +2755,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
 		    struct section_offsets *section_offsets,
 		    struct objfile *objfile)
 {
+  struct gdbarch *gdbarch = get_objfile_arch (objfile);
   struct context_stack *new;
   /* This remembers the address of the start of a function.  It is
      used because in Solaris 2, N_LBRAC, N_RBRAC, and N_SLINE entries
@@ -2664,7 +2772,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
   /* If this is nonzero, we've seen an N_SLINE since the start of the
      current function.  We use this to tell us to move the first sline
      to the beginning of the function regardless of what its given
-     value is. */
+     value is.  */
   static int sline_found_in_function = 1;
 
   /* If this is nonzero, we've seen a non-gcc N_OPT symbol for this
@@ -2686,7 +2794,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
   /* Something is wrong if we see real data before seeing a source
      file name.  */
 
-  if (last_source_file == NULL && type != (unsigned char) N_SO)
+  if (get_last_source_file () == NULL && type != (unsigned char) N_SO)
     {
       /* Ignore any symbols which appear before an N_SO symbol.
          Currently no one puts symbols there, but we should deal
@@ -2704,6 +2812,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
 	{
 	  /* This N_FUN marks the end of a function.  This closes off
 	     the current block.  */
+	  struct block *block;
 
  	  if (context_stack_depth <= 0)
  	    {
@@ -2716,15 +2825,24 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
 	     which may have an N_FUN stabs at the end of the function,
 	     but no N_SLINE stabs.  */
 	  if (sline_found_in_function)
-	    record_line (current_subfile, 0, last_function_start + valu);
+	    {
+	      CORE_ADDR addr = last_function_start + valu;
+
+	      record_line (current_subfile, 0,
+			   gdbarch_addr_bits_remove (gdbarch, addr));
+	    }
 
 	  within_function = 0;
 	  new = pop_context ();
 
 	  /* Make a block for the local symbols within.  */
-	  finish_block (new->name, &local_symbols, new->old_blocks,
-			new->start_addr, new->start_addr + valu,
-			objfile);
+	  block = finish_block (new->name, &local_symbols, new->old_blocks,
+				new->start_addr, new->start_addr + valu,
+				objfile);
+
+	  /* For C++, set the block's scope.  */
+	  if (SYMBOL_LANGUAGE (new->name) == language_cplus)
+	    cp_set_block_scope (new->name, block, &objfile->objfile_obstack);
 
 	  /* May be switching to an assembler file which may not be using
 	     block relative stabs, so reset the offset.  */
@@ -2738,7 +2856,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
 
       /* Relocate for dynamic loading.  */
       valu += ANOFFSET (section_offsets, SECT_OFF_TEXT (objfile));
-      valu = SMASH_TEXT_ADDRESS (valu);
+      valu = gdbarch_addr_bits_remove (gdbarch, valu);
       last_function_start = valu;
 
       goto define_a_symbol;
@@ -2759,7 +2877,7 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
 	   N_SO, the linker did not relocate them (sigh).  */
 	valu += last_source_start_addr;
 
-      new = push_context (desc, valu);
+      push_context (desc, valu);
       break;
 
     case N_RBRAC:
@@ -2788,38 +2906,19 @@ process_one_symbol (int type, int desc, CORE_ADDR valu, char *name,
       if (desc != new->depth)
 	lbrac_mismatch_complaint (symnum);
 
-      /* Some compilers put the variable decls inside of an
-         LBRAC/RBRAC block.  This macro should be nonzero if this is
-         true.  DESC is N_DESC from the N_RBRAC symbol.  GCC_P is true
-         if we've detected the GCC_COMPILED_SYMBOL or the
-         GCC2_COMPILED_SYMBOL.  */
-#if !defined (VARIABLES_INSIDE_BLOCK)
-#define VARIABLES_INSIDE_BLOCK(desc, gcc_p) 0
-#endif
-
-      /* Can only use new->locals as local symbols here if we're in
-         GCC or on a machine that puts them before the lbrack.  */
-      if (!VARIABLES_INSIDE_BLOCK (desc, processing_gcc_compilation))
+      if (local_symbols != NULL)
 	{
-	  if (local_symbols != NULL)
-	    {
-	      /* GCC development snapshots from March to December of
-		 2000 would output N_LSYM entries after N_LBRAC
-		 entries.  As a consequence, these symbols are simply
-		 discarded.  Complain if this is the case.  Note that
-		 there are some compilers which legitimately put local
-		 symbols within an LBRAC/RBRAC block; this complaint
-		 might also help sort out problems in which
-		 VARIABLES_INSIDE_BLOCK is incorrectly defined.  */
-	      complaint (&symfile_complaints, _("\
-misplaced N_LBRAC entry; discarding local symbols which have \
-no enclosing block"));
-	    }
-	  local_symbols = new->locals;
+	  /* GCC development snapshots from March to December of
+	     2000 would output N_LSYM entries after N_LBRAC
+	     entries.  As a consequence, these symbols are simply
+	     discarded.  Complain if this is the case.  */
+	  complaint (&symfile_complaints,
+		     _("misplaced N_LBRAC entry; discarding local "
+		       "symbols which have no enclosing block"));
 	}
+      local_symbols = new->locals;
 
-      if (context_stack_depth
-	  > !VARIABLES_INSIDE_BLOCK (desc, processing_gcc_compilation))
+      if (context_stack_depth > 1)
 	{
 	  /* This is not the outermost LBRAC...RBRAC pair in the
 	     function, its local symbols preceded it, and are the ones
@@ -2852,9 +2951,6 @@ no enclosing block"));
 	  within_function = 0;
 	}
 
-      if (VARIABLES_INSIDE_BLOCK (desc, processing_gcc_compilation))
-	/* Now pop locals of block just finished.  */
-	local_symbols = new->locals;
       break;
 
     case N_FN:
@@ -2873,16 +2969,16 @@ no enclosing block"));
 
       n_opt_found = 0;
 
-      if (last_source_file)
+      if (get_last_source_file ())
 	{
 	  /* Check if previous symbol was also an N_SO (with some
 	     sanity checks).  If so, that one was actually the
 	     directory name, and the current one is the real file
-	     name.  Patch things up. */
+	     name.  Patch things up.  */
 	  if (previous_stab_code == (unsigned char) N_SO)
 	    {
 	      patch_subfile_names (current_subfile, name);
-	      break;		/* Ignore repeated SOs */
+	      break;		/* Ignore repeated SOs.  */
 	    }
 	  end_symtab (valu, objfile, SECT_OFF_TEXT (objfile));
 	  end_stabs ();
@@ -2949,14 +3045,16 @@ no enclosing block"));
 
       if (within_function && sline_found_in_function == 0)
 	{
-	  if (processing_gcc_compilation == 2)
-	    record_line (current_subfile, desc, last_function_start);
-	  else
-	    record_line (current_subfile, desc, valu);
+	  CORE_ADDR addr = processing_gcc_compilation == 2 ?
+			   last_function_start : valu;
+
+	  record_line (current_subfile, desc,
+		       gdbarch_addr_bits_remove (gdbarch, addr));
 	  sline_found_in_function = 1;
 	}
       else
-	record_line (current_subfile, desc, valu);
+	record_line (current_subfile, desc,
+		     gdbarch_addr_bits_remove (gdbarch, valu));
       break;
 
     case N_BCOMM:
@@ -3084,6 +3182,7 @@ no enclosing block"));
 	{
 	  int deftype;
 	  char *colon_pos = strchr (name, ':');
+
 	  if (colon_pos == NULL)
 	    deftype = '\0';
 	  else
@@ -3095,15 +3194,16 @@ no enclosing block"));
 	    case 'F':
 	      function_stab_type = type;
 
-#ifdef SOFUN_ADDRESS_MAYBE_MISSING
 	      /* Deal with the SunPRO 3.0 compiler which omits the
 	         address from N_FUN symbols.  */
 	      if (type == N_FUN
 		  && valu == ANOFFSET (section_offsets,
-				       SECT_OFF_TEXT (objfile)))
+				       SECT_OFF_TEXT (objfile))
+		  && gdbarch_sofun_address_maybe_missing (gdbarch))
 		{
 		  CORE_ADDR minsym_valu = 
-		    find_stab_function_addr (name, last_source_file, objfile);
+		    find_stab_function_addr (name, get_last_source_file (),
+					     objfile);
 
 		  /* The function find_stab_function_addr will return
 		     0 if the minimal symbol wasn't found.
@@ -3114,7 +3214,6 @@ no enclosing block"));
 		  if (minsym_valu != 0)
 		    valu = minsym_valu;
 		}
-#endif
 
 	      if (block_address_function_relative)
 		/* For Solaris 2 compilers, the block addresses and
@@ -3130,16 +3229,25 @@ no enclosing block"));
 	      if (context_stack_depth > 1)
 		{
 		  complaint (&symfile_complaints,
-			     _("unmatched N_LBRAC before symtab pos %d"), symnum);
+			     _("unmatched N_LBRAC before symtab pos %d"),
+			     symnum);
 		  break;
 		}
 
 	      if (context_stack_depth > 0)
 		{
+		  struct block *block;
+
 		  new = pop_context ();
 		  /* Make a block for the local symbols within.  */
-		  finish_block (new->name, &local_symbols, new->old_blocks,
-				new->start_addr, valu, objfile);
+		  block = finish_block (new->name, &local_symbols,
+					new->old_blocks, new->start_addr,
+					valu, objfile);
+
+		  /* For C++, set the block's scope.  */
+		  if (SYMBOL_LANGUAGE (new->name) == language_cplus)
+		    cp_set_block_scope (new->name, block,
+					&objfile->objfile_obstack);
 		}
 
 	      new = push_context (0, valu);
@@ -3185,7 +3293,7 @@ no enclosing block"));
 	 objfile it is in; If there is more than one N_MAIN, choose
 	 the one in the symfile_objfile; If there is more than one
 	 N_MAIN within a given objfile, complain() and choose
-	 arbitrarily. (kingdon) */
+	 arbitrarily.  (kingdon) */
       if (name != NULL)
 	set_main_name (name);
       break;
@@ -3206,6 +3314,7 @@ no enclosing block"));
 
      Generally this is used so that an alias can refer to its main
      symbol.  */
+  gdb_assert (name);
   if (name[0] == '#')
     {
       /* Initialize symbol reference names and determine if this is a
@@ -3244,8 +3353,6 @@ no enclosing block"));
    OBJFILE is the object file we are reading symbols from.
    ADDR is the address relative to which the symbols are (e.g.
    the base address of the text segment).
-   MAINLINE is true if we are reading the main symbol
-   table (as opposed to a shared lib or dynamically loaded file).
    TEXTADDR is the address of the text section.
    TEXTSIZE is the size of the text section.
    STABSECTS is the list of .stab sections in OBJFILE.
@@ -3253,10 +3360,10 @@ no enclosing block"));
    .stabstr section exists.
 
    This routine is mostly copied from dbx_symfile_init and dbx_symfile_read,
-   adjusted for coff details. */
+   adjusted for coff details.  */
 
 void
-coffstab_build_psymtabs (struct objfile *objfile, int mainline,
+coffstab_build_psymtabs (struct objfile *objfile,
 			 CORE_ADDR textaddr, unsigned int textsize,
 			 struct stab_section_list *stabsects,
 			 file_ptr stabstroffset, unsigned int stabstrsize)
@@ -3269,7 +3376,7 @@ coffstab_build_psymtabs (struct objfile *objfile, int mainline,
 
   /* There is already a dbx_symfile_info allocated by our caller.
      It might even contain some info from the coff symtab to help us.  */
-  info = objfile->deprecated_sym_stab_info;
+  info = DBX_SYMFILE_INFO (objfile);
 
   DBX_TEXT_ADDR (objfile) = textaddr;
   DBX_TEXT_SIZE (objfile) = textsize;
@@ -3302,7 +3409,7 @@ coffstab_build_psymtabs (struct objfile *objfile, int mainline,
 
   /* In a coff file, we've already installed the minimal symbols that came
      from the coff (non-stab) symbol table, so always act like an
-     incremental load here. */
+     incremental load here.  */
   if (stabsects->next == NULL)
     {
       stabsize = bfd_section_size (sym_bfd, stabsects->section);
@@ -3339,29 +3446,26 @@ coffstab_build_psymtabs (struct objfile *objfile, int mainline,
    OBJFILE is the object file we are reading symbols from.
    ADDR is the address relative to which the symbols are (e.g.
    the base address of the text segment).
-   MAINLINE is true if we are reading the main symbol
-   table (as opposed to a shared lib or dynamically loaded file).
    STABSECT is the BFD section information for the .stab section.
    STABSTROFFSET and STABSTRSIZE define the location in OBJFILE where the
    .stabstr section exists.
 
    This routine is mostly copied from dbx_symfile_init and dbx_symfile_read,
-   adjusted for elf details. */
+   adjusted for elf details.  */
 
 void
-elfstab_build_psymtabs (struct objfile *objfile, int mainline,
-			asection *stabsect,
+elfstab_build_psymtabs (struct objfile *objfile, asection *stabsect,
 			file_ptr stabstroffset, unsigned int stabstrsize)
 {
   int val;
   bfd *sym_bfd = objfile->obfd;
   char *name = bfd_get_filename (sym_bfd);
   struct dbx_symfile_info *info;
-  struct cleanup *back_to = NULL;
+  struct cleanup *back_to = make_cleanup (null_cleanup, NULL);
 
   /* There is already a dbx_symfile_info allocated by our caller.
      It might even contain some info from the ELF symtab to help us.  */
-  info = objfile->deprecated_sym_stab_info;
+  info = DBX_SYMFILE_INFO (objfile);
 
   /* Find the first and last text address.  dbx_symfile_read seems to
      want this.  */
@@ -3399,9 +3503,9 @@ elfstab_build_psymtabs (struct objfile *objfile, int mainline,
 
   symbuf_read = 0;
   symbuf_left = bfd_section_size (objfile->obfd, stabsect);
-  stabs_data = symfile_relocate_debug_section (objfile->obfd, stabsect, NULL);
+  stabs_data = symfile_relocate_debug_section (objfile, stabsect, NULL);
   if (stabs_data)
-    back_to = make_cleanup (free_current_contents, (void *) &stabs_data);
+    make_cleanup (free_current_contents, (void *) &stabs_data);
 
   /* In an elf file, we've already installed the minimal symbols that came
      from the elf (non-stab) symbol table, so always act like an
@@ -3411,8 +3515,7 @@ elfstab_build_psymtabs (struct objfile *objfile, int mainline,
      case it does, it will install them itself.  */
   dbx_symfile_read (objfile, 0);
 
-  if (back_to)
-    do_cleanups (back_to);
+  do_cleanups (back_to);
 }
 
 /* Scan and build partial symbols for a file with special sections for stabs
@@ -3425,15 +3528,14 @@ elfstab_build_psymtabs (struct objfile *objfile, int mainline,
    OBJFILE is the object file we are reading symbols from.
    ADDR is the address relative to which the symbols are (e.g. the base address
    of the text segment).
-   MAINLINE is true if we are reading the main symbol table (as opposed to a
-   shared lib or dynamically loaded file).
    STAB_NAME is the name of the section that contains the stabs.
    STABSTR_NAME is the name of the section that contains the stab strings.
 
-   This routine is mostly copied from dbx_symfile_init and dbx_symfile_read. */
+   This routine is mostly copied from dbx_symfile_init and
+   dbx_symfile_read.  */
 
 void
-stabsect_build_psymtabs (struct objfile *objfile, int mainline, char *stab_name,
+stabsect_build_psymtabs (struct objfile *objfile, char *stab_name,
 			 char *stabstr_name, char *text_name)
 {
   int val;
@@ -3442,6 +3544,7 @@ stabsect_build_psymtabs (struct objfile *objfile, int mainline, char *stab_name,
   asection *stabsect;
   asection *stabstrsect;
   asection *text_sect;
+  struct dbx_symfile_info *dbx;
 
   stabsect = bfd_get_section_by_name (sym_bfd, stab_name);
   stabstrsect = bfd_get_section_by_name (sym_bfd, stabstr_name);
@@ -3450,12 +3553,12 @@ stabsect_build_psymtabs (struct objfile *objfile, int mainline, char *stab_name,
     return;
 
   if (!stabstrsect)
-    error (_("stabsect_build_psymtabs:  Found stabs (%s), but not string section (%s)"),
+    error (_("stabsect_build_psymtabs:  Found stabs (%s), "
+	     "but not string section (%s)"),
 	   stab_name, stabstr_name);
 
-  objfile->deprecated_sym_stab_info = (struct dbx_symfile_info *)
-    xmalloc (sizeof (struct dbx_symfile_info));
-  memset (objfile->deprecated_sym_stab_info, 0, sizeof (struct dbx_symfile_info));
+  dbx = XCNEW (struct dbx_symfile_info);
+  set_objfile_data (objfile, dbx_objfile_data_key, dbx);
 
   text_sect = bfd_get_section_by_name (sym_bfd, text_name);
   if (!text_sect)
@@ -3467,21 +3570,26 @@ stabsect_build_psymtabs (struct objfile *objfile, int mainline, char *stab_name,
   DBX_SYMCOUNT (objfile) = bfd_section_size (sym_bfd, stabsect)
     / DBX_SYMBOL_SIZE (objfile);
   DBX_STRINGTAB_SIZE (objfile) = bfd_section_size (sym_bfd, stabstrsect);
-  DBX_SYMTAB_OFFSET (objfile) = stabsect->filepos;	/* XXX - FIXME: POKING INSIDE BFD DATA STRUCTURES */
+  DBX_SYMTAB_OFFSET (objfile) = stabsect->filepos;	/* XXX - FIXME: POKING
+							   INSIDE BFD DATA
+							   STRUCTURES */
 
   if (DBX_STRINGTAB_SIZE (objfile) > bfd_get_size (sym_bfd))
-    error (_("ridiculous string table size: %d bytes"), DBX_STRINGTAB_SIZE (objfile));
+    error (_("ridiculous string table size: %d bytes"),
+	   DBX_STRINGTAB_SIZE (objfile));
   DBX_STRINGTAB (objfile) = (char *)
-    obstack_alloc (&objfile->objfile_obstack, DBX_STRINGTAB_SIZE (objfile) + 1);
+    obstack_alloc (&objfile->objfile_obstack,
+		   DBX_STRINGTAB_SIZE (objfile) + 1);
   OBJSTAT (objfile, sz_strtab += DBX_STRINGTAB_SIZE (objfile) + 1);
 
   /* Now read in the string table in one big gulp.  */
 
   val = bfd_get_section_contents (sym_bfd,	/* bfd */
 				  stabstrsect,	/* bfd section */
-				  DBX_STRINGTAB (objfile),	/* input buffer */
-				  0,	/* offset into section */
-				  DBX_STRINGTAB_SIZE (objfile));	/* amount to read */
+				  DBX_STRINGTAB (objfile), /* input buffer */
+				  0,		/* offset into section */
+				  DBX_STRINGTAB_SIZE (objfile)); /* amount to
+								    read */
 
   if (!val)
     perror_with_name (name);
@@ -3491,25 +3599,33 @@ stabsect_build_psymtabs (struct objfile *objfile, int mainline, char *stab_name,
   free_header_files ();
   init_header_files ();
 
-  /* Now, do an incremental load */
+  /* Now, do an incremental load.  */
 
   processing_acc_compilation = 1;
   dbx_symfile_read (objfile, 0);
 }
 
-static struct sym_fns aout_sym_fns =
+static const struct sym_fns aout_sym_fns =
 {
   bfd_target_aout_flavour,
-  dbx_new_init,			/* sym_new_init: init anything gbl to entire symtab */
-  dbx_symfile_init,		/* sym_init: read initial info, setup for sym_read() */
-  dbx_symfile_read,		/* sym_read: read a symbol file into symtab */
-  dbx_symfile_finish,		/* sym_finish: finished with file, cleanup */
-  default_symfile_offsets,	/* sym_offsets: parse user's offsets to internal form */
-  NULL				/* next: pointer to next struct sym_fns */
+  dbx_new_init,			/* init anything gbl to entire symtab */
+  dbx_symfile_init,		/* read initial info, setup for sym_read() */
+  dbx_symfile_read,		/* read a symbol file into symtab */
+  NULL,				/* sym_read_psymbols */
+  dbx_symfile_finish,		/* finished with file, cleanup */
+  default_symfile_offsets, 	/* parse user's offsets to internal form */
+  default_symfile_segments,	/* Get segment information from a file.  */
+  NULL,
+  default_symfile_relocate,	/* Relocate a debug section.  */
+  NULL,				/* sym_probe_fns */
+  &psym_functions
 };
 
 void
 _initialize_dbxread (void)
 {
   add_symtab_fns (&aout_sym_fns);
+
+  dbx_objfile_data_key
+    = register_objfile_data_with_cleanup (NULL, dbx_free_symfile_info);
 }

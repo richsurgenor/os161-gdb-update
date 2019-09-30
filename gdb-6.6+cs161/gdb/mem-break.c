@@ -1,7 +1,6 @@
 /* Simulate breakpoints by patching locations in the target system, for GDB.
 
-   Copyright (C) 1990, 1991, 1992, 1993, 1995, 1997, 1998, 1999, 2000,
-   2002 Free Software Foundation, Inc.
+   Copyright (C) 1990-2013 Free Software Foundation, Inc.
 
    Contributed by Cygnus Support.  Written by John Gilmore.
 
@@ -9,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,19 +17,14 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
-
-/* This file is only useful if BREAKPOINT_FROM_PC is set.  If not, we
-   punt.  */
-
 #include "symtab.h"
 #include "breakpoint.h"
 #include "inferior.h"
 #include "target.h"
+#include "gdb_string.h"
 
 
 /* Insert a breakpoint on targets that don't have any better
@@ -43,47 +37,55 @@
    BREAKPOINT_MAX).  */
 
 int
-default_memory_insert_breakpoint (struct bp_target_info *bp_tgt)
+default_memory_insert_breakpoint (struct gdbarch *gdbarch,
+				  struct bp_target_info *bp_tgt)
 {
   int val;
   const unsigned char *bp;
-  int bplen;
+  gdb_byte *readbuf;
 
   /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = BREAKPOINT_FROM_PC (&bp_tgt->placed_address, &bp_tgt->placed_size);
+  bp = gdbarch_breakpoint_from_pc
+       (gdbarch, &bp_tgt->placed_address, &bp_tgt->placed_size);
   if (bp == NULL)
     error (_("Software breakpoints not implemented for this target."));
 
-  /* Save the memory contents.  */
+  /* Save the memory contents in the shadow_contents buffer and then
+     write the breakpoint instruction.  */
   bp_tgt->shadow_len = bp_tgt->placed_size;
-  val = target_read_memory (bp_tgt->placed_address, bp_tgt->shadow_contents,
+  readbuf = alloca (bp_tgt->placed_size);
+  val = target_read_memory (bp_tgt->placed_address, readbuf,
 			    bp_tgt->placed_size);
-
-  /* Write the breakpoint.  */
   if (val == 0)
-    val = target_write_memory (bp_tgt->placed_address, bp,
-			       bp_tgt->placed_size);
+    {
+      memcpy (bp_tgt->shadow_contents, readbuf, bp_tgt->placed_size);
+      val = target_write_raw_memory (bp_tgt->placed_address, bp,
+				     bp_tgt->placed_size);
+    }
 
   return val;
 }
 
 
 int
-default_memory_remove_breakpoint (struct bp_target_info *bp_tgt)
+default_memory_remove_breakpoint (struct gdbarch *gdbarch,
+				  struct bp_target_info *bp_tgt)
 {
-  return target_write_memory (bp_tgt->placed_address, bp_tgt->shadow_contents,
-			      bp_tgt->placed_size);
+  return target_write_raw_memory (bp_tgt->placed_address, bp_tgt->shadow_contents,
+				  bp_tgt->placed_size);
 }
 
 
 int
-memory_insert_breakpoint (struct bp_target_info *bp_tgt)
+memory_insert_breakpoint (struct gdbarch *gdbarch,
+			  struct bp_target_info *bp_tgt)
 {
-  return MEMORY_INSERT_BREAKPOINT (bp_tgt);
+  return gdbarch_memory_insert_breakpoint (gdbarch, bp_tgt);
 }
 
 int
-memory_remove_breakpoint (struct bp_target_info *bp_tgt)
+memory_remove_breakpoint (struct gdbarch *gdbarch,
+			  struct bp_target_info *bp_tgt)
 {
-  return MEMORY_REMOVE_BREAKPOINT (bp_tgt);
+  return gdbarch_memory_remove_breakpoint (gdbarch, bp_tgt);
 }

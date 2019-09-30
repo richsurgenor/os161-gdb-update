@@ -17,6 +17,7 @@
  * AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#include "config.h"
 #include <signal.h>
 #ifdef HAVE_TIME_H
 #include <time.h>
@@ -599,7 +600,7 @@ decode (SIM_DESC sd, int addr, unsigned char *data, decoded_inst *dst)
   /* Find the exact opcode/arg combo.  */
   for (q = h8_opcodes; q->name; q++)
     {
-      op_type *nib = q->data.nib;
+      const op_type *nib = q->data.nib;
       unsigned int len = 0;
 
       if ((q->available == AV_H8SX && !h8300sxmode) ||
@@ -924,7 +925,7 @@ decode (SIM_DESC sd, int addr, unsigned char *data, decoded_inst *dst)
 #endif
 		  /* Fill in the args.  */
 		  {
-		    op_type *args = q->args.nib;
+		    const op_type *args = q->args.nib;
 		    int hadone = 0;
 		    int nargs;
 
@@ -1386,105 +1387,93 @@ fetch_1 (SIM_DESC sd, ea_type *arg, int *val, int twice)
       break;
     case X (OP_POSTINC, SB):	/* Register indirect w/post-incr: byte.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_B (t);
+      r = GET_MEMORY_B (t & h8_get_mask (sd));
       if (!twice)
 	t += 1;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
     case X (OP_POSTINC, SW):	/* Register indirect w/post-incr: word.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_W (t);
+      r = GET_MEMORY_W (t & h8_get_mask (sd));
       if (!twice)
 	t += 2;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
     case X (OP_POSTINC, SL):	/* Register indirect w/post-incr: long.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_L (t);
+      r = GET_MEMORY_L (t & h8_get_mask (sd));
       if (!twice)
 	t += 4;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
 
     case X (OP_POSTDEC, SB):	/* Register indirect w/post-decr: byte.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_B (t);
+      r = GET_MEMORY_B (t & h8_get_mask (sd));
       if (!twice)
 	t -= 1;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
     case X (OP_POSTDEC, SW):	/* Register indirect w/post-decr: word.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_W (t);
+      r = GET_MEMORY_W (t & h8_get_mask (sd));
       if (!twice)
 	t -= 2;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
     case X (OP_POSTDEC, SL):	/* Register indirect w/post-decr: long.  */
       t = GET_L_REG (rn);
-      t &= h8_get_mask (sd);
-      r = GET_MEMORY_L (t);
+      r = GET_MEMORY_L (t & h8_get_mask (sd));
       if (!twice)
 	t -= 4;
-      t = t & h8_get_mask (sd);
       SET_L_REG (rn, t);
       *val = r;
       break;
 
     case X (OP_PREDEC, SB):	/* Register indirect w/pre-decr: byte.  */
       t = GET_L_REG (rn) - 1;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_B (t);
       break;
       
     case X (OP_PREDEC, SW):	/* Register indirect w/pre-decr: word.  */
       t = GET_L_REG (rn) - 2;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_W (t);
       break;
       
     case X (OP_PREDEC, SL):	/* Register indirect w/pre-decr: long.  */
       t = GET_L_REG (rn) - 4;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_L (t);
       break;
       
     case X (OP_PREINC, SB):	/* Register indirect w/pre-incr: byte.  */
       t = GET_L_REG (rn) + 1;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_B (t);
       break;
 
     case X (OP_PREINC, SW):	/* Register indirect w/pre-incr: long.  */
       t = GET_L_REG (rn) + 2;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_W (t);
       break;
 
     case X (OP_PREINC, SL):	/* Register indirect w/pre-incr: long.  */
       t = GET_L_REG (rn) + 4;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       *val = GET_MEMORY_L (t);
       break;
 
@@ -1621,8 +1610,8 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t -= 1;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_B (t, n);
 
       break;
@@ -1630,8 +1619,8 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t -= 2;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_W (t, n);
       break;
 
@@ -1639,8 +1628,8 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t -= 4;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_L (t, n);
       break;
 
@@ -1648,8 +1637,8 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t += 1;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_B (t, n);
 
       break;
@@ -1657,8 +1646,8 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t += 2;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_W (t, n);
       break;
 
@@ -1666,45 +1655,51 @@ store_1 (SIM_DESC sd, ea_type *arg, int n, int twice)
       t = GET_L_REG (rn);
       if (!twice)
 	t += 4;
-      t &= h8_get_mask (sd);
       SET_L_REG (rn, t);
+      t &= h8_get_mask (sd);
       SET_MEMORY_L (t, n);
       break;
 
     case X (OP_POSTDEC, SB):	/* Register indirect w/post-decr, byte.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_B (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t - 1);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_B (t, n);
       break;
 
     case X (OP_POSTDEC, SW):	/* Register indirect w/post-decr, word.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_W (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t - 2);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_W (t, n);
       break;
 
     case X (OP_POSTDEC, SL):	/* Register indirect w/post-decr, long.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_L (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t - 4);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_L (t, n);
       break;
 
     case X (OP_POSTINC, SB):	/* Register indirect w/post-incr, byte.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_B (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t + 1);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_B (t, n);
       break;
 
     case X (OP_POSTINC, SW):	/* Register indirect w/post-incr, word.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_W (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t + 2);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_W (t, n);
       break;
 
     case X (OP_POSTINC, SL):	/* Register indirect w/post-incr, long.  */
-      t = GET_L_REG (rn) & h8_get_mask (sd);
-      SET_MEMORY_L (t, n);
+      t = GET_L_REG (rn);
       SET_L_REG (rn, t + 4);
+      t &= h8_get_mask (sd);
+      SET_MEMORY_L (t, n);
       break;
 
     case X (OP_DISP, SB):	/* Register indirect w/displacement, byte.  */
@@ -2810,7 +2805,7 @@ sim_resume (SIM_DESC sd, int step, int siggnal)
 		ind_arg_len = 0;
 
 		/* The size of the commandline argument.  */
-		ind_arg_len = strlen (h8_get_cmdline_arg (sd, i) + 1);
+		ind_arg_len = strlen (h8_get_cmdline_arg (sd, i)) + 1;
 
 		/* The total size of the command line string.  */
 		size_cmdline += ind_arg_len;
@@ -4622,7 +4617,7 @@ sim_trace (SIM_DESC sd)
 }
 
 int
-sim_write (SIM_DESC sd, SIM_ADDR addr, unsigned char *buffer, int size)
+sim_write (SIM_DESC sd, SIM_ADDR addr, const unsigned char *buffer, int size)
 {
   int i;
 
@@ -4721,7 +4716,7 @@ sim_store_register (SIM_DESC sd, int rn, unsigned char *value, int length)
       h8_set_ticks (sd, longval);
       break;
     }
-  return -1;
+  return length;
 }
 
 int
@@ -5111,13 +5106,6 @@ sim_create_inferior (SIM_DESC sd, struct bfd *abfd, char **argv, char **env)
     }
   
   return SIM_RC_OK;
-}
-
-void
-sim_do_command (SIM_DESC sd, char *cmd)
-{
-  (*sim_callback->printf_filtered) (sim_callback,
-				    "This simulator does not accept any commands.\n");
 }
 
 void

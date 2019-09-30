@@ -1,27 +1,29 @@
 /* Intel i860 specific support for 32-bit ELF.
-   Copyright 1993, 1995, 1999, 2000, 2001, 2002, 2003, 2004, 2005
+   Copyright 1993, 1995, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007, 2008,
+   2010, 2011, 2012
    Free Software Foundation, Inc.
 
    Full i860 support contributed by Jason Eckhardt <jle@cygnus.com>.
 
-This file is part of BFD, the Binary File Descriptor library.
+   This file is part of BFD, the Binary File Descriptor library.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
 #include "elf/i860.h"
@@ -886,6 +888,23 @@ elf32_i860_reloc_type_lookup (bfd *abfd ATTRIBUTE_UNUSED,
   return lookup_howto (rtype);
 }
 
+static reloc_howto_type *
+elf32_i860_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			      const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < (sizeof (elf32_i860_howto_table)
+	    / sizeof (elf32_i860_howto_table[0]));
+       i++)
+    if (elf32_i860_howto_table[i].name != NULL
+	&& strcasecmp (elf32_i860_howto_table[i].name, r_name) == 0)
+      return &elf32_i860_howto_table[i];
+
+  return NULL;
+}
+
 /* Given a ELF reloc, return the matching HOWTO structure.  */
 static void
 elf32_i860_info_to_howto_rela (bfd *abfd ATTRIBUTE_UNUSED,
@@ -996,7 +1015,7 @@ elf32_i860_relocate_highadj (bfd *input_bfd,
   insn = bfd_get_32 (input_bfd, contents + rel->r_offset);
 
   value += rel->r_addend;
-  value += 0x8000; 
+  value += 0x8000;
   value = ((value >> 16) & 0xffff);
 
   insn = (insn & 0xffff0000) | value;
@@ -1066,9 +1085,6 @@ elf32_i860_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
   Elf_Internal_Rela *rel;
   Elf_Internal_Rela *relend;
 
-  if (info->relocatable)
-    return TRUE;
-
   symtab_hdr = & elf_tdata (input_bfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (input_bfd);
   relend     = relocs + input_section->reloc_count;
@@ -1112,6 +1128,13 @@ elf32_i860_relocate_section (bfd *output_bfd ATTRIBUTE_UNUSED,
 				   h, sec, relocation,
 				   unresolved_reloc, warned);
 	}
+
+      if (sec != NULL && discarded_section (sec))
+	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
+					 rel, 1, relend, howto, 0, contents);
+
+      if (info->relocatable)
+	continue;
 
       switch (r_type)
 	{
@@ -1241,6 +1264,7 @@ elf32_i860_is_local_label_name (bfd *abfd, const char *name)
 #define elf_info_to_howto			elf32_i860_info_to_howto_rela
 #define elf_backend_relocate_section		elf32_i860_relocate_section
 #define bfd_elf32_bfd_reloc_type_lookup		elf32_i860_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup	elf32_i860_reloc_name_lookup
 #define bfd_elf32_bfd_is_local_label_name	elf32_i860_is_local_label_name
 
 #include "elf32-target.h"

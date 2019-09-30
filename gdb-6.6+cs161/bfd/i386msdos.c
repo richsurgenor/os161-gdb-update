@@ -1,6 +1,7 @@
 /* BFD back-end for MS-DOS executables.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2001, 2002,
-   2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   2003, 2004, 2005, 2006, 2007, 2009, 2011, 2012
+   Free Software Foundation, Inc.
    Written by Bryan Ford of the University of Utah.
 
    Contributed by the Center for Software Science at the
@@ -10,7 +11,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -20,11 +21,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "libaout.h"
 
@@ -130,6 +132,7 @@ msdos_set_section_contents (bfd *abfd,
 #define msdos_mkobject aout_32_mkobject
 #define msdos_make_empty_symbol aout_32_make_empty_symbol
 #define msdos_bfd_reloc_type_lookup aout_32_reloc_type_lookup
+#define msdos_bfd_reloc_name_lookup aout_32_reloc_name_lookup
 
 #define	msdos_close_and_cleanup _bfd_generic_close_and_cleanup
 #define msdos_bfd_free_cached_info _bfd_generic_bfd_free_cached_info
@@ -141,15 +144,19 @@ msdos_set_section_contents (bfd *abfd,
   bfd_generic_get_relocated_section_contents
 #define msdos_bfd_relax_section bfd_generic_relax_section
 #define msdos_bfd_gc_sections bfd_generic_gc_sections
+#define msdos_bfd_lookup_section_flags bfd_generic_lookup_section_flags
 #define msdos_bfd_merge_sections bfd_generic_merge_sections
 #define msdos_bfd_is_group_section bfd_generic_is_group_section
 #define msdos_bfd_discard_group bfd_generic_discard_group
 #define msdos_section_already_linked \
   _bfd_generic_section_already_linked
+#define msdos_bfd_define_common_symbol bfd_generic_define_common_symbol
 #define msdos_bfd_link_hash_table_create _bfd_generic_link_hash_table_create
 #define msdos_bfd_link_hash_table_free _bfd_generic_link_hash_table_free
 #define msdos_bfd_link_add_symbols _bfd_generic_link_add_symbols
 #define msdos_bfd_link_just_syms _bfd_generic_link_just_syms
+#define msdos_bfd_copy_link_hash_symbol_type \
+  _bfd_generic_copy_link_hash_symbol_type
 #define msdos_bfd_final_link _bfd_generic_final_link
 #define msdos_bfd_link_split_section _bfd_generic_link_split_section
 #define msdos_set_arch_mach _bfd_generic_set_arch_mach
@@ -183,6 +190,7 @@ const bfd_target i386msdos_vec =
     0,				/* leading underscore */
     ' ',				/* ar_pad_char */
     16,				/* ar_max_namelen */
+    0,				/* match priority.  */
     bfd_getl64, bfd_getl_signed_64, bfd_putl64,
     bfd_getl32, bfd_getl_signed_32, bfd_putl32,
     bfd_getl16, bfd_getl_signed_16, bfd_putl16,	/* data */
@@ -221,7 +229,7 @@ const bfd_target i386msdos_vec =
 
     NULL,
 
-    (PTR) 0
+    NULL
   };
 
 

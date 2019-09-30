@@ -1,21 +1,19 @@
 /* This test program is part of GDB, the GNU debugger.
 
-   Copyright 1992, 1993, 1994, 1997, 1999, 2004
-   Free Software Foundation, Inc.
+   Copyright 1992-2013 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
- 
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
    */
 
 /*
@@ -43,6 +41,12 @@ long		v_long;
 signed long	v_signed_long;
 unsigned long	v_unsigned_long;
 
+#ifndef NO_LONG_LONG
+long long		v_long_long;
+signed long long	v_signed_long_long;
+unsigned long long	v_unsigned_long_long;
+#endif
+
 float		v_float;
 double		v_double;
 
@@ -69,6 +73,12 @@ long		v_long_array[2];
 signed long	v_signed_long_array[2];
 unsigned long	v_unsigned_long_array[2];
 
+#ifndef NO_LONG_LONG
+long long		v_long_long_array[2];
+signed long long	v_signed_long_long_array[2];
+unsigned long long	v_unsigned_long_long_array[2];
+#endif
+
 float		v_float_array[2];
 double		v_double_array[2];
 
@@ -84,6 +94,10 @@ typedef unsigned short *ushort_addr;
 static ushort_addr a_ushort_addr;
 typedef signed long *slong_addr;
 static slong_addr a_slong_addr;
+#ifndef NO_LONG_LONG
+typedef signed long long *slong_long_addr;
+static slong_long_addr a_slong_long_addr;
+#endif
 
 char		*v_char_pointer;
 signed char	*v_signed_char_pointer;
@@ -101,6 +115,12 @@ long		*v_long_pointer;
 signed long	*v_signed_long_pointer;
 unsigned long	*v_unsigned_long_pointer;
 
+#ifndef NO_LONG_LONG
+long long		*v_long_long_pointer;
+signed long long	*v_signed_long_long_pointer;
+unsigned long long	*v_unsigned_long_long_pointer;
+#endif
+
 float		*v_float_pointer;
 double		*v_double_pointer;
 
@@ -111,6 +131,9 @@ struct t_struct {
     short	v_short_member;
     int		v_int_member;
     long	v_long_member;
+#ifndef NO_LONG_LONG
+    long long	v_long_long_member;
+#endif
     float	v_float_member;
     double	v_double_member;
 } v_struct1;
@@ -120,6 +143,9 @@ struct {
     short	v_short_member;
     int		v_int_member;
     long	v_long_member;
+#ifndef NO_LONG_LONG
+    long long	v_long_long_member;
+#endif
     float	v_float_member;
     double	v_double_member;
 } v_struct2;
@@ -131,6 +157,9 @@ union t_union {
     short	v_short_member;
     int		v_int_member;
     long	v_long_member;
+#ifndef NO_LONG_LONG
+    long long	v_long_long_member;
+#endif
     float	v_float_member;
     double	v_double_member;
 } v_union;
@@ -140,6 +169,9 @@ union {
     short	v_short_member;
     int		v_int_member;
     long	v_long_member;
+#ifndef NO_LONG_LONG
+    long long	v_long_long_member;
+#endif
     float	v_float_member;
     double	v_double_member;
 } v_union2;
@@ -161,6 +193,12 @@ unsigned int	v_unsigned_int_func () { return (0); }
 long		v_long_func () { return (0); }
 signed long	v_signed_long_func () { return (0); }
 unsigned long	v_unsigned_long_func () { return (0); }
+
+#ifndef NO_LONG_LONG
+long long		v_long_long_func () { return (0); }
+signed long long	v_signed_long_long_func () { return (0); }
+unsigned long long	v_unsigned_long_long_func () { return (0); }
+#endif
 
 float		v_float_func () { return (0.0); }
 double		v_double_func () { return (0.0); }
@@ -209,10 +247,6 @@ enum cars {chevy, ford, porsche} clunker;
 
 int main ()
 {
-#ifdef usestubs
-  set_debug_traps();
-  breakpoint();
-#endif
   /* Some linkers (e.g. on AIX) remove unreferenced variables,
      so make sure to reference them. */
   v_char = 0;
@@ -230,7 +264,13 @@ int main ()
   v_long = 9;
   v_signed_long = 10;
   v_unsigned_long = 11;    
-  
+
+#ifndef NO_LONG_LONG
+  v_long_long = 12;
+  v_signed_long_long = 13;
+  v_unsigned_long_long = 14;
+#endif
+
   v_float = 100.0;
   v_double = 200.0;
 
@@ -251,6 +291,12 @@ int main ()
   v_signed_long_array[0] = v_signed_long;
   v_unsigned_long_array[0] = v_unsigned_long;
 
+#ifndef NO_LONG_LONG
+  v_long_long_array[0] = v_long_long;
+  v_signed_long_long_array[0] = v_signed_long_long;
+  v_unsigned_long_long_array[0] = v_unsigned_long_long;
+#endif
+
   v_float_array[0] = v_float;
   v_double_array[0] = v_double;
 
@@ -269,6 +315,12 @@ int main ()
   v_long_pointer = &v_long;
   v_signed_long_pointer = &v_signed_long;
   v_unsigned_long_pointer = &v_unsigned_long;
+
+#ifndef NO_LONG_LONG
+  v_long_long_pointer = &v_long_long;
+  v_signed_long_long_pointer = &v_signed_long_long;
+  v_unsigned_long_long_pointer = &v_unsigned_long_long;
+#endif
 
   v_float_pointer = &v_float;
   v_double_pointer = &v_double;

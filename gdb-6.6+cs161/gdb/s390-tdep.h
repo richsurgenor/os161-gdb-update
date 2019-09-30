@@ -1,11 +1,11 @@
 /* Target-dependent code for GDB, the GNU debugger.
-   Copyright (C) 2003 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,9 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef S390_TDEP_H
 #define S390_TDEP_H
@@ -79,14 +77,29 @@
 #define S390_F13_REGNUM 48
 #define S390_F14_REGNUM 49
 #define S390_F15_REGNUM 50
+/* General Purpose Register Upper Halves.  */
+#define S390_R0_UPPER_REGNUM 51
+#define S390_R1_UPPER_REGNUM 52
+#define S390_R2_UPPER_REGNUM 53
+#define S390_R3_UPPER_REGNUM 54
+#define S390_R4_UPPER_REGNUM 55
+#define S390_R5_UPPER_REGNUM 56
+#define S390_R6_UPPER_REGNUM 57
+#define S390_R7_UPPER_REGNUM 58
+#define S390_R8_UPPER_REGNUM 59
+#define S390_R9_UPPER_REGNUM 60
+#define S390_R10_UPPER_REGNUM 61
+#define S390_R11_UPPER_REGNUM 62
+#define S390_R12_UPPER_REGNUM 63
+#define S390_R13_UPPER_REGNUM 64
+#define S390_R14_UPPER_REGNUM 65
+#define S390_R15_UPPER_REGNUM 66
+/* GNU/Linux-specific optional registers.  */
+#define S390_ORIG_R2_REGNUM 67
+#define S390_LAST_BREAK_REGNUM 68
+#define S390_SYSTEM_CALL_REGNUM 69
 /* Total.  */
-#define S390_NUM_REGS 51
-
-/* Pseudo registers -- PC and condition code.  */
-#define S390_PC_REGNUM S390_NUM_REGS
-#define S390_CC_REGNUM (S390_NUM_REGS+1)
-#define S390_NUM_PSEUDO_REGS 2
-#define S390_NUM_TOTAL_REGS (S390_NUM_REGS+2)
+#define S390_NUM_REGS 70
 
 /* Special register usage.  */
 #define S390_SP_REGNUM S390_R15_REGNUM
@@ -100,6 +113,20 @@ extern int s390_regmap_gregset[S390_NUM_REGS];
 extern int s390x_regmap_gregset[S390_NUM_REGS];
 #define s390_sizeof_fpregset 0x88
 extern int s390_regmap_fpregset[S390_NUM_REGS];
+extern int s390_regmap_last_break[S390_NUM_REGS];
+extern int s390x_regmap_last_break[S390_NUM_REGS];
+extern int s390_regmap_system_call[S390_NUM_REGS];
+
+/* GNU/Linux target descriptions.  */
+extern struct target_desc *tdesc_s390_linux32;
+extern struct target_desc *tdesc_s390_linux32v1;
+extern struct target_desc *tdesc_s390_linux32v2;
+extern struct target_desc *tdesc_s390_linux64;
+extern struct target_desc *tdesc_s390_linux64v1;
+extern struct target_desc *tdesc_s390_linux64v2;
+extern struct target_desc *tdesc_s390x_linux64;
+extern struct target_desc *tdesc_s390x_linux64v1;
+extern struct target_desc *tdesc_s390x_linux64v2;
 
 #endif
 

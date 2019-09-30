@@ -4,24 +4,25 @@
    THIS FILE IS MACHINE GENERATED WITH CGEN.
    - the resultant file is machine generated, cgen-asm.in isn't
 
-   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005
+   Copyright 1996, 1997, 1998, 1999, 2000, 2001, 2005, 2007, 2008, 2010
    Free Software Foundation, Inc.
 
-   This file is part of the GNU Binutils and GDB, the GNU debugger.
+   This file is part of libopcodes.
 
-   This program is free software; you can redistribute it and/or modify
+   This library is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
+   It is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+   License for more details.
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+
 
 /* ??? Eventually more and more of this stuff can go to cpu-independent files.
    Keep that in mind.  */
@@ -124,27 +125,26 @@ parse_unsigned8 (CGEN_CPU_DESC cd, const char **strp,
 		 int opindex, unsigned long *valuep)
 {
   const char *errmsg = 0;
-  unsigned long value;
+  unsigned long value = 0;
   long have_zero = 0;
 
   if (strncasecmp (*strp, "%dsp8(", 6) == 0)
     {
       enum cgen_parse_operand_result result_type;
-      bfd_vma value;
-      const char *errmsg;
+      bfd_vma val;
 
       *strp += 6;
       errmsg = cgen_parse_address (cd, strp, opindex, BFD_RELOC_8,
-				   & result_type, & value);
+				   & result_type, & val);
       if (**strp != ')')
 	return _("missing `)'");
       (*strp) ++;
 
       if (errmsg == NULL
   	  && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
-	{
-	  return _("%dsp8() takes a symbolic address, not a number");
-	}
+	return _("%dsp8() takes a symbolic address, not a number");
+
+      value = val;
       *valuep = value;
       return errmsg;
     }
@@ -221,26 +221,25 @@ parse_signed8 (CGEN_CPU_DESC cd, const char **strp,
 	       int opindex, signed long *valuep)
 {
   const char *errmsg = 0;
-  signed long value;
+  signed long value = 0;
 
   if (strncasecmp (*strp, "%hi8(", 5) == 0)
     {
       enum cgen_parse_operand_result result_type;
-      bfd_vma value;
-      const char *errmsg;
+      bfd_vma val;
 
       *strp += 5;
       errmsg = cgen_parse_address (cd, strp, opindex, BFD_RELOC_M32C_HI8,
-				   & result_type, & value);
+				   & result_type, & val);
       if (**strp != ')')
 	return _("missing `)'");
       (*strp) ++;
 
       if (errmsg == NULL
   	  && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
-	{
-	  value >>= 16;
-	}
+	val >>= 16;
+
+      value = val;
       *valuep = value;
       return errmsg;
     }
@@ -262,27 +261,26 @@ parse_unsigned16 (CGEN_CPU_DESC cd, const char **strp,
 		 int opindex, unsigned long *valuep)
 {
   const char *errmsg = 0;
-  unsigned long value;
+  unsigned long value = 0;
   long have_zero = 0;
 
   if (strncasecmp (*strp, "%dsp16(", 7) == 0)
     {
       enum cgen_parse_operand_result result_type;
-      bfd_vma value;
-      const char *errmsg;
+      bfd_vma val;
 
       *strp += 7;
       errmsg = cgen_parse_address (cd, strp, opindex, BFD_RELOC_16,
-				   & result_type, & value);
+				   & result_type, & val);
       if (**strp != ')')
 	return _("missing `)'");
       (*strp) ++;
 
       if (errmsg == NULL
   	  && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
-	{
-	  return _("%dsp16() takes a symbolic address, not a number");
-	}
+	return _("%dsp16() takes a symbolic address, not a number");
+
+      value = val;
       *valuep = value;
       return errmsg;
     }
@@ -322,26 +320,25 @@ parse_signed16 (CGEN_CPU_DESC cd, const char **strp,
 	       int opindex, signed long *valuep)
 {
   const char *errmsg = 0;
-  signed long value;
+  signed long value = 0;
 
   if (strncasecmp (*strp, "%lo16(", 6) == 0)
     {
       enum cgen_parse_operand_result result_type;
-      bfd_vma value;
-      const char *errmsg;
+      bfd_vma val;
 
       *strp += 6;
       errmsg = cgen_parse_address (cd, strp, opindex, BFD_RELOC_LO16,
-				   & result_type, & value);
+				   & result_type, & val);
       if (**strp != ')')
 	return _("missing `)'");
       (*strp) ++;
 
       if (errmsg == NULL
   	  && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
-	{
-	  value &= 0xffff;
-	}
+	val &= 0xffff;
+
+      value = val;
       *valuep = value;
       return errmsg;
     }
@@ -349,21 +346,20 @@ parse_signed16 (CGEN_CPU_DESC cd, const char **strp,
   if (strncasecmp (*strp, "%hi16(", 6) == 0)
     {
       enum cgen_parse_operand_result result_type;
-      bfd_vma value;
-      const char *errmsg;
+      bfd_vma val;
 
       *strp += 6;
       errmsg = cgen_parse_address (cd, strp, opindex, BFD_RELOC_HI16,
-				   & result_type, & value);
+				   & result_type, & val);
       if (**strp != ')')
 	return _("missing `)'");
       (*strp) ++;
 
       if (errmsg == NULL
   	  && result_type == CGEN_PARSE_OPERAND_RESULT_NUMBER)
-	{
-	  value >>= 16;
-	}
+	val >>= 16;
+
+      value = val;
       *valuep = value;
       return errmsg;
     }
@@ -539,7 +535,7 @@ parse_lab_5_3 (CGEN_CPU_DESC cd,
   if (type_addr)
     *type_addr = op_res;
 
-  if (op_res == CGEN_PARSE_OPERAND_ADDRESS)
+  if (op_res == CGEN_PARSE_OPERAND_RESULT_QUEUED)
     {
       /* This is a hack; the field cannot handle near-zero signed
 	 offsets that CGEN wants to put in to indicate an "empty"
@@ -1114,6 +1110,9 @@ m32c_cgen_parse_operand (CGEN_CPU_DESC cd,
     case M32C_OPERAND_DSP_40_U16 :
       errmsg = parse_unsigned16 (cd, strp, M32C_OPERAND_DSP_40_U16, (unsigned long *) (& fields->f_dsp_40_u16));
       break;
+    case M32C_OPERAND_DSP_40_U20 :
+      errmsg = parse_unsigned20 (cd, strp, M32C_OPERAND_DSP_40_U20, (unsigned long *) (& fields->f_dsp_40_u20));
+      break;
     case M32C_OPERAND_DSP_40_U24 :
       errmsg = parse_unsigned24 (cd, strp, M32C_OPERAND_DSP_40_U24, (unsigned long *) (& fields->f_dsp_40_u24));
       break;
@@ -1128,6 +1127,9 @@ m32c_cgen_parse_operand (CGEN_CPU_DESC cd,
       break;
     case M32C_OPERAND_DSP_48_U16 :
       errmsg = parse_unsigned16 (cd, strp, M32C_OPERAND_DSP_48_U16, (unsigned long *) (& fields->f_dsp_48_u16));
+      break;
+    case M32C_OPERAND_DSP_48_U20 :
+      errmsg = parse_unsigned24 (cd, strp, M32C_OPERAND_DSP_48_U20, (unsigned long *) (& fields->f_dsp_48_u20));
       break;
     case M32C_OPERAND_DSP_48_U24 :
       errmsg = parse_unsigned24 (cd, strp, M32C_OPERAND_DSP_48_U24, (unsigned long *) (& fields->f_dsp_48_u24));
@@ -1598,6 +1600,9 @@ m32c_cgen_init_asm (CGEN_CPU_DESC cd)
   m32c_cgen_init_ibld_table (cd);
   cd->parse_handlers = & m32c_cgen_parse_handlers[0];
   cd->parse_operand = m32c_cgen_parse_operand;
+#ifdef CGEN_ASM_INIT_HOOK
+CGEN_ASM_INIT_HOOK
+#endif
 }
 
 
@@ -1826,9 +1831,11 @@ parse_insn_normal (CGEN_CPU_DESC cd,
 	  continue;
 	}
 
+#ifdef CGEN_MNEMONIC_OPERANDS
+      (void) past_opcode_p;
+#endif
       /* We have an operand of some sort.  */
-      errmsg = cd->parse_operand (cd, CGEN_SYNTAX_FIELD (*syn),
-					  &str, fields);
+      errmsg = cd->parse_operand (cd, CGEN_SYNTAX_FIELD (*syn), &str, fields);
       if (errmsg)
 	return errmsg;
 
@@ -1945,31 +1952,39 @@ m32c_cgen_assemble_insn (CGEN_CPU_DESC cd,
 
   {
     static char errbuf[150];
-#ifdef CGEN_VERBOSE_ASSEMBLER_ERRORS
     const char *tmp_errmsg;
-
-    /* If requesting verbose error messages, use insert_errmsg.
-       Failing that, use parse_errmsg.  */
-    tmp_errmsg = (insert_errmsg ? insert_errmsg :
-		  parse_errmsg ? parse_errmsg :
-		  recognized_mnemonic ?
-		  _("unrecognized form of instruction") :
-		  _("unrecognized instruction"));
-
-    if (strlen (start) > 50)
-      /* xgettext:c-format */
-      sprintf (errbuf, "%s `%.50s...'", tmp_errmsg, start);
-    else 
-      /* xgettext:c-format */
-      sprintf (errbuf, "%s `%.50s'", tmp_errmsg, start);
+#ifdef CGEN_VERBOSE_ASSEMBLER_ERRORS
+#define be_verbose 1
 #else
-    if (strlen (start) > 50)
-      /* xgettext:c-format */
-      sprintf (errbuf, _("bad instruction `%.50s...'"), start);
-    else 
-      /* xgettext:c-format */
-      sprintf (errbuf, _("bad instruction `%.50s'"), start);
+#define be_verbose 0
 #endif
+
+    if (be_verbose)
+      {
+	/* If requesting verbose error messages, use insert_errmsg.
+	   Failing that, use parse_errmsg.  */
+	tmp_errmsg = (insert_errmsg ? insert_errmsg :
+		      parse_errmsg ? parse_errmsg :
+		      recognized_mnemonic ?
+		      _("unrecognized form of instruction") :
+		      _("unrecognized instruction"));
+
+	if (strlen (start) > 50)
+	  /* xgettext:c-format */
+	  sprintf (errbuf, "%s `%.50s...'", tmp_errmsg, start);
+	else 
+	  /* xgettext:c-format */
+	  sprintf (errbuf, "%s `%.50s'", tmp_errmsg, start);
+      }
+    else
+      {
+	if (strlen (start) > 50)
+	  /* xgettext:c-format */
+	  sprintf (errbuf, _("bad instruction `%.50s...'"), start);
+	else 
+	  /* xgettext:c-format */
+	  sprintf (errbuf, _("bad instruction `%.50s'"), start);
+      }
       
     *errmsg = errbuf;
     return NULL;

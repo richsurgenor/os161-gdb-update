@@ -1,12 +1,12 @@
 /* Motorola MCore specific support for 32-bit ELF
-   Copyright 1994, 1995, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright 1994, 1995, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
+   2007, 2011, 2012 Free Software Foundation, Inc.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,14 +16,15 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301,
-   USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* This file is based on a preliminary RCE ELF ABI.  The
    information may not match the final RCE ELF ABI.   */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "bfdlink.h"
 #include "libbfd.h"
 #include "elf-bfd.h"
@@ -54,7 +55,7 @@ mcore_elf_merge_private_bfd_data (bfd * ibfd, bfd * obfd)
   flagword old_flags;
   flagword new_flags;
 
-  /* Check if we have the same endianess.  */
+  /* Check if we have the same endianness.  */
   if (! _bfd_generic_verify_endian_match (ibfd, obfd))
     return FALSE;
 
@@ -88,7 +89,7 @@ static bfd_reloc_status_type
 mcore_elf_unsupported_reloc (bfd * abfd,
 			     arelent * reloc_entry,
 			     asymbol * symbol ATTRIBUTE_UNUSED,
-			     PTR data ATTRIBUTE_UNUSED,
+			     void * data ATTRIBUTE_UNUSED,
 			     asection * input_section ATTRIBUTE_UNUSED,
 			     bfd * output_bfd ATTRIBUTE_UNUSED,
 			     char ** error_message ATTRIBUTE_UNUSED)
@@ -317,6 +318,22 @@ mcore_elf_reloc_type_lookup (bfd * abfd ATTRIBUTE_UNUSED,
   return mcore_elf_howto_table [(int) mcore_reloc];
 };
 
+static reloc_howto_type *
+mcore_elf_reloc_name_lookup (bfd *abfd ATTRIBUTE_UNUSED,
+			     const char *r_name)
+{
+  unsigned int i;
+
+  for (i = 0;
+       i < sizeof (mcore_elf_howto_raw) / sizeof (mcore_elf_howto_raw[0]);
+       i++)
+    if (mcore_elf_howto_raw[i].name != NULL
+	&& strcasecmp (mcore_elf_howto_raw[i].name, r_name) == 0)
+      return &mcore_elf_howto_raw[i];
+
+  return NULL;
+}
+
 /* Set the howto pointer for a RCE ELF reloc.  */
 
 static void
@@ -387,9 +404,6 @@ mcore_elf_relocate_section (bfd * output_bfd,
      (info->relocatable) ? " (relocatable)" : "");
 #endif
 
-  if (info->relocatable)
-    return TRUE;
-
   if (! mcore_elf_howto_table [R_MCORE_PCRELIMM8BY4])	/* Initialize howto table if needed */
     mcore_elf_howto_init ();
 
@@ -451,6 +465,13 @@ mcore_elf_relocate_section (bfd * output_bfd,
 				   h, sec, relocation,
 				   unresolved_reloc, warned);
 	}
+
+      if (sec != NULL && discarded_section (sec))
+	RELOC_AGAINST_DISCARDED_SECTION (info, input_bfd, input_section,
+					 rel, 1, relend, howto, 0, contents);
+
+      if (info->relocatable)
+	continue;
 
       switch (r_type)
 	{
@@ -566,7 +587,6 @@ mcore_elf_check_relocs (bfd * abfd,
 {
   Elf_Internal_Shdr * symtab_hdr;
   struct elf_link_hash_entry ** sym_hashes;
-  struct elf_link_hash_entry ** sym_hashes_end;
   const Elf_Internal_Rela * rel;
   const Elf_Internal_Rela * rel_end;
 
@@ -575,9 +595,6 @@ mcore_elf_check_relocs (bfd * abfd,
 
   symtab_hdr = & elf_tdata (abfd)->symtab_hdr;
   sym_hashes = elf_sym_hashes (abfd);
-  sym_hashes_end = sym_hashes + symtab_hdr->sh_size / sizeof (Elf32_External_Sym);
-  if (!elf_bad_symtab (abfd))
-    sym_hashes_end -= symtab_hdr->sh_info;
 
   rel_end = relocs + sec->reloc_count;
 
@@ -610,7 +627,9 @@ mcore_elf_check_relocs (bfd * abfd,
         /* This relocation describes which C++ vtable entries are actually
            used.  Record for later use during GC.  */
         case R_MCORE_GNU_VTENTRY:
-          if (!bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
+          BFD_ASSERT (h != NULL);
+          if (h != NULL
+              && !bfd_elf_gc_record_vtentry (abfd, sec, h, rel->r_addend))
             return FALSE;
           break;
         }
@@ -640,6 +659,7 @@ static const struct bfd_elf_special_section mcore_elf_special_sections[]=
 #define bfd_elf32_bfd_merge_private_bfd_data	mcore_elf_merge_private_bfd_data
 #define bfd_elf32_bfd_set_private_flags		mcore_elf_set_private_flags
 #define bfd_elf32_bfd_reloc_type_lookup		mcore_elf_reloc_type_lookup
+#define bfd_elf32_bfd_reloc_name_lookup	mcore_elf_reloc_name_lookup
 #define elf_backend_relocate_section		mcore_elf_relocate_section
 #define elf_backend_gc_mark_hook		mcore_elf_gc_mark_hook
 #define elf_backend_gc_sweep_hook		mcore_elf_gc_sweep_hook

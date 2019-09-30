@@ -1,12 +1,12 @@
 /* BFD XCOFF object file private structure.
-   Copyright 2001, 2002, 2005 Free Software Foundation, Inc.
+   Copyright 2001, 2002, 2005, 2007, 2009 Free Software Foundation, Inc.
    Written by Tom Rix, Redhat.
 
    This file is part of BFD, the Binary File Descriptor library.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,7 +16,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 #ifndef LIBXCOFF_H
 #define LIBXCOFF_H
@@ -76,7 +77,7 @@ struct xcoff_backend_data_rec
     (bfd *, union internal_auxent *, const char *);
 
   /* Line number and relocation overflow.
-     XCOFF32 overflows to another section when the line number or the 
+     XCOFF32 overflows to another section when the line number or the
      relocation count exceeds 0xffff.  XCOFF64 does not overflow.  */
   bfd_boolean (*_xcoff_is_lineno_count_overflow) (bfd *, bfd_vma);
   bfd_boolean (*_xcoff_is_reloc_count_overflow)  (bfd *, bfd_vma);
@@ -86,11 +87,11 @@ struct xcoff_backend_data_rec
      XCOFF64 is offset in .loader header.  */
   bfd_vma (*_xcoff_loader_symbol_offset) (bfd *, struct internal_ldhdr *);
   bfd_vma (*_xcoff_loader_reloc_offset)  (bfd *, struct internal_ldhdr *);
-  
-  /* Global linkage.  The first word of global linkage code must be be 
+
+  /* Global linkage.  The first word of global linkage code must be be
      modified by filling in the correct TOC offset.  */
   unsigned long *_xcoff_glink_code;
-  
+
   /* Size of the global link code in bytes of the xcoff_glink_code table.  */
   unsigned long _xcoff_glink_size;
 
@@ -184,7 +185,7 @@ struct xcoff_backend_data_rec
 #define bfd_xcoff_glink_code(a, b)   ((xcoff_backend (a)->_xcoff_glink_code[(b)]))
 #define bfd_xcoff_glink_code_size(a) ((xcoff_backend (a)->_xcoff_glink_size))
 
-/* Check for the magic number U803XTOCMAGIC or U64_TOCMAGIC for 64 bit 
+/* Check for the magic number U803XTOCMAGIC or U64_TOCMAGIC for 64 bit
    targets.  */
 #define bfd_xcoff_is_xcoff64(a) \
   (   (0x01EF == (bfd_xcoff_magic_number (a))) \
@@ -222,6 +223,8 @@ extern bfd_boolean (*xcoff_calculate_relocation[XCOFF_MAX_CALCULATE_RELOCATION])
 extern bfd_boolean (*xcoff_complain_overflow[XCOFF_MAX_COMPLAIN_OVERFLOW])
   (XCOFF_COMPLAIN_FUNCTION_ARGS);
 
+#define XCOFF_NO_LONG_SECTION_NAMES  (FALSE), bfd_coff_set_long_section_names_disallowed
+
 /* Relocation functions */
 bfd_boolean xcoff_reloc_type_noop (XCOFF_RELOC_FUNCTION_ARGS);
 bfd_boolean xcoff_reloc_type_fail (XCOFF_RELOC_FUNCTION_ARGS);
@@ -231,5 +234,27 @@ bfd_boolean xcoff_reloc_type_rel  (XCOFF_RELOC_FUNCTION_ARGS);
 bfd_boolean xcoff_reloc_type_toc  (XCOFF_RELOC_FUNCTION_ARGS);
 bfd_boolean xcoff_reloc_type_ba   (XCOFF_RELOC_FUNCTION_ARGS);
 bfd_boolean xcoff_reloc_type_crel (XCOFF_RELOC_FUNCTION_ARGS);
+
+/* Structure to describe dwarf sections.
+   Useful to convert from XCOFF section name to flag and vice-versa.
+   Also mark if section has a length field at the beginning.  */
+struct xcoff_dwsect_name {
+  /* A XCOFF dwarf section is identified by its name.  */
+  unsigned int flag;
+
+  /* Corresponding XCOFF section name.  */
+  const char *name;
+
+  /* True if size must be prepended.  */
+  bfd_boolean def_size;
+};
+
+/* Number of entries in the array.  The number is known and public so that user
+   can 'extend' this array by index.  */
+#define XCOFF_DWSECT_NBR_NAMES	8
+
+/* The dwarf sections array.  */
+extern const struct xcoff_dwsect_name
+  xcoff_dwsect_names[XCOFF_DWSECT_NBR_NAMES];
 
 #endif /* LIBXCOFF_H */

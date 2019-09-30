@@ -1,47 +1,36 @@
 # static.exp -- test script, for GDB, the GNU debugger.
 
-# Copyright 2004, 2005 Free Software Foundation, Inc.
+# Copyright 2004-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 # Based on manythreads written by Jeff Johnston, contributed by Red
 # Hat.
 
-if $tracelevel then {
-	strace $tracelevel
-}
 
-set prms_id 0
-set bug_id 0
-
-set testfile "staticthreads"
-set srcfile ${testfile}.c
-set binfile ${objdir}/${subdir}/${testfile}
+standard_testfile
 set static_flag "-static"
 
 if {[gdb_compile_pthreads "${srcdir}/${subdir}/${srcfile}" "${binfile}" \
 	 executable \
-	 [list debug "incdir=${objdir}" "additional_flags=${static_flag}" \
+	 [list debug "additional_flags=${static_flag}" \
 	     ]] != "" } {
     return -1
 }
 
-gdb_start
-gdb_reinitialize_dir $srcdir/$subdir
-gdb_load ${binfile}
-gdb_test "set print sevenbit-strings" ""
+clean_restart ${binfile}
+gdb_test_no_output "set print sevenbit-strings"
 
 
 # See if the static multi-threaded program runs.
@@ -50,7 +39,7 @@ runto_main
 gdb_test "break sem_post"
 set test "Continue to main's call of sem_post"
 gdb_test_multiple "continue" "$test" {
-    -re " sem_post .*$gdb_prompt " {
+    -re "Breakpoint .*, .*sem_post .*$gdb_prompt " {
 	pass "$test"
     }
     -re "Program received signal .*$gdb_prompt " {
@@ -92,7 +81,7 @@ gdb_test_multiple "info threads" "$test" {
 
 set test "GDB exits with static thread program"
 gdb_test_multiple "quit" "$test" {
-    -re "The program is running.  Exit anyway\\? \\(y or n\\) $" {
+    -re "Quit anyway\\? \\(y or n\\) $" {
 	send_gdb "y\n"
 	exp_continue
     }

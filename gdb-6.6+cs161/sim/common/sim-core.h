@@ -1,6 +1,6 @@
 /* The common simulator framework for GDB, the GNU Debugger.
 
-   Copyright 2002 Free Software Foundation, Inc.
+   Copyright 2002-2013 Free Software Foundation, Inc.
 
    Contributed by Andrew Cagney and Red Hat.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,9 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 
 #ifndef SIM_CORE_H
@@ -243,6 +241,14 @@ extern unsigned sim_core_xor_write_buffer
  unsigned nr_bytes);
 
 
+/* Translate an address based on a map.  */
+
+extern void *sim_core_trans_addr
+(SIM_DESC sd,
+ sim_cpu *cpu,
+ unsigned map,
+ address_word addr);
+
 
 /* Fixed sized, processor oriented, read/write.
 
@@ -280,7 +286,7 @@ DECLARE_SIM_CORE_WRITE_N(aligned,4,4)
 DECLARE_SIM_CORE_WRITE_N(aligned,8,8)
 DECLARE_SIM_CORE_WRITE_N(aligned,16,16)
 
-#define sim_core_write_unaligned_1 sim_core_write_aligned_1 
+#define sim_core_write_unaligned_1 sim_core_write_aligned_1
 DECLARE_SIM_CORE_WRITE_N(unaligned,2,2)
 DECLARE_SIM_CORE_WRITE_N(unaligned,4,4)
 DECLARE_SIM_CORE_WRITE_N(unaligned,8,8)
@@ -346,7 +352,7 @@ DECLARE_SIM_CORE_READ_N(misaligned,7,8)
 #if (WITH_DEVICES)
 /* TODO: create sim/common/device.h */
 /* These are defined with each particular cpu.  */
-void device_error (device *me, char* message, ...);
+void device_error (device *me, const char *message, ...) __attribute__((format (printf, 2, 3)));
 int device_io_read_buffer(device *me, void *dest, int space, address_word addr, unsigned nr_bytes, SIM_DESC sd, sim_cpu *processor, sim_cia cia);
 int device_io_write_buffer(device *me, const void *source, int space, address_word addr, unsigned nr_bytes, SIM_DESC sd, sim_cpu *processor, sim_cia cia);
 #endif

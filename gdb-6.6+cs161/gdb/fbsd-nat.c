@@ -1,12 +1,12 @@
 /* Native-dependent code for FreeBSD.
 
-   Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,15 +15,14 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "gdbcore.h"
 #include "inferior.h"
 #include "regcache.h"
 #include "regset.h"
+#include "gdbthread.h"
 
 #include "gdb_assert.h"
 #include "gdb_string.h"
@@ -34,7 +33,7 @@
 #include "elf-bfd.h"
 #include "fbsd-nat.h"
 
-/* Return a the name of file that can be opened to get the symbols for
+/* Return the name of a file that can be opened to get the symbols for
    the child process identified by PID.  */
 
 char *
@@ -56,7 +55,7 @@ fbsd_pid_to_exec_file (int pid)
 #endif
 
   path = xstrprintf ("/proc/%d/file", pid);
-  if (readlink (path, buf, MAXPATHLEN) == -1)
+  if (readlink (path, buf, MAXPATHLEN - 1) == -1)
     {
       xfree (buf);
       buf = NULL;
@@ -92,9 +91,7 @@ fbsd_read_mapping (FILE *mapfile, unsigned long *start, unsigned long *end,
    argument to FUNC.  */
 
 int
-fbsd_find_memory_regions (int (*func) (CORE_ADDR, unsigned long,
-				       int, int, int, void *),
-			  void *obfd)
+fbsd_find_memory_regions (find_memory_region_ftype func, void *obfd)
 {
   pid_t pid = ptid_get_pid (inferior_ptid);
   char *mapfilename;
@@ -102,11 +99,14 @@ fbsd_find_memory_regions (int (*func) (CORE_ADDR, unsigned long,
   unsigned long start, end, size;
   char protection[4];
   int read, write, exec;
+  struct cleanup *cleanup;
 
   mapfilename = xstrprintf ("/proc/%ld/map", (long) pid);
+  cleanup = make_cleanup (xfree, mapfilename);
   mapfile = fopen (mapfilename, "r");
   if (mapfile == NULL)
     error (_("Couldn't open %s."), mapfilename);
+  make_cleanup_fclose (mapfile);
 
   if (info_verbose)
     fprintf_filtered (gdb_stdout, 
@@ -124,19 +124,42 @@ fbsd_find_memory_regions (int (*func) (CORE_ADDR, unsigned long,
       if (info_verbose)
 	{
 	  fprintf_filtered (gdb_stdout, 
-			    "Save segment, %ld bytes at 0x%s (%c%c%c)\n", 
-			    size, paddr_nz (start),
+			    "Save segment, %ld bytes at %s (%c%c%c)\n",
+			    size, paddress (target_gdbarch (), start),
 			    read ? 'r' : '-',
 			    write ? 'w' : '-',
 			    exec ? 'x' : '-');
 	}
 
-      /* Invoke the callback function to create the corefile segment. */
-      func (start, size, read, write, exec, obfd);
+      /* Invoke the callback function to create the corefile segment.
+	 Pass MODIFIED as true, we do not know the real modification state.  */
+      func (start, size, read, write, exec, 1, obfd);
     }
 
-  fclose (mapfile);
+  do_cleanups (cleanup);
   return 0;
+}
+
+static int
+find_signalled_thread (struct thread_info *info, void *data)
+{
+  if (info->suspend.stop_signal != GDB_SIGNAL_0
+      && ptid_get_pid (info->ptid) == ptid_get_pid (inferior_ptid))
+    return 1;
+
+  return 0;
+}
+
+static enum gdb_signal
+find_stop_signal (void)
+{
+  struct thread_info *info =
+    iterate_over_threads (find_signalled_thread, NULL);
+
+  if (info)
+    return info->suspend.stop_signal;
+  else
+    return GDB_SIGNAL_0;
 }
 
 /* Create appropriate note sections for a corefile, returning them in
@@ -145,8 +168,8 @@ fbsd_find_memory_regions (int (*func) (CORE_ADDR, unsigned long,
 char *
 fbsd_make_corefile_notes (bfd *obfd, int *note_size)
 {
-  struct gdbarch *gdbarch = current_gdbarch;
-  const struct regcache *regcache = current_regcache;
+  const struct regcache *regcache = get_current_regcache ();
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
   gregset_t gregs;
   fpregset_t fpregs;
   char *note_data = NULL;
@@ -167,7 +190,7 @@ fbsd_make_corefile_notes (bfd *obfd, int *note_size)
 
   note_data = elfcore_write_prstatus (obfd, note_data, note_size,
 				      ptid_get_pid (inferior_ptid),
-				      stop_signal, &gregs);
+				      find_stop_signal (), &gregs);
 
   size = sizeof fpregs;
   regset = gdbarch_regset_from_core_section (gdbarch, ".reg2", size);
@@ -179,11 +202,12 @@ fbsd_make_corefile_notes (bfd *obfd, int *note_size)
 
   if (get_exec_file (0))
     {
-      char *fname = strrchr (get_exec_file (0), '/') + 1;
+      const char *fname = lbasename (get_exec_file (0));
       char *psargs = xstrdup (fname);
 
       if (get_inferior_args ())
-	psargs = reconcat (psargs, psargs, " ", get_inferior_args (), NULL);
+	psargs = reconcat (psargs, psargs, " ", get_inferior_args (),
+			   (char *) NULL);
 
       note_data = elfcore_write_prpsinfo (obfd, note_data, note_size,
 					  fname, psargs);

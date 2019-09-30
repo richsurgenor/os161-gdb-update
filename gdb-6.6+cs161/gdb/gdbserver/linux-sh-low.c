@@ -1,12 +1,11 @@
 /* GNU/Linux/SH specific low level interface, for the remote server for GDB.
-   Copyright (C) 1995, 1996, 1998, 1999, 2000, 2001, 2002, 2003, 2005
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,12 +14,13 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "server.h"
 #include "linux-low.h"
+
+/* Defined in auto-generated file reg-sh.c.  */
+void init_registers_sh (void);
 
 #ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
@@ -58,18 +58,18 @@ sh_cannot_fetch_register (int regno)
 }
 
 static CORE_ADDR
-sh_get_pc ()
+sh_get_pc (struct regcache *regcache)
 {
   unsigned long pc;
-  collect_register_by_name ("pc", &pc);
+  collect_register_by_name (regcache, "pc", &pc);
   return pc;
 }
 
 static void
-sh_set_pc (CORE_ADDR pc)
+sh_set_pc (struct regcache *regcache, CORE_ADDR pc)
 {
   unsigned long newpc = pc;
-  supply_register_by_name ("pc", &newpc);
+  supply_register_by_name (regcache, "pc", &newpc);
 }
 
 /* Correct in either endianness, obviously.  */
@@ -90,11 +90,31 @@ sh_breakpoint_at (CORE_ADDR where)
   return 0;
 }
 
+/* Provide only a fill function for the general register set.  ps_lgetregs
+   will use this for NPTL support.  */
+
+static void sh_fill_gregset (struct regcache *regcache, void *buf)
+{
+  int i;
+
+  for (i = 0; i < 23; i++)
+    if (sh_regmap[i] != -1)
+      collect_register (regcache, i, (char *) buf + sh_regmap[i]);
+}
+
+struct regset_info target_regsets[] = {
+  { 0, 0, 0, 0, GENERAL_REGS, sh_fill_gregset, NULL },
+  { 0, 0, 0, -1, -1, NULL, NULL }
+};
+
 struct linux_target_ops the_low_target = {
+  init_registers_sh,
   sh_num_regs,
   sh_regmap,
+  NULL,
   sh_cannot_fetch_register,
   sh_cannot_store_register,
+  NULL, /* fetch_register */
   sh_get_pc,
   sh_set_pc,
   (const unsigned char *) &sh_breakpoint,

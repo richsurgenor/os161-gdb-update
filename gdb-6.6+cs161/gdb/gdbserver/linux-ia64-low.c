@@ -1,12 +1,11 @@
 /* GNU/Linux/IA64 specific low level interface, for the remote server for GDB.
-   Copyright (C) 1995, 1996, 1998, 1999, 2000, 2001, 2002
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "server.h"
 #include "linux-low.h"
@@ -25,6 +22,9 @@
 #ifdef HAVE_SYS_REG_H
 #include <sys/reg.h>
 #endif
+
+/* Defined in auto-generated file reg-ia64.c.  */
+void init_registers_ia64 (void);
 
 #define ia64_num_regs 462
 
@@ -255,7 +255,7 @@ static int ia64_regmap[] =
     -1, -1, -1, -1, -1, -1, -1, -1, -1,
     PT_AR_PFS,
     PT_AR_LC,
-    -1,		/* Not available: EC, the Epilog Count register */
+    PT_AR_EC,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -277,9 +277,54 @@ ia64_cannot_fetch_register (int regno)
   return 0;
 }
 
+/* GDB register numbers.  */
+#define IA64_GR0_REGNUM		0
+#define IA64_FR0_REGNUM		128
+#define IA64_FR1_REGNUM		129
+
+static int
+ia64_fetch_register (struct regcache *regcache, int regnum)
+{
+  /* r0 cannot be fetched but is always zero.  */
+  if (regnum == IA64_GR0_REGNUM)
+    {
+      const gdb_byte zero[8] = { 0 };
+
+      gdb_assert (sizeof (zero) == register_size (regnum));
+      supply_register (regcache, regnum, zero);
+      return 1;
+    }
+
+  /* fr0 cannot be fetched but is always zero.  */
+  if (regnum == IA64_FR0_REGNUM)
+    {
+      const gdb_byte f_zero[16] = { 0 };
+
+      gdb_assert (sizeof (f_zero) == register_size (regnum));
+      supply_register (regcache, regnum, f_zero);
+      return 1;
+    }
+
+  /* fr1 cannot be fetched but is always one (1.0).  */
+  if (regnum == IA64_FR1_REGNUM)
+    {
+      const gdb_byte f_one[16] =
+	{ 0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0xff, 0, 0, 0, 0, 0, 0 };
+
+      gdb_assert (sizeof (f_one) == register_size (regnum));
+      supply_register (regcache, regnum, f_one);
+      return 1;
+    }
+
+  return 0;
+}
+
 struct linux_target_ops the_low_target = {
+  init_registers_ia64,
   ia64_num_regs,
   ia64_regmap,
+  NULL,
   ia64_cannot_fetch_register,
   ia64_cannot_store_register,
+  ia64_fetch_register,
 };

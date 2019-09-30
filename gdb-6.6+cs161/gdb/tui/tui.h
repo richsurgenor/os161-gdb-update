@@ -1,7 +1,6 @@
 /* External/Public TUI Header File.
 
-   Copyright (C) 1998, 1999, 2000, 2001, 2004 Free Software Foundation,
-   Inc.
+   Copyright (C) 1998-2013 Free Software Foundation, Inc.
 
    Contributed by Hewlett-Packard Company.
 
@@ -9,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,9 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef TUI_H
 #define TUI_H
@@ -36,7 +33,7 @@ enum tui_status
   TUI_FAILURE
 };
 
-/* Types of windows */
+/* Types of windows.  */
 enum tui_win_type
 {
   SRC_WIN = 0,
@@ -56,8 +53,9 @@ enum tui_win_type
 
 /* GENERAL TUI FUNCTIONS */
 /* tui.c */
-extern CORE_ADDR tui_get_low_disassembly_address (CORE_ADDR, CORE_ADDR);
-extern void tui_show_assembly (CORE_ADDR addr);
+extern CORE_ADDR tui_get_low_disassembly_address (struct gdbarch *,
+						  CORE_ADDR, CORE_ADDR);
+extern void tui_show_assembly (struct gdbarch *gdbarch, CORE_ADDR addr);
 extern int tui_is_window_visible (enum tui_win_type type);
 extern int tui_get_command_dimension (unsigned int *width,
 				      unsigned int *height);
@@ -65,6 +63,10 @@ extern int tui_get_command_dimension (unsigned int *width,
 /* Initialize readline and configure the keymap for the switching
    key shortcut.  */
 extern void tui_initialize_readline (void);
+
+/* True if enabling the TUI is allowed.  Example, if the top level
+   interpreter is MI, enabling curses will certainly lose.  */
+extern int tui_allowed_p (void);
 
 /* Enter in the tui mode (curses).  */
 extern void tui_enable (void);
@@ -80,22 +82,24 @@ enum tui_key_mode
   /* SingleKey mode with some keys bound to gdb commands.  */
   TUI_SINGLE_KEY_MODE,
 
-  /* Read/edit one command and return to SingleKey after it's processed.  */
+  /* Read/edit one command and return to SingleKey after it's
+     processed.  */
   TUI_ONE_COMMAND_MODE
 };
 
 extern enum tui_key_mode tui_current_key_mode;
 
-/* Change the TUI key mode by installing the appropriate readline keymap.  */
+/* Change the TUI key mode by installing the appropriate readline
+   keymap.  */
 extern void tui_set_key_mode (enum tui_key_mode mode);
 
 extern int tui_active;
 
-extern void tui_show_source (const char *file, int line);
+extern void tui_show_source (const char *fullname, int line);
 
 extern struct ui_out *tui_out_new (struct ui_file *stream);
 
 /* tui-layout.c */
-extern enum tui_status tui_set_layout_for_display_command (const char *name);
+extern enum tui_status tui_set_layout_for_display_command (const char *);
 
 #endif

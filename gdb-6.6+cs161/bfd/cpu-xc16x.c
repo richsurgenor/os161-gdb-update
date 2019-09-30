@@ -1,13 +1,13 @@
 /* BFD support for the Infineon XC16X Microcontroller.
-   Copyright 2006 Free Software Foundation, Inc.
-   Contributed by KPIT Cummins Infosystems 
+   Copyright 2006, 2007 Free Software Foundation, Inc.
+   Contributed by KPIT Cummins Infosystems
 
    This file is part of BFD, the Binary File Descriptor library.
    Contributed by Anil Paranjpe(anilp1@kpitcummins.com)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -20,8 +20,8 @@
    Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
    02110-1301, USA.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 
 const bfd_arch_info_type xc16xs_info_struct =
@@ -37,6 +37,7 @@ const bfd_arch_info_type xc16xs_info_struct =
   TRUE,				/* The default ?  */
   bfd_default_compatible,	/* Architecture comparison fn.  */
   bfd_default_scan,		/* String to architecture convert fn.  */
+  bfd_arch_default_fill,	/* Default fill.  */
   NULL				/* Next in list.  */
 };
 
@@ -53,6 +54,7 @@ const bfd_arch_info_type xc16xl_info_struct =
   TRUE,				/* The default ?  */
   bfd_default_compatible,	/* Architecture comparison fn.  */
   bfd_default_scan,		/* String to architecture convert fn.  */
+  bfd_arch_default_fill,	/* Default fill.  */
   & xc16xs_info_struct		/* Next in list.  */
 };
 
@@ -69,5 +71,6 @@ const bfd_arch_info_type bfd_xc16x_arch =
   TRUE,				/* The default ?  */
   bfd_default_compatible,	/* Architecture comparison fn.  */
   bfd_default_scan,		/* String to architecture convert fn.  */
+  bfd_arch_default_fill,	/* Default fill.  */
   & xc16xl_info_struct		/* Next in list.  */
 };

@@ -1,12 +1,12 @@
 /* Portable <curses.h>.
 
-   Copyright (C) 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,12 +15,22 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifndef GDB_CURSES_H
 #define GDB_CURSES_H 1
+
+#ifdef __MINGW32__
+/* Windows API headers, included e.g. by serial.h, define MOUSE_MOVED,
+   and so does PDCurses's curses.h, but for an entirely different
+   purpose.  Since we don't use the Windows semantics of MOUSE_MOVED
+   anywhere, avoid compiler warnings by undefining MOUSE_MOVED before
+   including curses.h.  */
+#undef MOUSE_MOVED
+/* Likewise, KEY_EVENT is defined by ncurses.h, but also by Windows
+   API headers.  */
+#undef KEY_EVENT
+#endif
 
 #if defined (HAVE_NCURSES_NCURSES_H)
 #include <ncurses/ncurses.h>
@@ -38,7 +48,7 @@
 #include <term.h>
 #else
 /* On MinGW, a real termcap library is usually not present.  Stub versions
-   of the termcap functions will be built from win32-termcap.c.  Readline
+   of the termcap functions will be built from windows-termcap.c.  Readline
    provides its own extern declarations when there's no termcap.h; do the
    same here for the termcap functions used in GDB.  */
 extern int tgetnum (const char *);

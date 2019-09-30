@@ -1,6 +1,6 @@
 /* BFD back-end for s-record objects.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2001, 2002, 2003, 2004, 2005, 2006
+   2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2011
    Free Software Foundation, Inc.
    Written by Steve Chamberlain of Cygnus Support <sac@cygnus.com>.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,9 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
+
 
 /* SUBSECTION
 	S-Record handling
@@ -101,8 +103,8 @@
 	We allow symbols to be anywhere in the data stream - the module names
 	are always ignored.  */
 
-#include "bfd.h"
 #include "sysdep.h"
+#include "bfd.h"
 #include "libbfd.h"
 #include "libiberty.h"
 #include "safe-ctype.h"
@@ -196,7 +198,7 @@ srec_mkobject (bfd *abfd)
 
   srec_init ();
 
-  tdata = bfd_alloc (abfd, sizeof (tdata_type));
+  tdata = (tdata_type *) bfd_alloc (abfd, sizeof (tdata_type));
   if (tdata == NULL)
     return FALSE;
 
@@ -269,7 +271,7 @@ srec_new_symbol (bfd *abfd, const char *name, bfd_vma val)
 {
   struct srec_symbol *n;
 
-  n = bfd_alloc (abfd, sizeof (* n));
+  n = (struct srec_symbol *) bfd_alloc (abfd, sizeof (* n));
   if (n == NULL)
     return FALSE;
 
@@ -361,7 +363,7 @@ srec_scan (bfd *abfd)
 		}
 
 	      alc = 10;
-	      symbuf = bfd_malloc (alc + 1);
+	      symbuf = (char *) bfd_malloc (alc + 1);
 	      if (symbuf == NULL)
 		goto error_return;
 
@@ -376,7 +378,7 @@ srec_scan (bfd *abfd)
 		      char *n;
 
 		      alc *= 2;
-		      n = bfd_realloc (symbuf, alc + 1);
+		      n = (char *) bfd_realloc (symbuf, alc + 1);
 		      if (n == NULL)
 			goto error_return;
 		      p = n + (p - symbuf);
@@ -393,7 +395,7 @@ srec_scan (bfd *abfd)
 		}
 
 	      *p++ = '\0';
-	      symname = bfd_alloc (abfd, (bfd_size_type) (p - symbuf));
+	      symname = (char *) bfd_alloc (abfd, (bfd_size_type) (p - symbuf));
 	      if (symname == NULL)
 		goto error_return;
 	      strcpy (symname, symbuf);
@@ -426,6 +428,11 @@ srec_scan (bfd *abfd)
 		  symval <<= 4;
 		  symval += NIBBLE (c);
 		  c = srec_get_byte (abfd, &error);
+		  if (c == EOF)
+		    {
+		      srec_bad_byte (abfd, lineno, c, error);
+		      goto error_return;
+		    }
 		}
 
 	      if (! srec_new_symbol (abfd, symname, symval))
@@ -451,6 +458,7 @@ srec_scan (bfd *abfd)
 	    unsigned int bytes;
 	    bfd_vma address;
 	    bfd_byte *data;
+	    unsigned char check_sum;
 
 	    /* Starting an S-record.  */
 
@@ -469,12 +477,12 @@ srec_scan (bfd *abfd)
 		goto error_return;
 	      }
 
-	    bytes = HEX (hdr + 1);
+	    check_sum = bytes = HEX (hdr + 1);
 	    if (bytes * 2 > bufsize)
 	      {
 		if (buf != NULL)
 		  free (buf);
-		buf = bfd_malloc ((bfd_size_type) bytes * 2);
+		buf = (bfd_byte *) bfd_malloc ((bfd_size_type) bytes * 2);
 		if (buf == NULL)
 		  goto error_return;
 		bufsize = bytes * 2;
@@ -498,18 +506,22 @@ srec_scan (bfd *abfd)
 		break;
 
 	      case '3':
+		check_sum += HEX (data);
 		address = HEX (data);
 		data += 2;
 		--bytes;
 		/* Fall through.  */
 	      case '2':
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
 		--bytes;
 		/* Fall through.  */
 	      case '1':
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
 		bytes -= 2;
@@ -530,7 +542,7 @@ srec_scan (bfd *abfd)
 
 		    sprintf (secbuf, ".sec%d", bfd_count_sections (abfd) + 1);
 		    amt = strlen (secbuf) + 1;
-		    secname = bfd_alloc (abfd, amt);
+		    secname = (char *) bfd_alloc (abfd, amt);
 		    strcpy (secname, secbuf);
 		    flags = SEC_HAS_CONTENTS | SEC_LOAD | SEC_ALLOC;
 		    sec = bfd_make_section_with_flags (abfd, secname, flags);
@@ -541,24 +553,55 @@ srec_scan (bfd *abfd)
 		    sec->size = bytes;
 		    sec->filepos = pos;
 		  }
+
+		while (bytes > 0)
+		  {
+		    check_sum += HEX (data);
+		    data += 2;
+		    bytes--;
+		  }
+		check_sum = 255 - (check_sum & 0xff);
+		if (check_sum != HEX (data))
+		  {
+		    (*_bfd_error_handler)
+		      (_("%B:%d: Bad checksum in S-record file\n"),
+		       abfd, lineno);
+		    bfd_set_error (bfd_error_bad_value);
+		    goto error_return;
+		  }
+
 		break;
 
 	      case '7':
+		check_sum += HEX (data);
 		address = HEX (data);
 		data += 2;
 		/* Fall through.  */
 	      case '8':
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
 		/* Fall through.  */
 	      case '9':
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
+		check_sum += HEX (data);
 		address = (address << 8) | HEX (data);
 		data += 2;
 
 		/* This is a termination record.  */
 		abfd->start_address = address;
+
+		check_sum = 255 - (check_sum & 0xff);
+		if (check_sum != HEX (data))
+		  {
+		    (*_bfd_error_handler)
+		      (_("%B:%d: Bad checksum in S-record file\n"),
+		       abfd, lineno);
+		    bfd_set_error (bfd_error_bad_value);
+		    goto error_return;
+		  }
 
 		if (buf != NULL)
 		  free (buf);
@@ -695,7 +738,7 @@ srec_read_section (bfd *abfd, asection *section, bfd_byte *contents)
 	{
 	  if (buf != NULL)
 	    free (buf);
-	  buf = bfd_malloc ((bfd_size_type) bytes * 2);
+	  buf = (bfd_byte *) bfd_malloc ((bfd_size_type) bytes * 2);
 	  if (buf == NULL)
 	    goto error_return;
 	  bufsize = bytes * 2;
@@ -779,13 +822,24 @@ srec_get_section_contents (bfd *abfd,
 			   file_ptr offset,
 			   bfd_size_type count)
 {
+  if (count == 0)
+    return TRUE;
+
+  if (offset + count < count
+      || offset + count > section->size)
+    {
+      bfd_set_error (bfd_error_invalid_operation);
+      return FALSE;
+    }
+
   if (section->used_by_bfd == NULL)
     {
       section->used_by_bfd = bfd_alloc (abfd, section->size);
-      if (section->used_by_bfd == NULL && section->size != 0)
+      if (section->used_by_bfd == NULL)
 	return FALSE;
 
-      if (! srec_read_section (abfd, section, section->used_by_bfd))
+      if (! srec_read_section (abfd, section,
+                               (bfd_byte *) section->used_by_bfd))
 	return FALSE;
     }
 
@@ -819,7 +873,7 @@ srec_set_section_contents (bfd *abfd,
   tdata_type *tdata = abfd->tdata.srec_data;
   srec_data_list_type *entry;
 
-  entry = bfd_alloc (abfd, sizeof (* entry));
+  entry = (srec_data_list_type *) bfd_alloc (abfd, sizeof (* entry));
   if (entry == NULL)
     return FALSE;
 
@@ -829,7 +883,7 @@ srec_set_section_contents (bfd *abfd,
     {
       bfd_byte *data;
 
-      data = bfd_alloc (abfd, bytes_to_do);
+      data = (bfd_byte *) bfd_alloc (abfd, bytes_to_do);
       if (data == NULL)
 	return FALSE;
       memcpy ((void *) data, location, (size_t) bytes_to_do);
@@ -1123,14 +1177,14 @@ srec_canonicalize_symtab (bfd *abfd, asymbol **alocation)
   unsigned int i;
 
   csymbols = abfd->tdata.srec_data->csymbols;
-  if (csymbols == NULL)
+  if (csymbols == NULL && symcount != 0)
     {
       asymbol *c;
       struct srec_symbol *s;
 
-      csymbols = bfd_alloc (abfd, symcount * sizeof (asymbol));
-      if (csymbols == NULL && symcount != 0)
-	return 0;
+      csymbols = (asymbol *) bfd_alloc (abfd, symcount * sizeof (asymbol));
+      if (csymbols == NULL)
+	return -1;
       abfd->tdata.srec_data->csymbols = csymbols;
 
       for (s = abfd->tdata.srec_data->symbols, c = csymbols;
@@ -1194,21 +1248,22 @@ srec_print_symbol (bfd *abfd,
 #define srec_bfd_make_debug_symbol                _bfd_nosymbols_bfd_make_debug_symbol
 #define srec_read_minisymbols                     _bfd_generic_read_minisymbols
 #define srec_minisymbol_to_symbol                 _bfd_generic_minisymbol_to_symbol
-#define srec_get_reloc_upper_bound                ((long (*) (bfd *, asection *)) bfd_0l)
-#define srec_canonicalize_reloc                   ((long (*) (bfd *, asection *, arelent **, asymbol **)) bfd_0l)
-#define srec_bfd_reloc_type_lookup                _bfd_norelocs_bfd_reloc_type_lookup
 #define srec_get_section_contents_in_window       _bfd_generic_get_section_contents_in_window
 #define srec_bfd_get_relocated_section_contents   bfd_generic_get_relocated_section_contents
 #define srec_bfd_relax_section                    bfd_generic_relax_section
 #define srec_bfd_gc_sections                      bfd_generic_gc_sections
+#define srec_bfd_lookup_section_flags             bfd_generic_lookup_section_flags
 #define srec_bfd_merge_sections                   bfd_generic_merge_sections
 #define srec_bfd_is_group_section                 bfd_generic_is_group_section
 #define srec_bfd_discard_group                    bfd_generic_discard_group
 #define srec_section_already_linked               _bfd_generic_section_already_linked
+#define srec_bfd_define_common_symbol             bfd_generic_define_common_symbol
 #define srec_bfd_link_hash_table_create           _bfd_generic_link_hash_table_create
 #define srec_bfd_link_hash_table_free             _bfd_generic_link_hash_table_free
 #define srec_bfd_link_add_symbols                 _bfd_generic_link_add_symbols
 #define srec_bfd_link_just_syms                   _bfd_generic_link_just_syms
+#define srec_bfd_copy_link_hash_symbol_type \
+  _bfd_generic_copy_link_hash_symbol_type
 #define srec_bfd_final_link                       _bfd_generic_final_link
 #define srec_bfd_link_split_section               _bfd_generic_link_split_section
 
@@ -1226,6 +1281,7 @@ const bfd_target srec_vec =
   0,				/* Leading underscore.  */
   ' ',				/* AR_pad_char.  */
   16,				/* AR_max_namelen.  */
+  0,				/* match priority.  */
   bfd_getb64, bfd_getb_signed_64, bfd_putb64,
   bfd_getb32, bfd_getb_signed_32, bfd_putb32,
   bfd_getb16, bfd_getb_signed_16, bfd_putb16,	/* Data.  */
@@ -1257,7 +1313,7 @@ const bfd_target srec_vec =
   BFD_JUMP_TABLE_CORE (_bfd_nocore),
   BFD_JUMP_TABLE_ARCHIVE (_bfd_noarchive),
   BFD_JUMP_TABLE_SYMBOLS (srec),
-  BFD_JUMP_TABLE_RELOCS (srec),
+  BFD_JUMP_TABLE_RELOCS (_bfd_norelocs),
   BFD_JUMP_TABLE_WRITE (srec),
   BFD_JUMP_TABLE_LINK (srec),
   BFD_JUMP_TABLE_DYNAMIC (_bfd_nodynamic),
@@ -1281,6 +1337,7 @@ const bfd_target symbolsrec_vec =
   0,				/* Leading underscore.  */
   ' ',				/* AR_pad_char.  */
   16,				/* AR_max_namelen.  */
+  0,				/* match priority.  */
   bfd_getb64, bfd_getb_signed_64, bfd_putb64,
   bfd_getb32, bfd_getb_signed_32, bfd_putb32,
   bfd_getb16, bfd_getb_signed_16, bfd_putb16,	/* Data.  */
@@ -1312,7 +1369,7 @@ const bfd_target symbolsrec_vec =
   BFD_JUMP_TABLE_CORE (_bfd_nocore),
   BFD_JUMP_TABLE_ARCHIVE (_bfd_noarchive),
   BFD_JUMP_TABLE_SYMBOLS (srec),
-  BFD_JUMP_TABLE_RELOCS (srec),
+  BFD_JUMP_TABLE_RELOCS (_bfd_norelocs),
   BFD_JUMP_TABLE_WRITE (srec),
   BFD_JUMP_TABLE_LINK (srec),
   BFD_JUMP_TABLE_DYNAMIC (_bfd_nodynamic),

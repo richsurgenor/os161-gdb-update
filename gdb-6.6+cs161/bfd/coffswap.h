@@ -1,6 +1,6 @@
 /* Generic COFF swapping routines, for BFD.
    Copyright 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1999, 2000,
-   2001, 2002, 2005
+   2001, 2002, 2004, 2005, 2007
    Free Software Foundation, Inc.
    Written by Cygnus Support.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,7 +18,8 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston, MA 02110-1301, USA.  */
+   Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+   MA 02110-1301, USA.  */
 
 /* This file contains routines used to swap COFF data.  It is a header
    file because the details of swapping depend on the details of the
@@ -381,7 +382,7 @@ static void
 coff_swap_aux_in (bfd *abfd,
 		  void * ext1,
 		  int type,
-		  int class,
+		  int in_class,
 		  int indx,
 		  int numaux,
 		  void * in1)
@@ -390,10 +391,10 @@ coff_swap_aux_in (bfd *abfd,
   union internal_auxent *in = (union internal_auxent *) in1;
 
 #ifdef COFF_ADJUST_AUX_IN_PRE
-  COFF_ADJUST_AUX_IN_PRE (abfd, ext1, type, class, indx, numaux, in1);
+  COFF_ADJUST_AUX_IN_PRE (abfd, ext1, type, in_class, indx, numaux, in1);
 #endif
 
-  switch (class)
+  switch (in_class)
     {
     case C_FILE:
       if (ext->x_file.x_fname[0] == 0)
@@ -445,7 +446,8 @@ coff_swap_aux_in (bfd *abfd,
   in->x_sym.x_tvndx = H_GET_16 (abfd, ext->x_sym.x_tvndx);
 #endif
 
-  if (class == C_BLOCK || class == C_FCN || ISFCN (type) || ISTAG (class))
+  if (in_class == C_BLOCK || in_class == C_FCN || ISFCN (type)
+      || ISTAG (in_class))
     {
       in->x_sym.x_fcnary.x_fcn.x_lnnoptr = GET_FCN_LNNOPTR (abfd, ext);
       in->x_sym.x_fcnary.x_fcn.x_endndx.l = GET_FCN_ENDNDX (abfd, ext);
@@ -476,7 +478,7 @@ coff_swap_aux_in (bfd *abfd,
  end: ;
 
 #ifdef COFF_ADJUST_AUX_IN_POST
-  COFF_ADJUST_AUX_IN_POST (abfd, ext1, type, class, indx, numaux, in1);
+  COFF_ADJUST_AUX_IN_POST (abfd, ext1, type, in_class, indx, numaux, in1);
 #endif
 }
 
@@ -484,7 +486,7 @@ static unsigned int
 coff_swap_aux_out (bfd * abfd,
 		   void * inp,
 		   int type,
-		   int class,
+		   int in_class,
 		   int indx ATTRIBUTE_UNUSED,
 		   int numaux ATTRIBUTE_UNUSED,
 		   void * extp)
@@ -493,12 +495,12 @@ coff_swap_aux_out (bfd * abfd,
   AUXENT *ext = (AUXENT *) extp;
 
 #ifdef COFF_ADJUST_AUX_OUT_PRE
-  COFF_ADJUST_AUX_OUT_PRE (abfd, inp, type, class, indx, numaux, extp);
+  COFF_ADJUST_AUX_OUT_PRE (abfd, inp, type, in_class, indx, numaux, extp);
 #endif
 
   memset (ext, 0, AUXESZ);
 
-  switch (class)
+  switch (in_class)
     {
     case C_FILE:
       if (in->x_file.x_fname[0] == 0)
@@ -536,7 +538,8 @@ coff_swap_aux_out (bfd * abfd,
   H_PUT_16 (abfd, in->x_sym.x_tvndx, ext->x_sym.x_tvndx);
 #endif
 
-  if (class == C_BLOCK || class == C_FCN || ISFCN (type) || ISTAG (class))
+  if (in_class == C_BLOCK || in_class == C_FCN || ISFCN (type)
+      || ISTAG (in_class))
     {
       PUT_FCN_LNNOPTR (abfd, in->x_sym.x_fcnary.x_fcn.x_lnnoptr, ext);
       PUT_FCN_ENDNDX (abfd, in->x_sym.x_fcnary.x_fcn.x_endndx.l, ext);
@@ -566,7 +569,7 @@ coff_swap_aux_out (bfd * abfd,
 
  end:
 #ifdef COFF_ADJUST_AUX_OUT_POST
-  COFF_ADJUST_AUX_OUT_POST (abfd, inp, type, class, indx, numaux, extp);
+  COFF_ADJUST_AUX_OUT_POST (abfd, inp, type, in_class, indx, numaux, extp);
 #endif
   return AUXESZ;
 }

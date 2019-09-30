@@ -1,14 +1,12 @@
 /* Target-dependent code for OpenBSD/i386.
 
-   Copyright (C) 1988, 1989, 1991, 1992, 1994, 1996, 2000, 2001, 2002,
-   2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright (C) 1988-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "arch-utils.h"
@@ -66,13 +62,13 @@ static const int i386obsd_sigreturn_offset[] = {
   -1
 };
 
-/* Return whether the frame preceding NEXT_FRAME corresponds to an
-   OpenBSD sigtramp routine.  */
+/* Return whether THIS_FRAME corresponds to an OpenBSD sigtramp
+   routine.  */
 
 static int
-i386obsd_sigtramp_p (struct frame_info *next_frame)
+i386obsd_sigtramp_p (struct frame_info *this_frame)
 {
-  CORE_ADDR pc = frame_pc_unwind (next_frame);
+  CORE_ADDR pc = get_frame_pc (this_frame);
   CORE_ADDR start_pc = (pc & ~(i386obsd_page_size - 1));
   /* The call sequence invoking sigreturn(2).  */
   const gdb_byte sigreturn[] =
@@ -84,7 +80,7 @@ i386obsd_sigtramp_p (struct frame_info *next_frame)
   size_t buflen = sizeof sigreturn;
   const int *offset;
   gdb_byte *buf;
-  char *name;
+  const char *name;
 
   /* If the function has a valid symbol name, it isn't a
      trampoline.  */
@@ -104,7 +100,7 @@ i386obsd_sigtramp_p (struct frame_info *next_frame)
   for (offset = i386obsd_sigreturn_offset; *offset != -1; offset++)
     {
       /* If we can't read the instructions, return zero.  */
-      if (!safe_frame_unwind_memory (next_frame, start_pc + *offset,
+      if (!safe_frame_unwind_memory (this_frame, start_pc + *offset,
 				     buf, buflen))
 	return 0;
 
@@ -231,6 +227,8 @@ static void
 i386obsd_supply_uthread (struct regcache *regcache,
 			 int regnum, CORE_ADDR addr)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR sp_addr = addr + I386OBSD_UTHREAD_ESP_OFFSET;
   CORE_ADDR sp = 0;
   gdb_byte buf[4];
@@ -243,12 +241,12 @@ i386obsd_supply_uthread (struct regcache *regcache,
       int offset;
 
       /* Fetch stack pointer from thread structure.  */
-      sp = read_memory_unsigned_integer (sp_addr, 4);
+      sp = read_memory_unsigned_integer (sp_addr, 4, byte_order);
 
       /* Adjust the stack pointer such that it looks as if we just
          returned from _thread_machdep_switch.  */
       offset = i386obsd_uthread_reg_offset[I386_EIP_REGNUM] + 4;
-      store_unsigned_integer (buf, 4, sp + offset);
+      store_unsigned_integer (buf, 4, byte_order, sp + offset);
       regcache_raw_supply (regcache, I386_ESP_REGNUM, buf);
     }
 
@@ -260,7 +258,7 @@ i386obsd_supply_uthread (struct regcache *regcache,
 	  /* Fetch stack pointer from thread structure (if we didn't
              do so already).  */
 	  if (sp == 0)
-	    sp = read_memory_unsigned_integer (sp_addr, 4);
+	    sp = read_memory_unsigned_integer (sp_addr, 4, byte_order);
 
 	  /* Read the saved register from the stack frame.  */
 	  read_memory (sp + i386obsd_uthread_reg_offset[i], buf, 4);
@@ -273,6 +271,8 @@ static void
 i386obsd_collect_uthread (const struct regcache *regcache,
 			  int regnum, CORE_ADDR addr)
 {
+  struct gdbarch *gdbarch = get_regcache_arch (regcache);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   CORE_ADDR sp_addr = addr + I386OBSD_UTHREAD_ESP_OFFSET;
   CORE_ADDR sp = 0;
   gdb_byte buf[4];
@@ -288,10 +288,10 @@ i386obsd_collect_uthread (const struct regcache *regcache,
          stored into the thread structure.  */
       offset = i386obsd_uthread_reg_offset[I386_EIP_REGNUM] + 4;
       regcache_raw_collect (regcache, I386_ESP_REGNUM, buf);
-      sp = extract_unsigned_integer (buf, 4) - offset;
+      sp = extract_unsigned_integer (buf, 4, byte_order) - offset;
 
       /* Store the stack pointer.  */
-      write_memory_unsigned_integer (sp_addr, 4, sp);
+      write_memory_unsigned_integer (sp_addr, 4, byte_order, sp);
 
       /* The stack pointer was (potentially) modified.  Make sure we
          build a proper stack frame.  */
@@ -306,7 +306,7 @@ i386obsd_collect_uthread (const struct regcache *regcache,
 	  /* Fetch stack pointer from thread structure (if we didn't
              calculate it already).  */
 	  if (sp == 0)
-	    sp = read_memory_unsigned_integer (sp_addr, 4);
+	    sp = read_memory_unsigned_integer (sp_addr, 4, byte_order);
 
 	  /* Write the register into the stack frame.  */
 	  regcache_raw_collect (regcache, i, buf);
@@ -340,22 +340,24 @@ static int i386obsd_tf_reg_offset[] =
 };
 
 static struct trad_frame_cache *
-i386obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
+i386obsd_trapframe_cache (struct frame_info *this_frame, void **this_cache)
 {
+  struct gdbarch *gdbarch = get_frame_arch (this_frame);
+  enum bfd_endian byte_order = gdbarch_byte_order (gdbarch);
   struct trad_frame_cache *cache;
   CORE_ADDR func, sp, addr;
   ULONGEST cs;
-  char *name;
+  const char *name;
   int i;
 
   if (*this_cache)
     return *this_cache;
 
-  cache = trad_frame_cache_zalloc (next_frame);
+  cache = trad_frame_cache_zalloc (this_frame);
   *this_cache = cache;
 
-  func = frame_func_unwind (next_frame);
-  sp = frame_unwind_register_unsigned (next_frame, I386_ESP_REGNUM);
+  func = get_frame_func (this_frame);
+  sp = get_frame_register_unsigned (this_frame, I386_ESP_REGNUM);
 
   find_pc_partial_function (func, &name, NULL, NULL);
   if (name && strncmp (name, "Xintr", 5) == 0)
@@ -369,11 +371,11 @@ i386obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
 
   /* Read %cs from trap frame.  */
   addr += i386obsd_tf_reg_offset[I386_CS_REGNUM];
-  cs = read_memory_unsigned_integer (addr, 4); 
+  cs = read_memory_unsigned_integer (addr, 4, byte_order);
   if ((cs & I386_SEL_RPL) == I386_SEL_UPL)
     {
       /* Trap from user space; terminate backtrace.  */
-      trad_frame_set_id (cache, null_frame_id);
+      trad_frame_set_id (cache, outer_frame_id);
     }
   else
     {
@@ -385,44 +387,40 @@ i386obsd_trapframe_cache(struct frame_info *next_frame, void **this_cache)
 }
 
 static void
-i386obsd_trapframe_this_id (struct frame_info *next_frame,
+i386obsd_trapframe_this_id (struct frame_info *this_frame,
 			    void **this_cache, struct frame_id *this_id)
 {
   struct trad_frame_cache *cache =
-    i386obsd_trapframe_cache (next_frame, this_cache);
+    i386obsd_trapframe_cache (this_frame, this_cache);
   
   trad_frame_get_id (cache, this_id);
 }
 
-static void
-i386obsd_trapframe_prev_register (struct frame_info *next_frame,
-				  void **this_cache, int regnum,
-				  int *optimizedp, enum lval_type *lvalp,
-				  CORE_ADDR *addrp, int *realnump,
-				  gdb_byte *valuep)
+static struct value *
+i386obsd_trapframe_prev_register (struct frame_info *this_frame,
+				  void **this_cache, int regnum)
 {
   struct trad_frame_cache *cache =
-    i386obsd_trapframe_cache (next_frame, this_cache);
+    i386obsd_trapframe_cache (this_frame, this_cache);
 
-  trad_frame_get_register (cache, next_frame, regnum,
-			   optimizedp, lvalp, addrp, realnump, valuep);
+  return trad_frame_get_register (cache, this_frame, regnum);
 }
 
 static int
 i386obsd_trapframe_sniffer (const struct frame_unwind *self,
-			    struct frame_info *next_frame,
+			    struct frame_info *this_frame,
 			    void **this_prologue_cache)
 {
   ULONGEST cs;
-  char *name;
+  const char *name;
 
   /* Check Current Privilege Level and bail out if we're not executing
      in kernel space.  */
-  cs = frame_unwind_register_unsigned (next_frame, I386_CS_REGNUM);
+  cs = get_frame_register_unsigned (this_frame, I386_CS_REGNUM);
   if ((cs & I386_SEL_RPL) == I386_SEL_UPL)
     return 0;
 
-  find_pc_partial_function (frame_pc_unwind (next_frame), &name, NULL, NULL);
+  find_pc_partial_function (get_frame_pc (this_frame), &name, NULL, NULL);
   return (name && (strcmp (name, "calltrap") == 0
 		   || strcmp (name, "syscall1") == 0
 		   || strncmp (name, "Xintr", 5) == 0
@@ -434,6 +432,7 @@ static const struct frame_unwind i386obsd_trapframe_unwind = {
      frame, but SIGTRAMP_FRAME would print <signal handler called>,
      which really is not what we want here.  */
   NORMAL_FRAME,
+  default_frame_unwind_stop_reason,
   i386obsd_trapframe_this_id,
   i386obsd_trapframe_prev_register,
   NULL,

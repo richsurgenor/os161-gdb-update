@@ -1,12 +1,12 @@
-/* MI Command Set - breakpoint and watchpoint commands.
-   Copyright (C) 2000, 2001, 2002 Free Software Foundation, Inc.
+/* MI Command Set - file commands.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions (a Red Hat company).
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,9 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "mi-cmds.h"
@@ -26,93 +24,84 @@
 #include "symtab.h"
 #include "source.h"
 #include "objfiles.h"
+#include "psymtab.h"
 
 /* Return to the client the absolute path and line number of the 
-   current file being executed. */
+   current file being executed.  */
 
-enum mi_cmd_result
-mi_cmd_file_list_exec_source_file(char *command, char **argv, int argc)
+void
+mi_cmd_file_list_exec_source_file (char *command, char **argv, int argc)
 {
   struct symtab_and_line st;
-  int optind = 0;
-  char *optarg;
+  struct ui_out *uiout = current_uiout;
   
-  if ( !mi_valid_noargs("mi_cmd_file_list_exec_source_file", argc, argv) )
-    error (_("mi_cmd_file_list_exec_source_file: Usage: No args"));
+  if (!mi_valid_noargs ("-file-list-exec-source-file", argc, argv))
+    error (_("-file-list-exec-source-file: Usage: No args"));
 
-  /* Set the default file and line, also get them */
-  set_default_source_symtab_and_line();
-  st = get_current_source_symtab_and_line();
+  /* Set the default file and line, also get them.  */
+  set_default_source_symtab_and_line ();
+  st = get_current_source_symtab_and_line ();
 
-  /* We should always get a symtab. 
-     Apparently, filename does not need to be tested for NULL.
-     The documentation in symtab.h suggests it will always be correct */
+  /* We should always get a symtab.  Apparently, filename does not
+     need to be tested for NULL.  The documentation in symtab.h
+     suggests it will always be correct.  */
   if (!st.symtab)
-    error (_("mi_cmd_file_list_exec_source_file: No symtab"));
+    error (_("-file-list-exec-source-file: No symtab"));
 
-  /* Extract the fullname if it is not known yet */
-  symtab_to_fullname (st.symtab);
-
-  /* Print to the user the line, filename and fullname */
+  /* Print to the user the line, filename and fullname.  */
   ui_out_field_int (uiout, "line", st.line);
-  ui_out_field_string (uiout, "file", st.symtab->filename);
+  ui_out_field_string (uiout, "file",
+		       symtab_to_filename_for_display (st.symtab));
 
-  /* We may not be able to open the file (not available). */
-  if (st.symtab->fullname)
-  ui_out_field_string (uiout, "fullname", st.symtab->fullname);
+  ui_out_field_string (uiout, "fullname", symtab_to_fullname (st.symtab));
 
-  return MI_CMD_DONE;
+  ui_out_field_int (uiout, "macro-info", st.symtab->macro_table ? 1 : 0);
 }
 
-enum mi_cmd_result
+/* A callback for map_partial_symbol_filenames.  */
+
+static void
+print_partial_file_name (const char *filename, const char *fullname,
+			 void *ignore)
+{
+  struct ui_out *uiout = current_uiout;
+
+  ui_out_begin (uiout, ui_out_type_tuple, NULL);
+
+  ui_out_field_string (uiout, "file", filename);
+
+  if (fullname)
+    ui_out_field_string (uiout, "fullname", fullname);
+
+  ui_out_end (uiout, ui_out_type_tuple);
+}
+
+void
 mi_cmd_file_list_exec_source_files (char *command, char **argv, int argc)
 {
+  struct ui_out *uiout = current_uiout;
   struct symtab *s;
-  struct partial_symtab *ps;
   struct objfile *objfile;
 
-  if (!mi_valid_noargs ("mi_cmd_file_list_exec_source_files", argc, argv))
-    error (_("mi_cmd_file_list_exec_source_files: Usage: No args"));
+  if (!mi_valid_noargs ("-file-list-exec-source-files", argc, argv))
+    error (_("-file-list-exec-source-files: Usage: No args"));
 
-  /* Print the table header */
+  /* Print the table header.  */
   ui_out_begin (uiout, ui_out_type_list, "files");
 
-  /* Look at all of the symtabs */
+  /* Look at all of the symtabs.  */
   ALL_SYMTABS (objfile, s)
   {
     ui_out_begin (uiout, ui_out_type_tuple, NULL);
 
-    ui_out_field_string (uiout, "file", s->filename);
-
-    /* Extract the fullname if it is not known yet */
-    symtab_to_fullname (s);
-
-    if (s->fullname)
-      ui_out_field_string (uiout, "fullname", s->fullname);
+    ui_out_field_string (uiout, "file", symtab_to_filename_for_display (s));
+    ui_out_field_string (uiout, "fullname", symtab_to_fullname (s));
 
     ui_out_end (uiout, ui_out_type_tuple);
   }
 
-  /* Look at all of the psymtabs */
-  ALL_PSYMTABS (objfile, ps)
-  {
-    if (!ps->readin)
-      {
-	ui_out_begin (uiout, ui_out_type_tuple, NULL);
-
-	ui_out_field_string (uiout, "file", ps->filename);
-
-	/* Extract the fullname if it is not known yet */
-	psymtab_to_fullname (ps);
-
-	if (ps->fullname)
-	  ui_out_field_string (uiout, "fullname", ps->fullname);
-
-	ui_out_end (uiout, ui_out_type_tuple);
-      }
-  }
+  map_partial_symbol_filenames (print_partial_file_name, NULL,
+				1 /*need_fullname*/);
 
   ui_out_end (uiout, ui_out_type_list);
-
-  return MI_CMD_DONE;
 }

@@ -1,12 +1,12 @@
 /* Native-dependent code for Solaris x86.
 
-   Copyright (C) 2004 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GDB.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,15 +15,15 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
 #include "regcache.h"
 
 #include <sys/procfs.h>
 #include "gregset.h"
+#include "target.h"
+#include "procfs.h"
 
 /* This file provids the (temporary) glue between the Solaris x86
    target dependent code and the machine independent SVR4 /proc
@@ -59,7 +59,7 @@ static int amd64_sol2_gregset64_reg_offset[] = {
   8 * 8,			/* %rdi */
   10 * 8,			/* %rbp */
   20 * 8,			/* %rsp */
-  7 * 8,			/* %r8 ... */
+  7 * 8,			/* %r8 ...  */
   6 * 8,
   5 * 8,
   4 * 8,
@@ -68,7 +68,7 @@ static int amd64_sol2_gregset64_reg_offset[] = {
   1 * 8,
   0 * 8,			/* ... %r15 */
   17 * 8,			/* %rip */
-  16 * 8,			/* %eflags */
+  19 * 8,			/* %eflags */
   18 * 8,			/* %cs */
   21 * 8,			/* %ss */
   25 * 8,			/* %ds */
@@ -89,7 +89,7 @@ static int amd64_sol2_gregset32_reg_offset[] = {
   9 * 8,			/* %esi */
   8 * 8,			/* %edi */
   17 * 8,			/* %eip */
-  16 * 8,			/* %eflags */
+  19 * 8,			/* %eflags */
   18 * 8,			/* %cs */
   21 * 8,			/* %ss */
   25 * 8,			/* %ds */
@@ -99,27 +99,29 @@ static int amd64_sol2_gregset32_reg_offset[] = {
 };
 
 void
-supply_gregset (prgregset_t *gregs)
+supply_gregset (struct regcache *regcache, const prgregset_t *gregs)
 {
-  amd64_supply_native_gregset (current_regcache, gregs, -1);
+  amd64_supply_native_gregset (regcache, gregs, -1);
 }
 
 void
-supply_fpregset (prfpregset_t *fpregs)
+supply_fpregset (struct regcache *regcache, const prfpregset_t *fpregs)
 {
-  amd64_supply_fxsave (current_regcache, -1, fpregs);
+  amd64_supply_fxsave (regcache, -1, fpregs);
 }
 
 void
-fill_gregset (prgregset_t *gregs, int regnum)
+fill_gregset (const struct regcache *regcache,
+	      prgregset_t *gregs, int regnum)
 {
-  amd64_collect_native_gregset (current_regcache, gregs, regnum);
+  amd64_collect_native_gregset (regcache, gregs, regnum);
 }
 
 void
-fill_fpregset (prfpregset_t *fpregs, int regnum)
+fill_fpregset (const struct regcache *regcache,
+	       prfpregset_t *fpregs, int regnum)
 {
-  amd64_collect_fxsave (current_regcache, regnum, fpregs);
+  amd64_collect_fxsave (regcache, regnum, fpregs);
 }
 
 #else
@@ -134,6 +136,15 @@ extern void _initialize_amd64_sol2_nat (void);
 void
 _initialize_amd64_sol2_nat (void)
 {
+  struct target_ops *t;
+
+  /* Fill in the generic procfs methods.  */
+  t = procfs_target ();
+
+#ifdef NEW_PROC_API	/* Solaris 6 and above can do HW watchpoints.  */
+  procfs_use_watchpoints (t);
+#endif
+
 #if defined (PR_MODEL_NATIVE) && (PR_MODEL_NATIVE == PR_MODEL_LP64)
   amd64_native_gregset32_reg_offset = amd64_sol2_gregset32_reg_offset;
   amd64_native_gregset32_num_regs =
@@ -142,4 +153,6 @@ _initialize_amd64_sol2_nat (void)
   amd64_native_gregset64_num_regs =
     ARRAY_SIZE (amd64_sol2_gregset64_reg_offset);
 #endif
+
+  add_target (t);
 }

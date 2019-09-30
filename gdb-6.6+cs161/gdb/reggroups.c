@@ -1,6 +1,6 @@
 /* Register groupings for GDB, the GNU debugger.
 
-   Copyright (C) 2002, 2003 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    Contributed by Red Hat.
 
@@ -8,7 +8,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation; either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -17,11 +17,10 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "defs.h"
+#include "arch-utils.h"
 #include "reggroups.h"
 #include "gdbtypes.h"
 #include "gdb_assert.h"
@@ -41,6 +40,7 @@ struct reggroup *
 reggroup_new (const char *name, enum reggroup_type type)
 {
   struct reggroup *group = XMALLOC (struct reggroup);
+
   group->name = name;
   group->type = type;
   return group;
@@ -81,6 +81,7 @@ reggroups_init (struct gdbarch *gdbarch)
 {
   struct reggroups *groups = GDBARCH_OBSTACK_ZALLOC (gdbarch,
 						     struct reggroups);
+
   groups->last = &groups->first;
   return groups;
 }
@@ -159,16 +160,14 @@ default_register_reggroup_p (struct gdbarch *gdbarch, int regnum,
   int float_p;
   int raw_p;
 
-  if (REGISTER_NAME (regnum) == NULL
-      || *REGISTER_NAME (regnum) == '\0')
+  if (gdbarch_register_name (gdbarch, regnum) == NULL
+      || *gdbarch_register_name (gdbarch, regnum) == '\0')
     return 0;
   if (group == all_reggroup)
     return 1;
   vector_p = TYPE_VECTOR (register_type (gdbarch, regnum));
   float_p = TYPE_CODE (register_type (gdbarch, regnum)) == TYPE_CODE_FLT;
-  /* FIXME: cagney/2003-04-13: Can't yet use gdbarch_num_regs
-     (gdbarch), as not all architectures are multi-arch.  */
-  raw_p = regnum < NUM_REGS;
+  raw_p = regnum < gdbarch_num_regs (gdbarch);
   if (group == float_reggroup)
     return float_p;
   if (group == vector_reggroup)
@@ -192,6 +191,7 @@ reggroups_dump (struct gdbarch *gdbarch, struct ui_file *file)
       /* Group name.  */
       {
 	const char *name;
+
 	if (group == NULL)
 	  name = "Group";
 	else
@@ -202,6 +202,7 @@ reggroups_dump (struct gdbarch *gdbarch, struct ui_file *file)
       /* Group type.  */
       {
 	const char *type;
+
 	if (group == NULL)
 	  type = "Type";
 	else
@@ -234,15 +235,20 @@ reggroups_dump (struct gdbarch *gdbarch, struct ui_file *file)
 static void
 maintenance_print_reggroups (char *args, int from_tty)
 {
+  struct gdbarch *gdbarch = get_current_arch ();
+
   if (args == NULL)
-    reggroups_dump (current_gdbarch, gdb_stdout);
+    reggroups_dump (gdbarch, gdb_stdout);
   else
     {
+      struct cleanup *cleanups;
       struct ui_file *file = gdb_fopen (args, "w");
+
       if (file == NULL)
 	perror_with_name (_("maintenance print reggroups"));
-      reggroups_dump (current_gdbarch, file);    
-      ui_file_delete (file);
+      cleanups = make_cleanup_ui_file_delete (file);
+      reggroups_dump (gdbarch, file);
+      do_cleanups (cleanups);
     }
 }
 
