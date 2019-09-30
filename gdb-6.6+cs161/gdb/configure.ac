@@ -366,6 +366,7 @@ AC_CHECK_HEADERS(sys/reg.h sys/debugreg.h)
 AC_CHECK_HEADERS(sys/select.h)
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(sys/types.h)
+AC_CHECK_HEADERS(sys/un.h)
 AC_CHECK_HEADERS(sys/user.h, [], [],
 [#if HAVE_SYS_PARAM_H
 # include <sys/param.h>
@@ -415,6 +416,7 @@ AC_CHECK_DECLS([getopt, snprintf, vsnprintf])
 
 AC_CHECK_MEMBERS([struct stat.st_blocks])
 AC_CHECK_MEMBERS([struct stat.st_blksize])
+AC_CHECK_MEMBERS([struct sockaddr_un.sun_len],,,[#include <sys/un.h>])
 
 # ------------------ #
 # Checks for types.  #

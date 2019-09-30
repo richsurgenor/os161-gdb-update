@@ -67,6 +67,9 @@
 /* Define to 1 if you have the <curses.h> header file. */
 #undef HAVE_CURSES_H
 
+/* Define to 1 if you have the <sys/un.h> header file. */
+#undef HAVE_SYS_UN_H
+
 /* Define to 1 if you have the declaration of `free', and to 0 if you don't.
    */
 #undef HAVE_DECL_FREE
@@ -337,6 +340,9 @@
 
 /* Define to 1 if `st_blocks' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BLOCKS
+
+/* Define to 1 if `sun_len' is member of `struct sockaddr_un'. */
+#undef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
 
 /* Define to 1 if `td_pcb' is member of `struct thread'. */
 #undef HAVE_STRUCT_THREAD_TD_PCB
