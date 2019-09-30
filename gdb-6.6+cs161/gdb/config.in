@@ -84,6 +84,8 @@
 /* Define to 1 if you have the declaration of `ADDR_NO_RANDOMIZE', and to 0 if
    you don't. */
 #undef HAVE_DECL_ADDR_NO_RANDOMIZE
+/* Define to 1 if you have the <sys/un.h> header file. */
+#undef HAVE_SYS_UN_H
 
 /* Define to 1 if you have the declaration of `free', and to 0 if you don't.
    */
@@ -441,7 +443,14 @@
 /* Define to 1 if `struct stat' is a member of `st_blocks'. */
 #undef HAVE_STRUCT_STAT_ST_BLOCKS
 
+<<<<<<< HEAD
 /* Define to 1 if `struct thread' is a member of `td_pcb'. */
+=======
+/* Define to 1 if `sun_len' is member of `struct sockaddr_un'. */
+#undef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
+
+/* Define to 1 if `td_pcb' is member of `struct thread'. */
+>>>>>>> master
 #undef HAVE_STRUCT_THREAD_TD_PCB
 
 /* Define to 1 if `struct user_regs_struct' is a member of `fs_base'. */

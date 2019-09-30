@@ -1096,6 +1096,13 @@ AC_CHECK_HEADERS(sys/proc.h, [], [],
 # include <sys/param.h>
 #endif
 ])
+AC_CHECK_HEADERS(sys/procfs.h)
+AC_CHECK_HEADERS(sys/ptrace.h ptrace.h)
+AC_CHECK_HEADERS(sys/reg.h sys/debugreg.h)
+AC_CHECK_HEADERS(sys/select.h)
+AC_CHECK_HEADERS(sys/syscall.h)
+AC_CHECK_HEADERS(sys/types.h)
+AC_CHECK_HEADERS(sys/un.h)
 AC_CHECK_HEADERS(sys/user.h, [], [],
 [#if HAVE_SYS_PARAM_H
 # include <sys/param.h>
@@ -1132,7 +1139,9 @@ AM_LC_MESSAGES
 # Checks for structures.  #
 # ----------------------- #
 
-AC_CHECK_MEMBERS([struct stat.st_blocks, struct stat.st_blksize])
+AC_CHECK_MEMBERS([struct stat.st_blocks])
+AC_CHECK_MEMBERS([struct stat.st_blksize])
+AC_CHECK_MEMBERS([struct sockaddr_un.sun_len],,,[#include <sys/un.h>])
 
 # ------------------ #
 # Checks for types.  #

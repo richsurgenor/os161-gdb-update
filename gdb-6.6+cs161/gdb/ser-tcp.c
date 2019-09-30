@@ -1,4 +1,4 @@
-/* Serial interface for raw TCP connections on Un*x like systems.
+/* Serial interface for raw TCP and AF_LOCAL connections on Un*x like systems.
 
    Copyright (C) 1992-2013 Free Software Foundation, Inc.
 
@@ -50,6 +50,17 @@
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #endif
+
+#ifdef HAVE_SYS_UN_H
+#define _GNU_SOURCE
+#define _XOPEN_SOURCE_EXTENDED	/* Apparently required on DEC/OSF. */
+#include <sys/un.h>		/* For struct sockaddr_un. */
+#ifndef SUN_LEN
+/* some systems (e.g., Solaris) don't define this handy macro */
+#define SUN_LEN(sau) \
+  (sizeof(*(sau)) - sizeof((sau)->sun_path) + strlen((sau)->sun_path))
+#endif
+#endif /* HAVE_SYS_UN_H */
 
 #include <signal.h>
 #include "gdb_string.h"
@@ -157,9 +168,14 @@ net_open (struct serial *scb, const char *name)
 {
   char *port_str, hostname[100];
   int n, port, tmp;
-  int use_udp;
+  enum { USE_TCP, USE_UDP, USE_LOCAL } mode;
   struct hostent *hostent;
-  struct sockaddr_in sockaddr;
+  struct sockaddr_in sockaddri;
+  struct sockaddr *sockaddrp;
+  socklen_t socklen;
+#ifdef HAVE_SYS_UN_H
+  struct sockaddr_un sockaddru;
+#endif
 #ifdef USE_WIN32API
   u_long ioarg;
 #else
@@ -167,60 +183,102 @@ net_open (struct serial *scb, const char *name)
 #endif
   int polls = 0;
 
-  use_udp = 0;
+  mode =  USE_TCP;
   if (strncmp (name, "udp:", 4) == 0)
     {
-      use_udp = 1;
+      mode = USE_UDP;
       name = name + 4;
     }
   else if (strncmp (name, "tcp:", 4) == 0)
     name = name + 4;
-
-  port_str = strchr (name, ':');
-
-  if (!port_str)
-    error (_("net_open: No colon in host name!"));  /* Shouldn't ever
-						       happen.  */
-
-  tmp = min (port_str - name, (int) sizeof hostname - 1);
-  strncpy (hostname, name, tmp);	/* Don't want colon.  */
-  hostname[tmp] = '\000';	/* Tie off host name.  */
-  port = atoi (port_str + 1);
-
-  /* Default hostname is localhost.  */
-  if (!hostname[0])
-    strcpy (hostname, "localhost");
-
-  hostent = gethostbyname (hostname);
-  if (!hostent)
+  else if (strncmp (name, "unix:", 5) == 0)
     {
-      fprintf_unfiltered (gdb_stderr, "%s: unknown host\n", hostname);
-      errno = ENOENT;
-      return -1;
+      mode = USE_LOCAL;
+      name = name + 5;
+    }
+  else if (strncmp (name, "local:", 6) == 0)
+    {
+      mode = USE_LOCAL;
+      name = name + 6;
     }
 
-  sockaddr.sin_family = PF_INET;
-  sockaddr.sin_port = htons (port);
-  memcpy (&sockaddr.sin_addr.s_addr, hostent->h_addr,
-	  sizeof (struct in_addr));
+  if (mode == USE_TCP || mode == USE_UDP)
+    {
+      port_str = strchr (name, ':');
+      port_str = strchr (name, ':');
 
- retry:
+      if (!port_str)
+        error (_("net_open: No colon in host name!"));	   /* Shouldn't ever happen */
 
-  if (use_udp)
-    scb->fd = socket (PF_INET, SOCK_DGRAM, 0);
+      tmp = min (port_str - name, (int) sizeof hostname - 1);
+      strncpy (hostname, name, tmp);	/* Don't want colon */
+      hostname[tmp] = '\000';	/* Tie off host name */
+      port = atoi (port_str + 1);
+
+      /* default hostname is localhost */
+      if (!hostname[0])
+        strcpy (hostname, "localhost");
+
+      hostent = gethostbyname (hostname);
+      if (!hostent)
+        {
+          fprintf_unfiltered (gdb_stderr, "%s: unknown host\n", hostname);
+          errno = ENOENT;
+          return -1;
+        }
+      sockaddri.sin_family = AF_INET;
+      sockaddri.sin_port = htons (port);
+      memcpy (&sockaddri.sin_addr.s_addr, hostent->h_addr,
+	      sizeof (struct in_addr));
+      socklen = sizeof(struct sockaddr_in);
+      sockaddrp = (struct sockaddr *)&sockaddri;
+    }
+  else if (mode == USE_LOCAL)
+    {
+#ifdef HAVE_SYS_UN_H
+      if (strlen(name) >= sizeof(sockaddru.sun_path))
+	{
+	  fprintf_unfiltered (gdb_stderr, "%s: name too long\n", name);
+	  errno = EINVAL;
+	  return -1;
+	}
+
+      sockaddru.sun_family = AF_UNIX;
+      strcpy(sockaddru.sun_path, name);
+      socklen = SUN_LEN(&sockaddru);
+#ifdef HAVE_STRUCT_SOCKADDR_UN_SUN_LEN
+      sockaddru.sun_len = socklen;
+#endif
+      sockaddrp = (struct sockaddr *)&sockaddru;
+#else
+      fprintf_unfiltered (gdb_stderr, "%s: socket type not supported\n", name);
+      errno = EINVAL;
+      return -1;
+#endif /* HAVE_SYS_UN_H */
+    }
   else
-    scb->fd = socket (PF_INET, SOCK_STREAM, 0);
+    error ("net_open: invalid mode!");
 
-  if (scb->fd == -1)
+  switch (mode) {
+  case USE_UDP: 
+    scb->fd = socket (PF_INET, SOCK_DGRAM, 0);
+    break;
+  case USE_TCP:
+    scb->fd = socket (PF_INET, SOCK_STREAM, 0);
+    break;
+  case USE_LOCAL:
+    scb->fd = socket (PF_UNIX, SOCK_STREAM, 0);
+    break;
+  }
+  if (scb->fd < 0)
     return -1;
   
-  /* Set socket nonblocking.  */
+  /* set socket nonblocking */
   ioarg = 1;
   ioctl (scb->fd, FIONBIO, &ioarg);
 
-  /* Use Non-blocking connect.  connect() will return 0 if connected
-     already.  */
-  n = connect (scb->fd, (struct sockaddr *) &sockaddr, sizeof (sockaddr));
+  /* Use Non-blocking connect.  connect() will return 0 if connected already. */
+  n = connect (scb->fd, sockaddrp, socklen);
 
   if (n < 0)
     {
@@ -308,7 +366,7 @@ net_open (struct serial *scb, const char *name)
   ioarg = 0;
   ioctl (scb->fd, FIONBIO, &ioarg);
 
-  if (use_udp == 0)
+  if (mode == USE_TCP)
     {
       /* Disable Nagle algorithm.  Needed in some cases.  */
       tmp = 1;
